@@ -24,6 +24,7 @@ import type {
   Aid,
   AidInput,
   AidPage,
+  AidReceiptHistoryPage,
   AidReceiptInput,
   AidRecipientsInput,
   AidUpdate,
@@ -50,6 +51,7 @@ import type {
   DisplacedPersonPage,
   DisplacedPersonUpdate,
   ForbiddenResponse,
+  GetDisplacedPersonAidHistoryParams,
   HealthStatus,
   ListAidsParams,
   ListComplaintsParams,
@@ -1072,6 +1074,89 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getAssignDisplacedPersonDelegateMutationOptions(options));
     }
+
+export const getGetDisplacedPersonAidHistoryUrl = (id: number,
+    params?: GetDisplacedPersonAidHistoryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/displaced-persons/${id}/aid-history?${stringifiedParams}` : `/api/displaced-persons/${id}/aid-history`
+}
+
+export const getDisplacedPersonAidHistory = async (id: number,
+    params?: GetDisplacedPersonAidHistoryParams, options?: Parameters<typeof customFetch>[1]): Promise<AidReceiptHistoryPage> => {
+
+  return customFetch<AidReceiptHistoryPage>(getGetDisplacedPersonAidHistoryUrl(id,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDisplacedPersonAidHistoryQueryKey = (id: number,
+    params?: GetDisplacedPersonAidHistoryParams,) => {
+    return [
+    `/api/displaced-persons/${id}/aid-history`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetDisplacedPersonAidHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getDisplacedPersonAidHistory>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(id: number,
+    params?: GetDisplacedPersonAidHistoryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDisplacedPersonAidHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDisplacedPersonAidHistoryQueryKey(id,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDisplacedPersonAidHistory>>> = ({ signal }) => getDisplacedPersonAidHistory(id,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDisplacedPersonAidHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDisplacedPersonAidHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getDisplacedPersonAidHistory>>>
+export type GetDisplacedPersonAidHistoryQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
+
+
+
+export function useGetDisplacedPersonAidHistory<TData = Awaited<ReturnType<typeof getDisplacedPersonAidHistory>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(
+ id: number,
+    params?: GetDisplacedPersonAidHistoryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDisplacedPersonAidHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDisplacedPersonAidHistoryQueryOptions(id,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListAidsUrl = (params?: ListAidsParams,) => {
   const normalizedParams = new URLSearchParams();

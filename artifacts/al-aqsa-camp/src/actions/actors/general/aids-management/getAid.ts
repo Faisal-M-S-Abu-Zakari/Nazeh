@@ -3,6 +3,8 @@
 import { Aid, AidResponse } from '@/@types/actors/manager/aid-management/add-aid-management.types';
 import { USER_RANK, USER_TYPE, UserRank } from '@/constants/userTypes';
 import { AqsaAPI } from '@/services';
+import { toLegacyAid } from '@/services/legacyAdapters';
+import type { Aid as ApiAid } from '@workspace/api-client-react';
 
 export interface getAidProps {
     aid_Id: number;
@@ -18,10 +20,10 @@ export interface getAidProps {
 export const getAid = async ({ aid_Id, actor_Id, role }: getAidProps): Promise<AidResponse> => {
 
     try {
-        const response = await AqsaAPI.get(`/aids/${aid_Id}`);
+        const response = await AqsaAPI.get<ApiAid>(`/aids/${aid_Id}`);
 
         if (response.data?.id !== undefined) {
-            return { status: response.status, aid: response.data as Aid };
+            return { status: response.status, aid: toLegacyAid(response.data) };
         }
 
         throw new Error('بيانات المساعدة غير متوفرة');

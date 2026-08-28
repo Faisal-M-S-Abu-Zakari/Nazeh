@@ -1,6 +1,8 @@
 
 import { DisplacedProfile, DisplacedProfileResponse } from "@/@types/actors/displaced/profile/displacedProfileResponse.type";
 import { AqsaAPI } from "@/services";
+import { toLegacyDisplacedProfile } from "@/services/legacyAdapters";
+import type { DisplacedPerson } from "@workspace/api-client-react";
 
 export interface getDisplacedProfileProps {
     displaced_Id: number;
@@ -9,10 +11,10 @@ export interface getDisplacedProfileProps {
 export const getDisplacedProfile = async ({ displaced_Id }: getDisplacedProfileProps): Promise<DisplacedProfileResponse> => {
 
     try {
-        const response = await AqsaAPI.get(`/displaced-persons/${displaced_Id}`);
+        const response = await AqsaAPI.get<DisplacedPerson>(`/displaced-persons/${displaced_Id}`);
 
         if (response.data?.id !== undefined) {
-            return { status: response.status, user: { ...response.data, phone_number: response.data.phone, identity: response.data.nationalId } as DisplacedProfile };
+            return { status: response.status, user: toLegacyDisplacedProfile(response.data) };
         }
 
         throw new Error("فشل في تحميل بيانات الملف الشخصي");

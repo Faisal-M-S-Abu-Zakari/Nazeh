@@ -15,7 +15,7 @@ export const changeNotificationStatus = async ({
     notification_Id,
 }: changeNotificationStatusProps): Promise<commonActionResponse> => {
     try {
-        const response = await AqsaAPI.patch(`/notifications/${notification_Id}`, { read: true });
+        const response = await AqsaAPI.patch(`/notifications/${notification_Id}/read`, { read: true });
 
         if (response.data) {
             return {

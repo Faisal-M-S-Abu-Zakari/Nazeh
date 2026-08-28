@@ -1,7 +1,8 @@
 
-import { fakeDisplacedReceivedAidsResponse } from '@/content/actor/displaced/fake-data/fake-displaced-received-aids';
+import { AqsaAPI } from '@/services';
 import { DisplacedReceivedAidsResponse } from '@/@types/actors/displaced/received-aids/displacedReceivedAidsResponse.type';
-import { DISPLACED_RECEIVED_AIDS_TABS } from '@/@types/actors/common-types/index.type';
+import { DISPLACED_RECEIVED_AIDS_TABS, TYPE_AIDS } from '@/@types/actors/common-types/index.type';
+import type { AidReceiptHistoryPage } from '@workspace/api-client-react';
 
 export interface GetDisplacedReceivedAidsProps {
     displaced_Id: number;
@@ -16,9 +17,59 @@ export async function getDisplacedReceivedAids({
     limit = 10,
     tab_type,
 }: GetDisplacedReceivedAidsProps): Promise<DisplacedReceivedAidsResponse> {
-    // Foundation API records receipts but does not expose this legacy
-    // per-person history query; this deterministic fallback is non-persistent.
-    const fakeResponse = fakeDisplacedReceivedAidsResponse({ displaced_Id, page, limit, tab_type })
-
-    return new Promise((resolve) => setTimeout(() => resolve(fakeResponse), 1000));
+    try {
+        const allocationStatus = tab_type === DISPLACED_RECEIVED_AIDS_TABS.RECEIVED_AIDS
+            ? 'received'
+            : tab_type === DISPLACED_RECEIVED_AIDS_TABS.PROVIDED_AIDS
+                ? 'assigned'
+                : undefined;
+        const response = await AqsaAPI.get<AidReceiptHistoryPage>(`/displaced-persons/${displaced_Id}/aid-history`, {
+            params: { page, limit, status: allocationStatus },
+        });
+        const { items, pagination } = response.data;
+        const received_aids = items
+            .filter((item) => !allocationStatus || item.status === allocationStatus)
+            .map((item) => {
+                return {
+                    id: item.aidId,
+                    tab_type: item.status === 'received'
+                        ? DISPLACED_RECEIVED_AIDS_TABS.RECEIVED_AIDS
+                        : DISPLACED_RECEIVED_AIDS_TABS.PROVIDED_AIDS,
+                    aid_name: item.title,
+                    aid_type: Object.values(TYPE_AIDS).includes(item.type as TYPE_AIDS)
+                        ? item.type as TYPE_AIDS
+                        : TYPE_AIDS.OTHER_AID,
+                    aid_content: item.description ?? '',
+                    delivery_location: item.distributionLocation ?? '',
+                    delivery_date: new Date(item.distributionDate ?? item.receivedAt ?? Date.now()),
+                    receipt_date: item.receivedAt ? new Date(item.receivedAt) : undefined,
+                    aid_giver: {
+                        giver_id: item.assignedBy.id,
+                        name: item.assignedBy.name,
+                        role: item.assignedBy.role === 'delegate'
+                            ? ('DELEGATE' as const)
+                            : ('MANAGER' as const),
+                    },
+                };
+            });
+        return {
+            status: response.status,
+            received_aids,
+            pagination: {
+                page: pagination.page,
+                limit: pagination.limit,
+                total_items: pagination.totalItems,
+                total_pages: pagination.totalPages,
+            },
+        };
+    } catch (error: any) {
+        const errorMessage = error.response?.data?.error || error.message || 'حدث خطأ أثناء جلب سجل المساعدات';
+        return {
+            status: error.response?.status || 500,
+            message: errorMessage,
+            error: errorMessage,
+            received_aids: [],
+            pagination: { page, limit, total_items: 0, total_pages: 0 },
+        };
+    }
 }

@@ -1,6 +1,8 @@
 import { AqsaGuestAPI } from "@/services";
 import { TYPE_WRITTEN_CONTENT } from "@/@types/actors/common-types/index.type";
 import { AdsBlogsStoriesResponse } from "@/@types/actors/manager/ads-blogs-stories/adsBlogsStoriesResponse.type";
+import { toLegacyContent } from "@/services/legacyAdapters";
+import type { ContentPostPage } from "@workspace/api-client-react";
 
 export interface getAdsBlogsStoriesProps {
     page?: number;
@@ -11,18 +13,14 @@ export interface getAdsBlogsStoriesProps {
 export const getAdsBlogsStories = async ({ page = 1, limit = 5, type }: getAdsBlogsStoriesProps): Promise<AdsBlogsStoriesResponse> => {
 
     try {
-        const response = await AqsaGuestAPI.get('/content', { params: { page, limit } });
+        const response = await AqsaGuestAPI.get<ContentPostPage>('/content', { params: { page, limit } });
 
         if (response.data?.items) {
             return {
                 status: response.status,
-                ads_blogs_stories: response.data.items.map((post: any) => ({
-                    id: post.id, title: post.title, brief: "", content: post.body,
-                    imgs: post.imageUrl ? [post.imageUrl] : [],
-                    created_at: new Date(post.createdAt), updated_at: new Date(post.updatedAt), type,
-                })),
+                ads_blogs_stories: response.data.items.map((post) => toLegacyContent(post, type)),
                 pagination: { page: response.data.pagination.page, limit: response.data.pagination.limit, total_items: response.data.pagination.totalItems, total_pages: response.data.pagination.totalPages },
-            } as AdsBlogsStoriesResponse;
+            };
         }
 
         throw new Error('بيانات المحتوى غير متوفرة');

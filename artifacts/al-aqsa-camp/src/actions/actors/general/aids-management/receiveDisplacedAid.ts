@@ -22,7 +22,7 @@ export const receiveDisplacedAid = async ({
     actor_Id,
 }: receiveDisplacedAidProps): Promise<commonActionResponse> => {
     try {
-        const response = await AqsaAPI.post(`/aids/${aid_Id}/receipts`, {
+        const response = await AqsaAPI.post(`/aids/${aid_Id}/receive`, {
             displacedPersonId: displaced_Id,
         });
 

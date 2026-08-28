@@ -7,8 +7,7 @@
  */
 import * as zodBase from 'zod';
 
-// Orval 8 emits Zod 4 format helpers while this workspace still uses Zod 3.
-// Keep generated validation compatible until the workspace catalog upgrades.
+// Orval emits Zod 4 helpers while this workspace remains on Zod 3.
 const zod = Object.assign(zodBase, {
   int: () => zodBase.number().int(),
   email: () => zodBase.string().email(),
@@ -294,6 +293,48 @@ export const AssignDisplacedPersonDelegateResponse = zod.object({
   "location": zod.string().nullish(),
   "delegateId": zod.int().nullish(),
   "createdAt": zod.coerce.date()
+})
+
+
+export const GetDisplacedPersonAidHistoryParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const getDisplacedPersonAidHistoryQueryPageDefault = 1;
+
+export const getDisplacedPersonAidHistoryQueryLimitDefault = 20;
+export const getDisplacedPersonAidHistoryQueryLimitMax = 100;
+
+
+
+export const GetDisplacedPersonAidHistoryQueryParams = zod.object({
+  "page": zod.coerce.number().int().min(1).default(getDisplacedPersonAidHistoryQueryPageDefault),
+  "limit": zod.coerce.number().int().min(1).max(getDisplacedPersonAidHistoryQueryLimitMax).default(getDisplacedPersonAidHistoryQueryLimitDefault),
+  "status": zod.enum(['assigned', 'received', 'cancelled']).optional()
+})
+
+export const GetDisplacedPersonAidHistoryResponse = zod.object({
+  "items": zod.array(zod.object({
+  "aidId": zod.int(),
+  "status": zod.enum(['assigned', 'received', 'cancelled']),
+  "title": zod.string(),
+  "type": zod.string(),
+  "description": zod.string().nullable(),
+  "distributionLocation": zod.string().nullable(),
+  "distributionDate": zod.coerce.date().nullable(),
+  "receivedAt": zod.coerce.date().nullable(),
+  "assignedBy": zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "role": zod.enum(['manager', 'delegate'])
+})
+})),
+  "pagination": zod.object({
+  "page": zod.int(),
+  "limit": zod.int(),
+  "totalItems": zod.int(),
+  "totalPages": zod.int()
+})
 })
 
 
@@ -645,7 +686,7 @@ export const CreateSecurityTaskBody = zod.object({
   "title": zod.string(),
   "description": zod.string().optional(),
   "assignedToId": zod.int().optional(),
-  "dueAt": zod.coerce.date().optional()
+  "dueAt": zod.coerce.date()
 })
 
 export const CreateSecurityTaskResponse = zod.object({

@@ -3,6 +3,8 @@ import { AidsResponse } from '@/@types/actors/manager/aid-management/add-aid-man
 import { USER_RANK, USER_TYPE, UserRank } from '@/constants/userTypes';
 import { TYPE_AIDS, TYPE_GROUP_AIDS } from '@/@types/actors/common-types/index.type';
 import { AqsaAPI } from '@/services';
+import { toLegacyAid } from '@/services/legacyAdapters';
+import type { AidPage } from '@workspace/api-client-react';
 
 export interface getAidsProps {
     actor_Id: number;
@@ -32,12 +34,15 @@ export const getAids = async ({
 }: getAidsProps): Promise<AidsResponse> => {
 
     try {
-        const response = await AqsaAPI.get('/aids', { params: { page, limit, status: type_group_aids } });
+        const response = await AqsaAPI.get<AidPage>('/aids', { params: { page, limit } });
 
         if (response.data?.items) {
+            const aids = response.data.items
+                .map(toLegacyAid)
+                .filter((aid) => (!type || aid.aid_type === type) && (!type_group_aids || aid.aid_status === type_group_aids));
             return {
                 status: response.status,
-                aids: response.data.items as AidsResponse["aids"],
+                aids,
                 pagination: {
                     page: response.data.pagination.page,
                     limit: response.data.pagination.limit,

@@ -10,17 +10,9 @@ export const deleteAid = async ({
     aid_Id,
     manager_Id
 }: deleteAidProps): Promise<commonActionResponse> => {
-    // Foundation API has no delete endpoint; this deterministic legacy fallback
-    // is intentionally non-persistent.
-    const fakeData: commonActionResponse = {
-        status: 200,
-        message: `تم حذف المساعدة بنجاح`,
-
-    }
-    return await new Promise((resolve) => {
-        setTimeout(() => {
-            resolve(fakeData);
-        }, 500);
-    });
-
+    return {
+        status: 501,
+        message: 'حذف المساعدات غير مدعوم حالياً',
+        error: 'حذف المساعدات ينتظر تنفيذ دورة الحياة في المهمة 9',
+    };
 };

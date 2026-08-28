@@ -2,6 +2,7 @@
 import { Aid } from "@/@types/actors/manager/aid-management/add-aid-management.types";
 import { commonActionResponse } from "@/@types/common/action/commonActionResponse.type";
 import { AqsaAPI } from "@/services";
+import { toApiAidStatus } from "@/services/legacyAdapters";
 
 
 export const updateAid = async (payload: Aid): Promise<commonActionResponse> => {
@@ -12,7 +13,7 @@ export const updateAid = async (payload: Aid): Promise<commonActionResponse> => 
             description: payload.aid_content,
             quantity: payload.existing_quantity,
             distributionDate: payload.delivery_date?.toISOString() ?? null,
-            status: payload.aid_status,
+            status: toApiAidStatus(payload.aid_status),
         });
 
         if (response.data) {

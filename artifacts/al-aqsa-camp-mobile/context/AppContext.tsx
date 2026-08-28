@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Aid as ApiAid,
   createAid,
@@ -10,6 +9,7 @@ import {
   listDelegates,
   listDisplacedPersons,
   login,
+  logout as revokeSession,
   SessionResponse,
   setAuthTokenGetter,
   setBaseUrl,
@@ -20,8 +20,6 @@ export type Aid = { id: string; title: string; type: string; families: number; s
 export type Person = { id: string; name: string; role: 'نازح' | 'مندوب' | 'حارس'; phone: string; location: string };
 
 type SessionMetadata = Pick<SessionResponse, 'user' | 'expiresAt'>;
-type StoredSession = { token: string; session: SessionMetadata };
-
 type AppValue = {
   signedIn: boolean;
   aids: Aid[];
@@ -33,8 +31,6 @@ type AppValue = {
 };
 
 const AppContext = createContext<AppValue | null>(null);
-const STORAGE_KEY = 'al-aqsa-mobile-session-v1';
-
 const domain = process.env.EXPO_PUBLIC_DOMAIN;
 setBaseUrl(domain ? (domain.startsWith('http://') || domain.startsWith('https://') ? domain : `https://${domain}`) : null);
 
@@ -70,7 +66,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<SessionMetadata | null>(null);
   const [aids, setAids] = useState<Aid[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
-  const [hydrated, setHydrated] = useState(false);
 
   const hydrateApiData = useCallback(async () => {
     const [aidPage, delegatePage, displacedPage] = await Promise.all([
@@ -81,41 +76,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAids(aidPage.items.map(mapAid));
     setPeople([...delegatePage.items.map(mapDelegate), ...displacedPage.items.map(mapDisplacedPerson)]);
   }, []);
-
-  useEffect(() => {
-    const restoreSession = async () => {
-      try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (!raw) return;
-        const saved = JSON.parse(raw) as Partial<StoredSession>;
-        if (!saved.token || !saved.session) {
-          await AsyncStorage.removeItem(STORAGE_KEY);
-          return;
-        }
-        authToken = saved.token;
-        setSession(saved.session);
-        await hydrateApiData();
-      } catch {
-        authToken = null;
-        setSession(null);
-        setAids([]);
-        setPeople([]);
-        await AsyncStorage.removeItem(STORAGE_KEY);
-      } finally {
-        setHydrated(true);
-      }
-    };
-    void restoreSession();
-  }, [hydrateApiData]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    if (!session || !authToken) {
-      void AsyncStorage.removeItem(STORAGE_KEY);
-      return;
-    }
-    void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ token: authToken, session }));
-  }, [hydrated, session]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     const nextSession = await login({ email, password, role: 'manager' });
@@ -130,11 +90,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [hydrateApiData]);
 
   const signOut = useCallback(async () => {
-    authToken = null;
-    setSession(null);
-    setAids([]);
-    setPeople([]);
-    await AsyncStorage.removeItem(STORAGE_KEY);
+    try {
+      await revokeSession();
+    } finally {
+      authToken = null;
+      setSession(null);
+      setAids([]);
+      setPeople([]);
+    }
   }, []);
 
   const addAid = useCallback(async (title: string, type: string) => {

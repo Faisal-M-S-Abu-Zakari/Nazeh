@@ -15,7 +15,6 @@ import {
 } from '@mantine/core';
 import { Link as Link } from '@/lib/nextjs-mocks';
 import { useMutation } from '@tanstack/react-query';
-import { useRouter  } from '@/lib/nextjs-mocks';
 import { notifications } from '@mantine/notifications';
 import useAuth from '@/hooks/useAuth';
 import { login, loginProps } from '@/actions/auth/login';
@@ -34,13 +33,12 @@ import { loginResponse } from '@/@types/auth/loginResponse.type';
 
 export default function Login() {
   const [error, setError] = useState('');
-  const router = useRouter();
   const { isAuthenticated } = useAuth();
 
   // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated) router.replace(LANDING_ROUTES.HOME);
-  }, [isAuthenticated, router]);
+    if (isAuthenticated) window.location.replace(LANDING_ROUTES.HOME);
+  }, [isAuthenticated]);
 
   const form = useForm<loginType>({
     mode: 'uncontrolled',
@@ -54,36 +52,35 @@ export default function Login() {
       form.reset();
 
       if (data.status === 200) {
-        // redirect immediately
         const roleRedirects = {
-          [USER_TYPE.DISPLACED]: () =>
-            router.replace(DISPLACED_ROUTES_fUNC({ displaced_Id: data.user.id }).PROFILE),
-          [USER_TYPE.MANAGER]: () =>
-            router.replace(MANAGER_ROUTES_fUNC({ manager_Id: data.user.id }).PROFILE),
-          [USER_TYPE.DELEGATE]: () =>
-            router.replace(DELEGATE_ROUTES_fUNC({ delegate_Id: data.user.id }).PROFILE),
-          [USER_TYPE.SECURITY]: () =>
-            router.replace(SECURITY_ROUTES_fUNC({ security_Id: data.user.id }).PROFILE),
+          [USER_TYPE.DISPLACED]:
+            DISPLACED_ROUTES_fUNC({ displaced_Id: data.user.id }).PROFILE,
+          [USER_TYPE.MANAGER]:
+            MANAGER_ROUTES_fUNC({ manager_Id: data.user.id }).PROFILE,
+          [USER_TYPE.DELEGATE]:
+            DELEGATE_ROUTES_fUNC({ delegate_Id: data.user.id }).PROFILE,
+          [USER_TYPE.SECURITY]:
+            SECURITY_ROUTES_fUNC({ security_Id: data.user.id }).PROFILE,
         };
 
-        roleRedirects[data.user.role]?.();
+        localStorage.setItem(
+          LOCALSTORAGE_SESSION_KEY,
+          JSON.stringify({
+            status: data.status,
+            message: data.message,
+            user: data.user,
+          }),
+        );
 
-        // defer non-critical work
-        setTimeout(() => {
-          try {
-            localStorage.setItem(LOCALSTORAGE_SESSION_KEY, JSON.stringify(data));
+        notifications.show({
+          title: 'مرحبا بك',
+          message: 'تم تسجيل الدخول بنجاح',
+          color: 'grape',
+          position: 'top-left',
+          withBorder: true,
+        });
 
-            notifications.show({
-              title: 'مرحبا بك',
-              message: 'تم تسجيل الدخول بنجاح',
-              color: 'grape',
-              position: 'top-left',
-              withBorder: true,
-            });
-          } catch (err) {
-            console.error('Error saving session or showing notification', err);
-          }
-        }, 0);
+        window.location.replace(roleRedirects[data.user.role]);
 
         return;
       }

@@ -2,6 +2,9 @@
 import { DisplacedProfile, DisplacedProfileResponse } from "@/@types/actors/displaced/profile/displacedProfileResponse.type";
 import { AqsaAPI } from "@/services";
 import { DisplacedProfileSchemaType } from "@/validation/actor/displaceds/profile/displaced-profile-schema";
+import { toLegacyDisplacedProfile } from "@/services/legacyAdapters";
+import type { DisplacedPerson } from "@workspace/api-client-react";
+import { AGES } from "@/@types/actors/common-types/index.type";
 
 export interface AddNewDisplacedProps {
     payload: DisplacedProfileSchemaType;
@@ -12,12 +15,27 @@ export const addNewDisplaced = async ({
 }: AddNewDisplacedProps): Promise<DisplacedProfileResponse> => {
 
     try {
-        const response = await AqsaAPI.post("/displaced-persons", {
+        const response = await AqsaAPI.post<DisplacedPerson>("/displaced-persons", {
             name: payload.name, phone: payload.phone_number, nationalId: payload.identity,
             familySize: payload.social_status.total_family_members, location: payload.original_address,
         });
         if (response.data?.id !== undefined) {
-            return { status: response.status, message: "تم إضافة النازح الجديد بنجاح", user: { ...payload, id: response.data.id } as DisplacedProfile };
+            return {
+                status: response.status,
+                message: "تم إضافة النازح الجديد بنجاح",
+                user: {
+                    ...toLegacyDisplacedProfile(response.data),
+                    ...payload,
+                    id: response.data.id,
+                    profile_image: payload.profile_image ?? "",
+                    alternative_phone_number: payload.alternative_phone_number ?? undefined,
+                    additional_notes: payload.additional_notes ?? "",
+                    social_status: {
+                        ...payload.social_status,
+                        age_groups: Object.fromEntries(Object.values(AGES).map((age) => [age, payload.social_status.age_groups[age] ?? 0])) as Record<AGES, number>,
+                    },
+                },
+            };
         }
 
         throw new Error("فشل في إضافة النازح الجديد");

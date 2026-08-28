@@ -3,12 +3,10 @@
 import { DELEGATE_ROUTES_fUNC, MANAGER_ROUTES_fUNC } from '@/constants/routes';
 import { cn } from '@/utils/cn';
 import { ActionIcon, Button, Popover, Stack, ThemeIcon } from '@mantine/core';
-import { EllipsisVertical, Eye, Trash, UserPen, UserPlus } from 'lucide-react';
+import { EllipsisVertical, Eye, UserPen, UserPlus } from 'lucide-react';
 import { useRouter  } from '@/lib/nextjs-mocks';
 import { useState } from 'react';
 import useAuth from '@/hooks/useAuth';
-import { useDisclosure } from '@mantine/hooks';
-import Common_Aid_Delete_Modal from './common-aid-delete-modal';
 import { USER_RANK, USER_TYPE, UserRank } from '@/constants/userTypes';
 import {
   ACTION_ADD_EDIT_DISPLAY,
@@ -47,7 +45,6 @@ export default function Common_Aid_Action({
 
   const { user, isManager, isDelegate, isSecurityOfficer } = useAuth();
   const [openedPopover, setOpenedPopover] = useState(false);
-  const [openedDelete, { open: openDelete, close: closeDelete }] = useDisclosure(false);
 
   const router = useRouter();
   const isOwner = actor_Id === user?.id;
@@ -58,7 +55,7 @@ export default function Common_Aid_Action({
       : DELEGATE_ROUTES_fUNC({ delegate_Id: actor_Id, aid_Id });
 
   const ACTIONS: ActionItem[] = (() => {
-    // Manager owns this aid → can view, edit, delete
+    // Manager owns this aid → can view and edit.
     if (role === USER_TYPE.MANAGER && isManager && isOwner) {
       if (query['aids-tab'] === TYPE_GROUP_AIDS.COMING_AIDS) {
         return [
@@ -72,7 +69,6 @@ export default function Common_Aid_Action({
             icon: UserPen,
             action: () => router.push(`${routeFunc.AID}?action=${ACTION_ADD_EDIT_DISPLAY.EDIT}`),
           },
-          { label: 'حذف', icon: Trash, action: openDelete },
         ];
       } else {
         return [
@@ -81,7 +77,6 @@ export default function Common_Aid_Action({
             icon: Eye,
             action: () => router.push(routeFunc.AID),
           },
-          { label: 'حذف', icon: Trash, action: openDelete },
         ];
       }
     }
@@ -188,13 +183,6 @@ export default function Common_Aid_Action({
           <Stack gap={0}>{Dropdown_Items}</Stack>
         </Popover.Dropdown>
       </Popover>
-
-      <Common_Aid_Delete_Modal
-        aid_Id={aid_Id}
-        actor_Id={actor_Id}
-        opened={openedDelete}
-        close={closeDelete}
-      />
     </>
   );
 }

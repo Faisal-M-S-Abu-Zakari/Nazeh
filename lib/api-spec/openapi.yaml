@@ -143,6 +143,20 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+  /displaced-persons/{id}/aid-history:
+    get:
+      operationId: getDisplacedPersonAidHistory
+      tags: [aids]
+      parameters:
+        - { $ref: "#/components/parameters/Id" }
+        - { $ref: "#/components/parameters/Page" }
+        - { $ref: "#/components/parameters/Limit" }
+        - { name: status, in: query, schema: { type: string, enum: [assigned, received, cancelled] } }
+      responses:
+        "200": { description: Aid receipt history, content: { application/json: { schema: { $ref: "#/components/schemas/AidReceiptHistoryPage" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /aids:
     get:
       operationId: listAids
@@ -413,6 +427,25 @@ components:
         status: { type: string, enum: [planned, active, completed, cancelled] }
         distributionDate: { type: [string, "null"], format: date-time }
         createdAt: { type: string, format: date-time }
+    AidReceiptHistoryItem:
+      type: object
+      required: [aidId, status, title, type, description, distributionLocation, distributionDate, receivedAt, assignedBy]
+      properties:
+        aidId: { type: integer }
+        status: { type: string, enum: [assigned, received, cancelled] }
+        title: { type: string }
+        type: { type: string }
+        description: { type: [string, "null"] }
+        distributionLocation: { type: [string, "null"] }
+        distributionDate: { type: [string, "null"], format: date-time }
+        receivedAt: { type: [string, "null"], format: date-time }
+        assignedBy:
+          type: object
+          required: [id, name, role]
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            role: { type: string, enum: [manager, delegate] }
     Complaint:
       type: object
       required: [id, subject, message, status, createdAt]
@@ -541,7 +574,7 @@ components:
       properties: { read: { type: boolean } }
     SecurityTaskInput:
       type: object
-      required: [title]
+      required: [title, dueAt]
       properties: { title: { type: string }, description: { type: string }, assignedToId: { type: integer }, dueAt: { type: string, format: date-time } }
     SecurityTaskUpdate:
       type: object
@@ -560,6 +593,12 @@ components:
     DelegateList: { $ref: "#/components/schemas/DelegatePage" }
     DisplacedPersonList: { $ref: "#/components/schemas/DisplacedPersonPage" }
     AidList: { $ref: "#/components/schemas/AidPage" }
+    AidReceiptHistoryPage:
+      type: object
+      required: [items, pagination]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/AidReceiptHistoryItem" } }
+        pagination: { $ref: "#/components/schemas/Pagination" }
     ComplaintList: { $ref: "#/components/schemas/ComplaintPage" }
     NotificationList: { $ref: "#/components/schemas/NotificationPage" }
     SecurityTaskList: { $ref: "#/components/schemas/SecurityTaskPage" }

@@ -104,6 +104,45 @@ export interface Aid {
   createdAt: string;
 }
 
+export type AidReceiptHistoryItemStatus = typeof AidReceiptHistoryItemStatus[keyof typeof AidReceiptHistoryItemStatus];
+
+
+export const AidReceiptHistoryItemStatus = {
+  assigned: 'assigned',
+  received: 'received',
+  cancelled: 'cancelled',
+} as const;
+
+export type AidReceiptHistoryItemAssignedByRole = typeof AidReceiptHistoryItemAssignedByRole[keyof typeof AidReceiptHistoryItemAssignedByRole];
+
+
+export const AidReceiptHistoryItemAssignedByRole = {
+  manager: 'manager',
+  delegate: 'delegate',
+} as const;
+
+export type AidReceiptHistoryItemAssignedBy = {
+  id: number;
+  name: string;
+  role: AidReceiptHistoryItemAssignedByRole;
+};
+
+export interface AidReceiptHistoryItem {
+  aidId: number;
+  status: AidReceiptHistoryItemStatus;
+  title: string;
+  type: string;
+  /** @nullable */
+  description: string | null;
+  /** @nullable */
+  distributionLocation: string | null;
+  /** @nullable */
+  distributionDate: string | null;
+  /** @nullable */
+  receivedAt: string | null;
+  assignedBy: AidReceiptHistoryItemAssignedBy;
+}
+
 export type ComplaintStatus = typeof ComplaintStatus[keyof typeof ComplaintStatus];
 
 
@@ -349,7 +388,7 @@ export interface SecurityTaskInput {
   title: string;
   description?: string;
   assignedToId?: number;
-  dueAt?: string;
+  dueAt: string;
 }
 
 export type SecurityTaskUpdateStatus = typeof SecurityTaskUpdateStatus[keyof typeof SecurityTaskUpdateStatus];
@@ -431,6 +470,11 @@ export interface AidPage {
 
 export type AidList = AidPage;
 
+export interface AidReceiptHistoryPage {
+  items: AidReceiptHistoryItem[];
+  pagination: Pagination;
+}
+
 export interface ComplaintPage {
   items: Complaint[];
   pagination: Pagination;
@@ -506,6 +550,28 @@ page?: PageParameter;
  */
 limit?: LimitParameter;
 };
+
+export type GetDisplacedPersonAidHistoryParams = {
+/**
+ * @minimum 1
+ */
+page?: PageParameter;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: LimitParameter;
+status?: GetDisplacedPersonAidHistoryStatus;
+};
+
+export type GetDisplacedPersonAidHistoryStatus = typeof GetDisplacedPersonAidHistoryStatus[keyof typeof GetDisplacedPersonAidHistoryStatus];
+
+
+export const GetDisplacedPersonAidHistoryStatus = {
+  assigned: 'assigned',
+  received: 'received',
+  cancelled: 'cancelled',
+} as const;
 
 export type ListAidsParams = {
 /**

@@ -10,9 +10,10 @@ export interface getDelegatesProps {
 export const getDelegates = async ({ page = 1, limit = 15 }: getDelegatesProps): Promise<DelegatesResponse> => {
 
     try {
+        const apiLimit = limit === -1 ? 100 : limit;
         const response = await AqsaAPI.get("/delegates", {
             params: {
-                page, limit
+                page, limit: apiLimit
             }
         }
         );

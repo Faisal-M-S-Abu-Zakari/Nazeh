@@ -2,6 +2,8 @@
 import { DisplacedsResponse } from "@/@types/actors/general/displaceds/displacesResponse.type";
 import { AqsaAPI } from "@/services";
 import { displacedsFilterValuesType } from "@/validation/actor/general/displaceds/displaceds-filter-form";
+import { toLegacyDisplaced } from "@/services/legacyAdapters";
+import type { DisplacedPersonPage } from "@workspace/api-client-react";
 
 export interface getDisplacedsProps {
     page?: number;
@@ -13,13 +15,17 @@ export interface getDisplacedsProps {
 export const getDisplaceds = async ({ page = 1, limit = 7, search = '', filters }: getDisplacedsProps): Promise<DisplacedsResponse> => {
 
     try {
-        const response = await AqsaAPI.get("/displaced-persons", { params: { page, limit, search } });
+        const response = await AqsaAPI.get<DisplacedPersonPage>("/displaced-persons", { params: { page, limit } });
 
         if (response.data?.items) {
+            const normalizedSearch = search.trim().toLocaleLowerCase();
+            const displaceds = response.data.items
+                .map(toLegacyDisplaced)
+                .filter((person) => !normalizedSearch || person.name.toLocaleLowerCase().includes(normalizedSearch) || person.identity.includes(normalizedSearch));
             return {
-                status: response.status, displaceds: response.data.items,
+                status: response.status, displaceds,
                 pagination: { page: response.data.pagination.page, limit: response.data.pagination.limit, total_items: response.data.pagination.totalItems, total_pages: response.data.pagination.totalPages },
-            } as DisplacedsResponse;
+            };
         }
 
         throw new Error("بيانات النازحين غير متوفرة");

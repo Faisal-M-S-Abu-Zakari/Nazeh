@@ -3,6 +3,8 @@ import { AqsaAPI } from '@/services';
 import { ComplaintResponse } from '@/@types/actors/general/Complaints/ComplaintsResponse.type';
 import { UserRank, UserType } from '@/constants/userTypes';
 import { COMPLAINTS_STATUS, COMPLAINTS_TABS } from '@/@types/actors/common-types/index.type';
+import { toLegacyComplaint } from '@/services/legacyAdapters';
+import type { ComplaintPage } from '@workspace/api-client-react';
 
 export interface GetCommonComplaintsProps {
     page?: number;
@@ -27,26 +29,26 @@ export async function getCommonComplaints({
 }: GetCommonComplaintsProps): Promise<ComplaintResponse> {
 
     try {
-        const response = await AqsaAPI.get('/complaints', {
-            params: {
-                page,
-                limit,
-                search: search.trim(),
-                status: status === COMPLAINTS_STATUS.ALL ? undefined : status,
-            }
-        });
+        const response = await AqsaAPI.get<ComplaintPage>('/complaints', { params: { page, limit } });
 
         if (response.data?.items) {
+            const normalizedSearch = search.trim().toLocaleLowerCase();
+            const complaints = response.data.items
+                .map((complaint) => toLegacyComplaint(complaint, actor_Id, role))
+                .filter((complaint) => (
+                    (status === COMPLAINTS_STATUS.ALL || complaint.status === status)
+                    && (!normalizedSearch || complaint.title.toLocaleLowerCase().includes(normalizedSearch) || complaint.body.toLocaleLowerCase().includes(normalizedSearch))
+                ));
             return {
                 status: response.status,
-                complaints: response.data.items,
+                complaints,
                 pagination: {
                     page: response.data.pagination.page,
                     limit: response.data.pagination.limit,
                     total_items: response.data.pagination.totalItems,
                     total_pages: response.data.pagination.totalPages,
                 },
-            } as ComplaintResponse;
+            };
         }
 
         throw new Error("بيانات الشكاوى غير متوفرة");

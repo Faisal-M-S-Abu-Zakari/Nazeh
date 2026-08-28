@@ -2,6 +2,8 @@
 import { Task, TasksResponse } from "@/@types/actors/security/tasks/TasksResponse.type";
 import { AqsaAPI } from "@/services";
 import { TASKS_TABS } from "@/@types/actors/common-types/index.type";
+import { toLegacyTask } from "@/services/legacyAdapters";
+import type { SecurityTaskPage } from "@workspace/api-client-react";
 
 interface GetSecurityTasksProps {
     page?: number;
@@ -18,19 +20,12 @@ export async function getSecurityTasks({
 }: GetSecurityTasksProps): Promise<TasksResponse> {
 
     try {
-        const response = await AqsaAPI.get('/security-tasks', { params: { page, limit } });
+        const response = await AqsaAPI.get<SecurityTaskPage>('/security-tasks', { params: { page, limit } });
 
         if (response.data?.items) {
             return {
                 status: response.status,
-                tasks: response.data.items.map((task: any) => ({
-                    id: task.id,
-                    dateTime: task.dueAt ? new Date(task.dueAt) : new Date(task.createdAt),
-                    title: task.title,
-                    body: task.description || "",
-                    security_men: task.assignedToId == null ? [] : [task.assignedToId],
-                    type: task.status as TASKS_TABS,
-                })),
+                tasks: response.data.items.map(toLegacyTask).filter((task) => task.type === task_type),
                 pagination: {
                     page: response.data.pagination.page,
                     limit: response.data.pagination.limit,

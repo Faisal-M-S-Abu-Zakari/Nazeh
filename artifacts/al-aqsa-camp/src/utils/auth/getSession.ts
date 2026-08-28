@@ -21,7 +21,6 @@ const UserSchema = z.object({
 
 // Session schema with user nested
 const SessionSchema = z.object({
-  token: z.string().min(1),
   user: UserSchema,
 });
 
@@ -39,7 +38,7 @@ const SessionSchema = z.object({
  * - Any error occurs while parsing
  */
 
-export const getSession = (): { token: string; user: User } | null => {
+export const getSession = (): { user: User } | null => {
   try {
     const rawSession = localStorage.getItem(LOCALSTORAGE_SESSION_KEY);
     if (!rawSession) return null;
@@ -60,7 +59,6 @@ export const getSession = (): { token: string; user: User } | null => {
 
     // Transform the validated data to match the expected return type
     return {
-      token: session.data.token,
       user,
     };
   } catch {

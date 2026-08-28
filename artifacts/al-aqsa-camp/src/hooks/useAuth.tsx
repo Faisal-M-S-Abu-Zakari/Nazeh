@@ -16,7 +16,7 @@ export default function useAuth() {
   useEffect(() => {
     const session = getSession();
     if (session) {
-      setIsAuthenticated(!!session.token);
+      setIsAuthenticated(true);
       setIsManager(session.user.role === USER_TYPE.MANAGER);
       setIsDelegate(session.user.role === USER_TYPE.DELEGATE);
       setIsDisplaced(session.user.role === USER_TYPE.DISPLACED);

@@ -1,6 +1,8 @@
 import { AqsaGuestAPI } from "@/services";
 import { TYPE_WRITTEN_CONTENT } from "@/@types/actors/common-types/index.type";
 import { AdBlogStoryResponse } from "@/@types/actors/manager/ads-blogs-stories/adsBlogsStoriesResponse.type";
+import { toLegacyContent } from "@/services/legacyAdapters";
+import type { ContentPost } from "@workspace/api-client-react";
 
 export interface getAdBlogStoryProps {
     id: number
@@ -10,14 +12,13 @@ export interface getAdBlogStoryProps {
 export const getAdBlogStory = async ({ id, type }: getAdBlogStoryProps): Promise<AdBlogStoryResponse> => {
 
     try {
-        const response = await AqsaGuestAPI.get(`/content/${id}`);
+        const response = await AqsaGuestAPI.get<ContentPost>(`/content/${id}`);
 
         if (response.data?.id !== undefined) {
-            const post = response.data;
             return {
                 status: response.status,
-                ad_blog_story: { id: post.id, title: post.title, brief: "", content: post.body, imgs: post.imageUrl ? [post.imageUrl] : [], created_at: new Date(post.createdAt), updated_at: new Date(post.updatedAt), type },
-            } as AdBlogStoryResponse;
+                ad_blog_story: toLegacyContent(response.data, type),
+            };
         }
 
         throw new Error('بيانات المحتوى غير متوفرة');

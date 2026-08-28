@@ -10,5 +10,5 @@ export interface SecurityTaskInput {
   title: string;
   description?: string;
   assignedToId?: number;
-  dueAt?: Date;
+  dueAt: Date;
 }
