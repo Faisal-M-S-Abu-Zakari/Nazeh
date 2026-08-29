@@ -814,7 +814,11 @@ export const LoginResponse = zod.object({
   "id": zod.uuid(),
   "email": zod.email(),
   "name": zod.string(),
-  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER'])
+  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER']),
+  "active": zod.boolean(),
+  "passwordSet": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
 })
 })
 
@@ -826,7 +830,11 @@ export const GetCurrentUserResponse = zod.object({
   "id": zod.uuid(),
   "email": zod.email(),
   "name": zod.string(),
-  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER'])
+  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER']),
+  "active": zod.boolean(),
+  "passwordSet": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
 })
 
 
@@ -834,6 +842,131 @@ export const GetCurrentUserResponse = zod.object({
  * @summary Revoke the current session
  */
 export const LogoutResponse = zod.void()
+
+
+/**
+ * @summary Set a password using a one-time invite or reset token
+ */
+export const completeCredentialBodyTokenMin = 32;
+export const completeCredentialBodyTokenMax = 256;
+
+export const completeCredentialBodyPasswordMin = 12;
+export const completeCredentialBodyPasswordMax = 128;
+
+
+
+export const CompleteCredentialBody = zod.object({
+  "token": zod.string().min(completeCredentialBodyTokenMin).max(completeCredentialBodyTokenMax),
+  "password": zod.string().min(completeCredentialBodyPasswordMin).max(completeCredentialBodyPasswordMax).describe('Must contain uppercase, lowercase, number, and symbol characters.')
+})
+
+export const CompleteCredentialResponse = zod.void()
+
+
+/**
+ * @summary List staff accounts
+ */
+export const ListStaffResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.uuid(),
+  "email": zod.email(),
+  "name": zod.string(),
+  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER']),
+  "active": zod.boolean(),
+  "passwordSet": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Create an inactive staff account and one-time invite
+ */
+export const createStaffBodyEmailMax = 320;
+
+export const createStaffBodyNameMin = 2;
+export const createStaffBodyNameMax = 200;
+
+
+
+export const CreateStaffBody = zod.object({
+  "email": zod.email().max(createStaffBodyEmailMax),
+  "name": zod.string().min(createStaffBodyNameMin).max(createStaffBodyNameMax),
+  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER'])
+})
+
+export const CreateStaffResponse = zod.object({
+  "inviteToken": zod.string().describe('Plain token returned once; only its keyed hash is persisted.'),
+  "inviteExpiresAt": zod.coerce.date()
+}).and(zod.object({
+  "user": zod.object({
+  "id": zod.uuid(),
+  "email": zod.email(),
+  "name": zod.string(),
+  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER']),
+  "active": zod.boolean(),
+  "passwordSet": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+}))
+
+
+/**
+ * @summary Update role, name, or active state
+ */
+export const UpdateStaffParams = zod.object({
+  "staffId": zod.uuid()
+})
+
+export const updateStaffBodyNameMin = 2;
+export const updateStaffBodyNameMax = 200;
+
+
+
+export const UpdateStaffBody = zod.object({
+  "name": zod.string().min(updateStaffBodyNameMin).max(updateStaffBodyNameMax).optional(),
+  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER']).optional(),
+  "active": zod.boolean().optional()
+})
+
+export const UpdateStaffResponse = zod.object({
+  "id": zod.uuid(),
+  "email": zod.email(),
+  "name": zod.string(),
+  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER']),
+  "active": zod.boolean(),
+  "passwordSet": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Replace the invite for a pending staff account
+ */
+export const RenewStaffInviteParams = zod.object({
+  "staffId": zod.uuid()
+})
+
+export const RenewStaffInviteResponse = zod.object({
+  "inviteToken": zod.string().describe('Plain token returned once; only its keyed hash is persisted.'),
+  "inviteExpiresAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Issue a replacement password-reset token for an eligible staff account
+ */
+export const IssueStaffPasswordResetParams = zod.object({
+  "staffId": zod.uuid()
+})
+
+export const IssueStaffPasswordResetResponse = zod.object({
+  "resetToken": zod.string().describe('Plain token returned once; only its keyed hash is persisted.'),
+  "resetExpiresAt": zod.coerce.date()
+})
 
 
 

@@ -472,6 +472,10 @@ export interface StaffUser {
   email: string;
   name: string;
   role: Role;
+  active: boolean;
+  passwordSet: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface LoginRequest {
@@ -481,6 +485,61 @@ export interface LoginRequest {
      * @maxLength 128
      */
   password: string;
+}
+
+export interface CompleteCredentialRequest {
+  /**
+     * @minLength 32
+     * @maxLength 256
+     */
+  token: string;
+  /**
+     * Must contain uppercase, lowercase, number, and symbol characters.
+     * @minLength 12
+     * @maxLength 128
+     */
+  password: string;
+}
+
+export interface CreateStaffRequest {
+  /** @maxLength 320 */
+  email: string;
+  /**
+     * @minLength 2
+     * @maxLength 200
+     */
+  name: string;
+  role: Role;
+}
+
+export interface UpdateStaffRequest {
+  /**
+     * @minLength 2
+     * @maxLength 200
+     */
+  name?: string;
+  role?: Role;
+  active?: boolean;
+}
+
+export interface InviteResponse {
+  /** Plain token returned once; only its keyed hash is persisted. */
+  inviteToken: string;
+  inviteExpiresAt: string;
+}
+
+export interface PasswordResetTokenResponse {
+  /** Plain token returned once; only its keyed hash is persisted. */
+  resetToken: string;
+  resetExpiresAt: string;
+}
+
+export type CreateStaffResponse = InviteResponse & {
+  user: StaffUser;
+};
+
+export interface StaffListResponse {
+  items: StaffUser[];
 }
 
 export interface AuthSessionResponse {
@@ -732,6 +791,11 @@ export type ForbiddenResponse = ErrorResponse;
  * Resource not found
  */
 export type NotFoundResponse = ErrorResponse;
+
+/**
+ * The requested account state conflicts with the current state
+ */
+export type SimpleConflictResponse = ErrorResponse;
 
 export type PageParameter = number;
 

@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { Field, fonts, PrimaryButton } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
@@ -31,11 +31,12 @@ export default function LoginScreen() {
       <View style={[styles.logo, { backgroundColor: colors.primary }]}><Text style={[styles.logoText, { color: colors.gold }]}>الأقصى</Text></View>
       <Text style={[styles.title, { color: colors.foreground }]}>مرحباً بعودتك</Text>
       <Text style={[styles.copy, { color: colors.mutedForeground }]}>استخدم حساب فريق المخيم لمزامنة البيانات والإجراءات مع بقية أجهزة الفريق.</Text>
-      <Field label="البريد الإلكتروني" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-      <Field label="كلمة المرور" value={password} onChangeText={setPassword} secureTextEntry />
+      <Field testID="login-email" label="البريد الإلكتروني" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
+      <Field testID="login-password" label="كلمة المرور" value={password} onChangeText={setPassword} secureTextEntry />
       {error ? <Text style={[styles.error, { color: colors.destructive }]}>{error}</Text> : null}
       <PrimaryButton testID="login-submit" label={submitting ? 'جارٍ الدخول…' : 'دخول'} icon="arrow-back" disabled={submitting} onPress={() => void submit()} />
-      <Text style={[styles.link, { color: colors.mutedForeground }]}>استعادة كلمة المرور غير متاحة حالياً. تواصل مع مدير النظام.</Text>
+      <Pressable testID="forgot-password-link" onPress={() => router.push('/auth/forgot')}><Text style={[styles.link, { color: colors.primary }]}>نسيت كلمة المرور؟</Text></Pressable>
+      <Pressable testID="complete-invite-link" onPress={() => router.push('/auth/otp')}><Text style={[styles.link, { color: colors.mutedForeground }]}>لديّ رمز دعوة أو استعادة</Text></Pressable>
     </KeyboardAwareScrollViewCompat>
   );
 }

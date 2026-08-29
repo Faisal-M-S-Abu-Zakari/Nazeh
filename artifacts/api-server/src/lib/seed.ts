@@ -6,7 +6,7 @@ import { logger } from "./logger";
 let seeded: Promise<void> | undefined;
 /** Minimal, idempotent local data only. It is deliberately never callable in production. */
 export function seedDevelopmentData(): Promise<void> {
-  if (process.env.NODE_ENV === "production") return Promise.resolve();
+  if (process.env.NODE_ENV !== "development") return Promise.resolve();
   seeded ??= (async () => {
     const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, "staff@alaqsa.local"));
     if (existing) return;

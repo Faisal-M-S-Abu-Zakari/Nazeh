@@ -188,7 +188,11 @@ router.post("/auth/login", async (req, res): Promise<void> =>
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, input.email))
 ;
 
-  if (!user || !user.active || apiRole(user) !== input.role || !(await verifyPassword(input.password, user.passwordHash))) 
+  const isDevelopmentDemo = user?.identity.startsWith("dev-") ||
+    user?.email.endsWith("@alaqsa.local") ||
+    user?.email.endsWith("@local.invalid")
+;
+  if (!user || !user.active || (process.env.NODE_ENV === "production" && isDevelopmentDemo) || apiRole(user) !== input.role || !(await verifyPassword(input.password, user.passwordHash)))
 {
  res.status(401).json(
 {

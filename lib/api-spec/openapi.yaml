@@ -10,6 +10,7 @@ servers:
 tags:
   - { name: health, description: Health operations }
   - { name: auth, description: Authentication and sessions }
+  - { name: staff, description: Administrative staff onboarding }
   - { name: dashboard, description: Dashboard operations }
   - { name: delegates, description: Delegate management }
   - { name: displaced, description: Displaced person management }
@@ -389,6 +390,122 @@ paths:
           description: Logged out
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /auth/complete-credential:
+    post:
+      operationId: completeCredential
+      tags: [auth]
+      summary: Set a password using a one-time invite or reset token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CompleteCredentialRequest" }
+      responses:
+        "204": { description: Password set and all existing sessions revoked }
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /staff:
+    get:
+      operationId: listStaff
+      tags: [staff]
+      summary: List staff accounts
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Staff accounts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StaffListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      operationId: createStaff
+      tags: [staff]
+      summary: Create an inactive staff account and one-time invite
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateStaffRequest" }
+      responses:
+        "201":
+          description: Staff account and one-time invite created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CreateStaffResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/SimpleConflict" }
+  /staff/{staffId}:
+    patch:
+      operationId: updateStaff
+      tags: [staff]
+      summary: Update role, name, or active state
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: staffId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateStaffRequest" }
+      responses:
+        "200":
+          description: Updated staff account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StaffUser" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/SimpleConflict" }
+  /staff/{staffId}/invite:
+    post:
+      operationId: renewStaffInvite
+      tags: [staff]
+      summary: Replace the invite for a pending staff account
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: staffId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Replacement one-time invite
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InviteResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/SimpleConflict" }
+  /staff/{staffId}/password-reset:
+    post:
+      operationId: issueStaffPasswordReset
+      tags: [staff]
+      summary: Issue a replacement password-reset token for an eligible staff account
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: staffId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: One-time password-reset token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PasswordResetTokenResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/SimpleConflict" }
   /sync/aids:
     get:
       operationId: listAids
@@ -1124,6 +1241,11 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/ConflictResponse" }
+    SimpleConflict:
+      description: The requested account state conflicts with the current state
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
   schemas:
     <<: *persistenceSchemas
     HealthStatus:
@@ -1141,7 +1263,11 @@ components:
         email: { type: string, format: email }
         name: { type: string }
         role: { $ref: "#/components/schemas/Role" }
-      required: [id, email, name, role]
+        active: { type: boolean }
+        passwordSet: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, email, name, role, active, passwordSet, createdAt, updatedAt]
     LoginRequest:
       type: object
       additionalProperties: false
@@ -1149,6 +1275,63 @@ components:
         email: { type: string, format: email }
         password: { type: string, minLength: 8, maxLength: 128 }
       required: [email, password]
+    CompleteCredentialRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        token: { type: string, minLength: 32, maxLength: 256 }
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+          description: Must contain uppercase, lowercase, number, and symbol characters.
+      required: [token, password]
+    CreateStaffRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email, maxLength: 320 }
+        name: { type: string, minLength: 2, maxLength: 200 }
+        role: { $ref: "#/components/schemas/Role" }
+      required: [email, name, role]
+    UpdateStaffRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 2, maxLength: 200 }
+        role: { $ref: "#/components/schemas/Role" }
+        active: { type: boolean }
+    InviteResponse:
+      type: object
+      properties:
+        inviteToken:
+          type: string
+          description: Plain token returned once; only its keyed hash is persisted.
+        inviteExpiresAt: { type: string, format: date-time }
+      required: [inviteToken, inviteExpiresAt]
+    PasswordResetTokenResponse:
+      type: object
+      properties:
+        resetToken:
+          type: string
+          description: Plain token returned once; only its keyed hash is persisted.
+        resetExpiresAt: { type: string, format: date-time }
+      required: [resetToken, resetExpiresAt]
+    CreateStaffResponse:
+      allOf:
+        - $ref: "#/components/schemas/InviteResponse"
+        - type: object
+          properties:
+            user: { $ref: "#/components/schemas/StaffUser" }
+          required: [user]
+    StaffListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/StaffUser" }
+      required: [items]
     AuthSessionResponse:
       type: object
       properties:

@@ -31,6 +31,11 @@ export default function AccountScreen() {
               </View>
             </Card>
             <Card><Text style={[styles.heading, { color: colors.foreground }]}>المزامنة المشتركة</Text><Text style={[styles.copy, { color: colors.mutedForeground }]}>تتم مزامنة بيانات العمليات مع الخادم وأجهزة الفريق. تتوفر آخر نسخة ناجحة للقراءة عند انقطاع الاتصال.</Text></Card>
+            {user?.role === 'ADMIN' ? <Card>
+              <Text style={[styles.heading, { color: colors.foreground }]}>إدارة فريق العمل</Text>
+              <Text style={[styles.copy, { color: colors.mutedForeground }]}>دعوة الموظفين وتعديل الأدوار وحالة الحسابات دون مشاركة كلمات المرور.</Text>
+              <View style={styles.gap}><PrimaryButton testID="open-staff-management" label="إدارة الموظفين" icon="people-outline" onPress={() => router.push('/staff-management' as never)} /></View>
+            </Card> : null}
             {pendingWrites.length ? <Card>
               <Text style={[styles.heading, { color: colors.foreground }]}>إجراءات بانتظار المزامنة</Text>
               {pendingWrites.map((item) => <View key={item.id} style={[styles.pending, { borderTopColor: colors.border }]}>

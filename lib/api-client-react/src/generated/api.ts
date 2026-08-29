@@ -35,6 +35,7 @@ import type {
   ComplaintPage,
   ComplaintReplyInput,
   ComplaintStatusUpdate,
+  CompleteCredentialRequest,
   ConflictResponse,
   ContactRequest,
   ContactRequestInput,
@@ -44,6 +45,8 @@ import type {
   ContentPostUpdate,
   CreateAidRequest,
   CreatePersonRequest,
+  CreateStaffRequest,
+  CreateStaffResponse,
   DashboardSummary,
   Delegate,
   DelegateAssignmentInput,
@@ -57,6 +60,7 @@ import type {
   ForbiddenResponse,
   GetDisplacedPersonAidHistoryParams,
   HealthStatus,
+  InviteResponse,
   ListContentParams,
   ListDelegatesParams,
   ListDisplacedPersonsParams,
@@ -71,16 +75,20 @@ import type {
   Notification,
   NotificationPage,
   NotificationReadUpdate,
+  PasswordResetTokenResponse,
   Person,
   SecurityTask,
   SecurityTaskInput,
   SecurityTaskPage,
   SecurityTaskUpdate,
   SessionResponse,
+  SimpleConflictResponse,
+  StaffListResponse,
   StaffUser,
   Task,
   UnauthorizedResponse,
   UpdateComplaintStatusRequest,
+  UpdateStaffRequest,
   UpdateTaskStatusRequest
 } from './api.schemas';
 
@@ -2641,6 +2649,439 @@ export const useLogout = <TError = ErrorType<UnauthorizedResponse>,
         TContext
       > => {
       return useMutation(getLogoutMutationOptions(options));
+    }
+
+export const getCompleteCredentialUrl = () => {
+
+
+
+
+  return `/api/auth/complete-credential`
+}
+
+/**
+ * @summary Set a password using a one-time invite or reset token
+ */
+export const completeCredential = async (completeCredentialRequest: CompleteCredentialRequest, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getCompleteCredentialUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(completeCredentialRequest)
+  }
+);}
+
+
+
+
+
+export const getCompleteCredentialMutationOptions = <TError = ErrorType<BadRequestResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeCredential>>, TError,{data: BodyType<CompleteCredentialRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof completeCredential>>, TError,{data: BodyType<CompleteCredentialRequest>}, TContext> => {
+
+const mutationKey = ['completeCredential'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeCredential>>, {data: BodyType<CompleteCredentialRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  completeCredential(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompleteCredentialMutationResult = NonNullable<Awaited<ReturnType<typeof completeCredential>>>
+    export type CompleteCredentialMutationBody = BodyType<CompleteCredentialRequest>
+    export type CompleteCredentialMutationError = ErrorType<BadRequestResponse>
+
+    /**
+ * @summary Set a password using a one-time invite or reset token
+ */
+export const useCompleteCredential = <TError = ErrorType<BadRequestResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeCredential>>, TError,{data: BodyType<CompleteCredentialRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof completeCredential>>,
+        TError,
+        {data: BodyType<CompleteCredentialRequest>},
+        TContext
+      > => {
+      return useMutation(getCompleteCredentialMutationOptions(options));
+    }
+
+export const getListStaffUrl = () => {
+
+
+
+
+  return `/api/staff`
+}
+
+/**
+ * @summary List staff accounts
+ */
+export const listStaff = async ( options?: Parameters<typeof customFetch>[1]): Promise<StaffListResponse> => {
+
+  return customFetch<StaffListResponse>(getListStaffUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffQueryKey = () => {
+    return [
+    `/api/staff`
+    ] as const;
+    }
+
+
+export const getListStaffQueryOptions = <TData = Awaited<ReturnType<typeof listStaff>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaff>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaff>>> = ({ signal }) => listStaff({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaff>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStaffQueryResult = NonNullable<Awaited<ReturnType<typeof listStaff>>>
+export type ListStaffQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse>
+
+
+/**
+ * @summary List staff accounts
+ */
+
+export function useListStaff<TData = Awaited<ReturnType<typeof listStaff>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaff>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStaffQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateStaffUrl = () => {
+
+
+
+
+  return `/api/staff`
+}
+
+/**
+ * @summary Create an inactive staff account and one-time invite
+ */
+export const createStaff = async (createStaffRequest: CreateStaffRequest, options?: Parameters<typeof customFetch>[1]): Promise<CreateStaffResponse> => {
+
+  return customFetch<CreateStaffResponse>(getCreateStaffUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createStaffRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateStaffMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | SimpleConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStaff>>, TError,{data: BodyType<CreateStaffRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createStaff>>, TError,{data: BodyType<CreateStaffRequest>}, TContext> => {
+
+const mutationKey = ['createStaff'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStaff>>, {data: BodyType<CreateStaffRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createStaff(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateStaffMutationResult = NonNullable<Awaited<ReturnType<typeof createStaff>>>
+    export type CreateStaffMutationBody = BodyType<CreateStaffRequest>
+    export type CreateStaffMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | SimpleConflictResponse>
+
+    /**
+ * @summary Create an inactive staff account and one-time invite
+ */
+export const useCreateStaff = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | SimpleConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStaff>>, TError,{data: BodyType<CreateStaffRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createStaff>>,
+        TError,
+        {data: BodyType<CreateStaffRequest>},
+        TContext
+      > => {
+      return useMutation(getCreateStaffMutationOptions(options));
+    }
+
+export const getUpdateStaffUrl = (staffId: string,) => {
+
+
+
+
+  return `/api/staff/${staffId}`
+}
+
+/**
+ * @summary Update role, name, or active state
+ */
+export const updateStaff = async (staffId: string,
+    updateStaffRequest: UpdateStaffRequest, options?: Parameters<typeof customFetch>[1]): Promise<StaffUser> => {
+
+  return customFetch<StaffUser>(getUpdateStaffUrl(staffId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateStaffRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdateStaffMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | SimpleConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaff>>, TError,{staffId: string;data: BodyType<UpdateStaffRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateStaff>>, TError,{staffId: string;data: BodyType<UpdateStaffRequest>}, TContext> => {
+
+const mutationKey = ['updateStaff'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateStaff>>, {staffId: string;data: BodyType<UpdateStaffRequest>}> = (props) => {
+          const {staffId,data} = props ?? {};
+
+          return  updateStaff(staffId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateStaffMutationResult = NonNullable<Awaited<ReturnType<typeof updateStaff>>>
+    export type UpdateStaffMutationBody = BodyType<UpdateStaffRequest>
+    export type UpdateStaffMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | SimpleConflictResponse>
+
+    /**
+ * @summary Update role, name, or active state
+ */
+export const useUpdateStaff = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | SimpleConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaff>>, TError,{staffId: string;data: BodyType<UpdateStaffRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateStaff>>,
+        TError,
+        {staffId: string;data: BodyType<UpdateStaffRequest>},
+        TContext
+      > => {
+      return useMutation(getUpdateStaffMutationOptions(options));
+    }
+
+export const getRenewStaffInviteUrl = (staffId: string,) => {
+
+
+
+
+  return `/api/staff/${staffId}/invite`
+}
+
+/**
+ * @summary Replace the invite for a pending staff account
+ */
+export const renewStaffInvite = async (staffId: string, options?: Parameters<typeof customFetch>[1]): Promise<InviteResponse> => {
+
+  return customFetch<InviteResponse>(getRenewStaffInviteUrl(staffId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRenewStaffInviteMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | SimpleConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renewStaffInvite>>, TError,{staffId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof renewStaffInvite>>, TError,{staffId: string}, TContext> => {
+
+const mutationKey = ['renewStaffInvite'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof renewStaffInvite>>, {staffId: string}> = (props) => {
+          const {staffId} = props ?? {};
+
+          return  renewStaffInvite(staffId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RenewStaffInviteMutationResult = NonNullable<Awaited<ReturnType<typeof renewStaffInvite>>>
+
+    export type RenewStaffInviteMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | SimpleConflictResponse>
+
+    /**
+ * @summary Replace the invite for a pending staff account
+ */
+export const useRenewStaffInvite = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | SimpleConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renewStaffInvite>>, TError,{staffId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof renewStaffInvite>>,
+        TError,
+        {staffId: string},
+        TContext
+      > => {
+      return useMutation(getRenewStaffInviteMutationOptions(options));
+    }
+
+export const getIssueStaffPasswordResetUrl = (staffId: string,) => {
+
+
+
+
+  return `/api/staff/${staffId}/password-reset`
+}
+
+/**
+ * @summary Issue a replacement password-reset token for an eligible staff account
+ */
+export const issueStaffPasswordReset = async (staffId: string, options?: Parameters<typeof customFetch>[1]): Promise<PasswordResetTokenResponse> => {
+
+  return customFetch<PasswordResetTokenResponse>(getIssueStaffPasswordResetUrl(staffId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getIssueStaffPasswordResetMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | SimpleConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof issueStaffPasswordReset>>, TError,{staffId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof issueStaffPasswordReset>>, TError,{staffId: string}, TContext> => {
+
+const mutationKey = ['issueStaffPasswordReset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof issueStaffPasswordReset>>, {staffId: string}> = (props) => {
+          const {staffId} = props ?? {};
+
+          return  issueStaffPasswordReset(staffId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type IssueStaffPasswordResetMutationResult = NonNullable<Awaited<ReturnType<typeof issueStaffPasswordReset>>>
+
+    export type IssueStaffPasswordResetMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | SimpleConflictResponse>
+
+    /**
+ * @summary Issue a replacement password-reset token for an eligible staff account
+ */
+export const useIssueStaffPasswordReset = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | SimpleConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof issueStaffPasswordReset>>, TError,{staffId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof issueStaffPasswordReset>>,
+        TError,
+        {staffId: string},
+        TContext
+      > => {
+      return useMutation(getIssueStaffPasswordResetMutationOptions(options));
     }
 
 export const getListAidsUrl = () => {

@@ -21,6 +21,7 @@ function RootLayoutNav() {
       <Stack.Screen name="auth" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="add-aid" options={{ title: 'إضافة حملة', presentation: 'formSheet', sheetAllowedDetents: [0.7], sheetGrabberVisible: true }} />
       <Stack.Screen name="add-person" options={{ title: 'إضافة سجل', presentation: 'formSheet', sheetAllowedDetents: [0.8], sheetGrabberVisible: true }} />
+      <Stack.Screen name="staff-management" options={{ headerShown: false }} />
       <Stack.Screen name="aid/[id]" options={{ headerShown: false }} />
     </Stack>
   );

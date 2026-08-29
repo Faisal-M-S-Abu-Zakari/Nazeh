@@ -1,276 +1,50 @@
 'use client';
-import { useState, useEffect, Suspense } from 'react';
-import { Button, PinInput, Stack, Text, Group, LoadingOverlay } from '@mantine/core';
-import { useForm } from '@mantine/form';
-import { zodResolver } from '@/lib/zod-resolver';
-import { Timer } from 'lucide-react';
-import { useRouter  } from '@/lib/nextjs-mocks';
-import { useQueryStates, parseAsString, parseAsInteger } from 'nuqs';
-import { notifications } from '@mantine/notifications';
-import { useMutation } from '@tanstack/react-query';
-import { verifyOtp, verifyOtpProps } from '@/actions/auth/verifyOtp';
-import { forgetPassword, forgetPasswordProps } from '@/actions/auth/forgetPassword';
-import { AUTH_ROUTES } from '@/constants/routes';
-import { otpSchema, otpType } from '@/validation/auth/otpSchema';
-import { commonActionResponse } from '@/@types/common/action/commonActionResponse.type';
 
+import { Button, Divider, Group, Stack, Text } from '@mantine/core';
+import { Link } from '@/lib/nextjs-mocks';
+
+/**
+ * Kept as a safe compatibility destination for legacy recovery links.
+ * Password recovery is completed exclusively with an administrator-issued
+ * one-time token; this app does not send or validate email OTPs.
+ */
 export default function OTP() {
-  return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <OTPContent />
-    </Suspense>
-  );
-}
-
-function OTPContent() {
-  const router = useRouter();
-
-  const [query, setQuery] = useQueryStates(
-    {
-      email: parseAsString.withDefault(''),
-      callback: parseAsString.withDefault('/'),
-      date: parseAsInteger.withDefault(Date.now()),
-    },
-    { shallow: true }
-  );
-
-  useEffect(() => {
-    if (!query.email || !query.callback || !query.date) {
-      router.push(AUTH_ROUTES.LOGIN);
-    }
-  }, []);
-
-  const [seconds, setSeconds] = useState(() =>
-    Math.max(60 - Math.floor((Date.now() - query.date) / 1000), 0)
-  );
-
-  useEffect(() => {
-    if (seconds > 0) {
-      const interval = setInterval(() => {
-        setSeconds((prev) => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-      return () => clearInterval(interval);
-    }
-  }, [seconds]);
-
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  const timeDisplay = `${minutes.toString().padStart(2, '0')}:${remainingSeconds
-    .toString()
-    .padStart(2, '0')}`;
-
-  const [error, setError] = useState('');
-
-  const form = useForm<otpType>({
-    mode: 'uncontrolled',
-    initialValues: { otp: '' },
-    validate: zodResolver(otpSchema),
-  });
-
-  const verifyOtpMutation = useMutation<commonActionResponse, Error, verifyOtpProps>({
-    mutationFn: verifyOtp,
-    onSuccess: (data) => {
-      if (data.status == 200) {
-        notifications.show({
-          title: data.message || 'تم التحقق من الرمز بنجاح',
-          message: 'قم بتعيين كلمة مرور جديدة',
-          color: 'grape',
-          position: 'top-left',
-          withBorder: true,
-          loading: true,
-        });
-
-        router.push(`${query.callback}?email=${query.email}`); // redirect to the callback url
-        form.reset();
-        setError('');
-        return;
-      } else {
-        const errorMessage = data.error || 'رمز التحقق غير صالح';
-        setError(errorMessage);
-        throw new Error(errorMessage);
-      }
-    },
-    onError: (error: any) => {
-      const errorMessage = error?.response?.data?.error || error?.message;
-      setError(errorMessage);
-      notifications.show({
-        title: 'خطأ',
-        message: errorMessage,
-        color: 'red',
-        position: 'top-left',
-        withBorder: true,
-      });
-    },
-  });
-
-  const handleSubmit = form.onSubmit((values: otpType) => {
-    try {
-      if (!seconds) {
-        setError('انتهى وقت الرمز. يرجى طلب رمز جديد');
-        return;
-      }
-      if (values.otp.length !== 4) {
-        setError('يجب إدخال 4 أرقام');
-        return;
-      }
-
-      setError('');
-      verifyOtpMutation.mutate({ email: query.email, otp: values.otp });
-    } catch (error: any) {
-      setError(error?.message as string);
-    }
-  });
-
-  const resendOtpMutation = useMutation<commonActionResponse, Error, forgetPasswordProps>({
-    mutationFn: forgetPassword,
-    onSuccess: (data) => {
-      if (data.status == 200) {
-        notifications.show({
-          title: 'تم اعادة إرسال رمز التحقق إلى بريدك الإلكتروني',
-          message: ' قم بالتحقق من بريدك الإلكتروني مرة أخرى',
-          color: 'grape',
-          position: 'top-left',
-          withBorder: true,
-          loading: true,
-        });
-
-        const newDate = Date.now();
-        setQuery({ date: newDate });
-        setSeconds(60);
-        form.reset();
-        setError('');
-      } else {
-        const errorMessage = data.error || 'فشل في إرسال رمز التحقق إلى بريدك الإلكتروني';
-        setError(errorMessage);
-        throw new Error(errorMessage);
-      }
-    },
-    onError: (error: any) => {
-      const errorMessage = error?.response?.data?.error || error?.message;
-      setError(errorMessage);
-      notifications.show({
-        title: 'خطأ',
-        message: errorMessage,
-        color: 'red',
-        position: 'top-left',
-        withBorder: true,
-      });
-    },
-  });
-
-  const handleResend = async () => {
-    setError('');
-    resendOtpMutation.mutate({ email: query.email });
-  };
-
   return (
     <Stack
       align='center'
-      gap={40}
-      bg={'white'}
+      gap={32}
+      bg='white'
       pt={{ base: 0, lg: 64 }}
       pb={20}
-      h={'100%'}
+      h='100%'
       w={{ base: '100%', lg: 550 }}
       className='!rounded-xl'
-      pos={'relative'}
     >
-      <LoadingOverlay
-        visible={verifyOtpMutation.isPending || resendOtpMutation.isPending}
-        zIndex={1000}
-        overlayProps={{ radius: 'sm', blur: 0.3 }}
-      />
-
-      <Text fw={500} fz={{ base: 28, md: 32 }} ta={'center'}>
-        إدخال رمز التحقق
+      <Text fw={500} fz={{ base: 28, md: 32 }} ta='center'>
+        إعادة تعيين كلمة المرور
       </Text>
-
       <Stack justify='center' align='center' gap={20}>
-        <Text fw={500} fz={16} c={'#817C74'} ta={'center'} w={{ base: 343, md: 400 }}>
-          لقد أرسلنا رمز التحقق إلى <br />
-          <span className='font-bold'>{query.email}</span>
+        <Text fw={400} fz={16} c='#817C74' ta='center' w={{ base: 343, md: 400 }} data-testid='recovery-admin-instructions'>
+          لا نرسل رموز تحقق عبر البريد الإلكتروني. تواصل مع مسؤول النظام للحصول
+          على رابط إعادة تعيين آمن صالح لمرة واحدة.
         </Text>
-
-        <form className='flex flex-col items-center gap-0' onSubmit={handleSubmit}>
-          <PinInput
-            disabled={verifyOtpMutation.isPending || resendOtpMutation.isPending || seconds === 0}
-            type='number'
-            size='md'
-            length={4}
-            placeholder=''
-            classNames={{
-              root: 'gap-5',
-              input: 'border-1 border-[#DFDEDC] w-12 h-12 rounded-lg focus:border-primary',
-            }}
-            key={form.key('otp')}
-            {...form.getInputProps('otp')}
-            autoFocus
-          />
-
-          {!seconds && (
-            <Text fw={500} fz={16} c={'#FD6265'} ta={'center'} mt={'sm'}>
-              انتهى وقت الرمز
-            </Text>
-          )}
-
-          {seconds > 0 && (
-            <Group
-              align='center'
-              justify='center'
-              mt={20}
-              className='px-2 py-1 border-[#5F6F52] border-1 rounded-lg'
-              c={'#5F6F52'}
-            >
-              <Timer size={16} />
-              <Text fw={400} fz={14}>
-                {timeDisplay}
-              </Text>
-            </Group>
-          )}
-
-          {!seconds && (
-            <Button
-              variant='transparent'
-              mt={20}
-              fz={16}
-              fw={500}
-              onClick={handleResend}
-              disabled={resendOtpMutation.isPending}
-              className='!text-primary hover:!text-primary/80 !underline'
-            >
-              إعادة إرسال الرمز
-            </Button>
-          )}
-
-          <Button
-            type='submit'
-            mt={32}
-            fz={20}
-            fw={500}
-            c={'white'}
-            className={`!shadow-lg max-lg:!mt-10 ${
-              !seconds || form.getValues().otp.length !== 4
-                ? '!bg-primary/70'
-                : '!bg-primary hover:!bg-primary/90'
-            }`}
-            w={228}
-            disabled={!seconds || form.getValues().otp.length !== 4 || verifyOtpMutation.isPending}
-          >
-            تحقق
-          </Button>
-
-          {error && (
-            <Text fw={500} mt={'sm'} size='sm' ta='center' c='red'>
-              {error}
-            </Text>
-          )}
-        </form>
+        <Button
+          component={Link}
+          href='create-new-password'
+          w={228}
+          className='!shadow-lg !bg-primary'
+          data-testid='recovery-token-completion'
+        >
+          لدي رابط إعادة التعيين
+        </Button>
+        <Group wrap='nowrap' align='center' w='100%'>
+          <Divider h={1} bg='#DFDEDC' w='100%' flex={1} />
+          <Text mx={8} fw={400} c='#817C74'>أو</Text>
+          <Divider h={1} bg='#DFDEDC' w='100%' flex={1} />
+        </Group>
+        <Button component={Link} href='login' variant='subtle' className='!text-primary' data-testid='recovery-login'>
+          العودة إلى تسجيل الدخول
+        </Button>
       </Stack>
     </Stack>
   );

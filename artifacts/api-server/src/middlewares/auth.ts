@@ -63,13 +63,27 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       email: staffUsers.email,
       name: staffUsers.name,
       role: staffUsers.role,
+      active: staffUsers.active,
+      passwordSetAt: staffUsers.passwordSetAt,
+      isDevelopmentDemo: staffUsers.isDevelopmentDemo,
+      createdAt: staffUsers.createdAt,
+      updatedAt: staffUsers.updatedAt,
     })
     .from(sessions)
     .innerJoin(staffUsers, eq(sessions.userId, staffUsers.id))
-    .where(and(eq(sessions.tokenHash, hashToken(token)), gt(sessions.expiresAt, new Date())))
+    .where(and(
+      eq(sessions.tokenHash, hashToken(token)),
+      gt(sessions.expiresAt, new Date()),
+      isNull(sessions.revokedAt),
+      eq(staffUsers.active, true),
+    ))
     .limit(1);
 
-  if (!result) {
+  if (
+    !result ||
+    (process.env.NODE_ENV === "production" &&
+      (result.isDevelopmentDemo || isKnownDevelopmentDemo(result.id, result.email)))
+  ) {
     res.status(401).json({ error: "Invalid or expired session" });
     return;
   }
@@ -79,9 +93,23 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     email: result.email,
     name: result.name,
     role: result.role,
+    active: result.active,
+    passwordSet: Boolean(result.passwordSetAt),
+    createdAt: result.createdAt,
+    updatedAt: result.updatedAt,
   };
   res.locals["sessionId"] = result.sessionId;
   next();
+}
+
+const DEMO_STAFF_IDS = new Set([
+  "10000000-0000-4000-8000-000000000001",
+  "10000000-0000-4000-8000-000000000002",
+  "10000000-0000-4000-8000-000000000003",
+  "10000000-0000-4000-8000-000000000004",
+]);
+export function isKnownDevelopmentDemo(id: string, email: string): boolean {
+  return DEMO_STAFF_IDS.has(id) || email.toLowerCase().endsWith("@alaqsa.local");
 }
 
 export function allowRoles(...roles: StaffRole[]) {

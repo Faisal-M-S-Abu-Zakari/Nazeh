@@ -24,6 +24,7 @@ export const GENERAL_ACTOR_ROUTES = {
   SECURITIES: '/actor/securities',
   ADD_SECURITIES: '/actor/securities/add',
   NOTIFICATIONS: '/actor/notifications',
+  STAFF: '/actor/staff',
 
 } as const;
 

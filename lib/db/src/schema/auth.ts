@@ -108,7 +108,16 @@ export const staffUsers = pgTable("staff_users", {
   name: text("name").notNull(),
   passwordHash: text("password_hash").notNull(),
   role: staffRole("role").notNull(),
+  active: boolean("active").notNull().default(true),
+  // defaultNow preserves existing password-bearing accounts when this column is
+  // introduced; invite creation explicitly stores null until setup completes.
+  passwordSetAt: timestamp("password_set_at", { withTimezone: true }).defaultNow(),
+  isDevelopmentDemo: boolean("is_development_demo").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 export const sessions = pgTable(
@@ -120,7 +129,33 @@ export const sessions = pgTable(
       .references(() => staffUsers.id, { onDelete: "cascade" }),
     tokenHash: text("token_hash").notNull().unique(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("staff_sessions_token_hash_idx").on(table.tokenHash)],
+);
+
+export const credentialTokenKind = pgEnum("credential_token_kind", [
+  "INVITE",
+  "PASSWORD_RESET",
+]);
+
+export const credentialTokens = pgTable(
+  "staff_credential_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => staffUsers.id, { onDelete: "cascade" }),
+    kind: credentialTokenKind("kind").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("staff_credential_tokens_hash_unique").on(table.tokenHash),
+    index("staff_credential_tokens_user_idx").on(table.userId),
+    index("staff_credential_tokens_expiry_idx").on(table.expiresAt),
+  ],
 );

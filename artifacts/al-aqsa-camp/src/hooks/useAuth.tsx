@@ -46,6 +46,7 @@ export default function useAuth() {
     isLoading: me.isLoading,
     error: me.error,
     isManager: role === Role.MANAGER || role === Role.ADMIN,
+    isAdmin: role === Role.ADMIN,
     isDelegate: role === Role.DELEGATE,
     isDisplaced: false,
     isSecurity: role === Role.SECURITY_OFFICER,

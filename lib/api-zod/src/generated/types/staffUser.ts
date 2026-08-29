@@ -12,4 +12,8 @@ export interface StaffUser {
   email: string;
   name: string;
   role: Role;
+  active: boolean;
+  passwordSet: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }

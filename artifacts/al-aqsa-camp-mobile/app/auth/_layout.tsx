@@ -14,7 +14,7 @@ export default function AuthLayout() {
     }}>
       <Stack.Screen name="login" options={{ title: 'تسجيل الدخول' }} />
       <Stack.Screen name="forgot" options={{ title: 'استعادة كلمة المرور' }} />
-      <Stack.Screen name="otp" options={{ title: 'رمز التحقق' }} />
+      <Stack.Screen name="otp" options={{ title: 'تعيين كلمة المرور' }} />
     </Stack>
   );
 }

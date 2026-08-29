@@ -28,7 +28,7 @@ interface NavLink {
 }
 
 export default function Navigation_Links() {
-  const { user, isDelegate, isDisplaced, isSecurity, isSecurityOfficer, isManager } = useAuth();
+  const { user, isDelegate, isDisplaced, isSecurity, isSecurityOfficer, isManager, isAdmin } = useAuth();
   const userId = Number(user?.id) || 0;
   const pathname = usePathname();
 
@@ -41,7 +41,7 @@ export default function Navigation_Links() {
   const navLinks = useMemo(() => {
     if (pathname.includes('/displaceds/')) {
       if (pathname.includes('/displaceds/add') && isManager) {
-        return managerNavLinks(userId);
+        return managerNavLinks(userId, isAdmin);
       } else if (pathname.includes('/displaceds/add') && isDelegate) {
         return delegate_NavLinks(userId);
       } else {
@@ -53,7 +53,7 @@ export default function Navigation_Links() {
 
     if (pathname.includes('/delegates/')) {
       if (pathname.includes('/delegates/add') && isManager) {
-        return managerNavLinks(userId);
+        return managerNavLinks(userId, isAdmin);
       } else {
         const id = extractId('delegates');
         if (isDelegate && userId === id) return delegate_NavLinks(userId);
@@ -65,7 +65,7 @@ export default function Navigation_Links() {
 
     if (pathname.includes('/securities/')) {
       if (pathname.includes('/securities/add') && isManager) {
-        return managerNavLinks(userId);
+        return managerNavLinks(userId, isAdmin);
       } else if (pathname.includes('/securities/add') && isSecurityOfficer) {
         return security_NavLinks(userId);
       } else {
@@ -77,17 +77,17 @@ export default function Navigation_Links() {
 
     if (pathname.includes('/manager/')) {
       const id = extractId('manager');
-      if (isManager && userId === id) return managerNavLinks(userId);
+      if (isManager && userId === id) return managerNavLinks(userId, isAdmin);
       return guestManagerNavLinks(id);
     }
 
     if (isDisplaced) return displaced_NavLinks(userId);
     if (isDelegate) return delegate_NavLinks(userId);
     if (isSecurity || isSecurityOfficer) return security_NavLinks(userId);
-    if (isManager) return managerNavLinks(userId);
+    if (isManager) return managerNavLinks(userId, isAdmin);
 
     return [];
-  }, [pathname, userId, isDisplaced, isDelegate, isSecurity, isSecurityOfficer, isManager]);
+  }, [pathname, userId, isDisplaced, isDelegate, isSecurity, isSecurityOfficer, isManager, isAdmin]);
 
   const isLinkActive = (href: string) => {
     return href === GENERAL_ACTOR_ROUTES.SECURITIES

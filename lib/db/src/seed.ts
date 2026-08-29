@@ -10,15 +10,15 @@ const ids = {
 };
 
 async function seed() {
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("Development seed must not run in production");
+  if (process.env.NODE_ENV !== "development") {
+    throw new Error("Development seed requires NODE_ENV=development");
   }
   const passwordHash = await bcrypt.hash("CampDemo2025!", 12);
   await db.insert(staffUsers).values([
-    { id: ids.admin, email: "admin@alaqsa.local", name: "مدير النظام", role: "ADMIN", passwordHash },
-    { id: ids.manager, email: "manager@alaqsa.local", name: "أحمد الخطيب", role: "MANAGER", passwordHash },
-    { id: ids.delegate, email: "delegate@alaqsa.local", name: "سارة النجار", role: "DELEGATE", passwordHash },
-    { id: ids.security, email: "security@alaqsa.local", name: "محمود سالم", role: "SECURITY_OFFICER", passwordHash },
+    { id: ids.admin, email: "admin@alaqsa.local", name: "مدير النظام", role: "ADMIN", passwordHash, active: true, passwordSetAt: new Date(), isDevelopmentDemo: true },
+    { id: ids.manager, email: "manager@alaqsa.local", name: "أحمد الخطيب", role: "MANAGER", passwordHash, active: true, passwordSetAt: new Date(), isDevelopmentDemo: true },
+    { id: ids.delegate, email: "delegate@alaqsa.local", name: "سارة النجار", role: "DELEGATE", passwordHash, active: true, passwordSetAt: new Date(), isDevelopmentDemo: true },
+    { id: ids.security, email: "security@alaqsa.local", name: "محمود سالم", role: "SECURITY_OFFICER", passwordHash, active: true, passwordSetAt: new Date(), isDevelopmentDemo: true },
   ]).onConflictDoNothing();
 
   await db.insert(aids).values([

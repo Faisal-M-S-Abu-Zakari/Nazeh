@@ -1,15 +1,18 @@
 import { GENERAL_ACTOR_ROUTES, MANAGER_ROUTES_fUNC } from '@/constants/routes';
-import { ShieldUser, Database, Newspaper, Handshake, User, Users, FileChartLine, MessageCircleWarning } from 'lucide-react';
+import { ShieldUser, Database, Newspaper, Handshake, User, Users, FileChartLine, MessageCircleWarning, UserCog } from 'lucide-react';
 
 
 
 //what appear to manager 
-export const managerNavLinks = (manager_Id: number) => {
+export const managerNavLinks = (manager_Id: number, isAdmin = false) => {
 
     const managerRoutes = MANAGER_ROUTES_fUNC({ manager_Id });
 
     return [
         { label: 'الملف الشخصي', href: managerRoutes.PROFILE, icon: User },
+        // Navigation_Links renders inside the nested /actor router, so this
+        // must be actor-relative rather than repeating the /actor prefix.
+        ...(isAdmin ? [{ label: 'إدارة الموظفين', href: 'staff', icon: UserCog }] : []),
         { label: 'بيانات النازحين', href: GENERAL_ACTOR_ROUTES.DISPLACEDS, icon: Database },
         {
             label: 'بيانات المناديب',

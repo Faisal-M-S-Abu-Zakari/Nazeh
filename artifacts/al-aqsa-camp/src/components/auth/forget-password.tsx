@@ -1,69 +1,8 @@
 'use client';
-import { useState } from 'react';
-import { Button, Divider, Group, LoadingOverlay, Stack, Text, TextInput } from '@mantine/core';
-import { useForm } from '@mantine/form';
-import { zodResolver } from '@/lib/zod-resolver';
+import { Button, Divider, Group, Stack, Text } from '@mantine/core';
 import { Link as Link } from '@/lib/nextjs-mocks';
-import { useRouter  } from '@/lib/nextjs-mocks';
-import { AUTH_ROUTES } from '@/constants/routes';
-import { notifications } from '@mantine/notifications';
-import { useMutation } from '@tanstack/react-query';
-import { forgetPassword, forgetPasswordProps } from '@/actions/auth/forgetPassword';
-import { forgetPasswordSchema, forgetPasswordType } from '@/validation/auth/forgetPasswordSchema';
-import { commonActionResponse } from '@/@types/common/action/commonActionResponse.type';
 
 export default function Forget_Password() {
-  const form = useForm<forgetPasswordType>({
-    mode: 'uncontrolled',
-    initialValues: { email: '' },
-    validate: zodResolver(forgetPasswordSchema),
-  });
-
-  const [error, setError] = useState('');
-  const router = useRouter();
-
-  const forgetPasswordMutation = useMutation<commonActionResponse, Error, forgetPasswordProps>({
-    mutationFn: forgetPassword,
-    onSuccess: (data) => {
-      if (data.status == 200) {
-        notifications.show({
-          title: data.message,
-          message: 'قم بالتحقق من بريدك الإلكتروني',
-          color: 'grape',
-          position: 'top-left',
-          withBorder: true,
-          loading: true,
-        });
-
-        router.push(
-          `${AUTH_ROUTES.OTP}?email=${encodeURIComponent(
-            form.getValues().email
-          )}&date=${encodeURIComponent(Date.now())}&callback=${encodeURIComponent(
-            AUTH_ROUTES.CREATE_NEW_PASSWORD
-          )}`
-        );
-        form.reset();
-      } else {
-        throw new Error(data.error || 'فشل في إرسال رمز التحقق إلى بريدك الإلكتروني');
-      }
-    },
-    onError: (error: any) => {
-      const errorMessage = error?.response?.data?.error || error?.message;
-      setError(errorMessage);
-      notifications.show({
-        title: 'خطأ',
-        message: errorMessage,
-        color: 'red',
-        position: 'top-left',
-        withBorder: true,
-      });
-    },
-  });
-
-  const handleSubmit = form.onSubmit((values: forgetPasswordType) => {
-    forgetPasswordMutation.mutate({ email: values.email });
-  });
-
   return (
     <Stack
       align='center'
@@ -76,57 +15,27 @@ export default function Forget_Password() {
       className='!rounded-xl'
       pos={'relative'}
     >
-      <LoadingOverlay
-        visible={forgetPasswordMutation.isPending}
-        zIndex={1000}
-        overlayProps={{ radius: 'sm', blur: 0.3 }}
-      />
-
       <Text fw={500} fz={{ base: 28, md: 32 }} ta={'center'}>
         نسيت كلمة المرور
       </Text>
 
       <Stack justify='center' align='center' gap={20} pos={'relative'}>
-        <form className='flex flex-col items-center gap-0' onSubmit={handleSubmit}>
-          <TextInput
-            type='email'
-            label={
-              <Text fw={500} fz={16} mb={3}>
-                البريد الإلكتروني
-              </Text>
-            }
-            placeholder={'ادخل البريد الإلكتروني'}
-            w={{ base: 343, md: 400 }}
-            className='!border-second !border-w-1 focus:!border-none !outline-none'
-            key={form.key('email')}
-            {...form.getInputProps('email')}
-            classNames={{
-              input: '!text-dark placeholder:!text-sm !text-primary !font-normal',
-              error: '!w-full !text-end !text-[#FD6265] !font-normal !text-sm',
-            }}
-          />
-
-          <Button
-            type='submit'
-            size='sm'
-            fz={16}
-            fw={500}
-            c={'white'}
-            w={228}
-            mt={32}
-            className={`!shadow-lg max-lg:!mt-10 ${
-              !form.getValues().email ? '!bg-primary/70' : '!bg-primary'
-            }`}
-            disabled={!form.getValues().email}
-          >
-            إرسال
-          </Button>
-          {error ? (
-            <Text fw={'500'} mt={'sm'} size='sm' ta='center' c={'red'}>
-              {error}
-            </Text>
-          ) : null}
-        </form>
+        <Text fw={400} fz={16} c='#817C74' ta='center' w={{ base: 343, md: 400 }} data-testid='forgot-password-instructions'>
+          لإعادة تعيين كلمة المرور، تواصل مع مسؤول النظام. سيصدر لك رابطاً آمناً
+          صالحاً لمرة واحدة لإعداد كلمة مرور جديدة.
+        </Text>
+        <Button
+          component={Link}
+          href='create-new-password'
+          size='sm'
+          fz={16}
+          fw={500}
+          w={228}
+          className='!shadow-lg !bg-primary'
+          data-testid='open-token-completion'
+        >
+          لدي رابط إعادة التعيين
+        </Button>
         <Group wrap='nowrap' align='center' w={'100%'}>
           <Divider h={1} bg={'#DFDEDC'} w={'100%'} flex={1} />
           <Text mx={8} fw={400} c={'#817C74'}>
@@ -135,12 +44,9 @@ export default function Forget_Password() {
           <Divider h={1} bg={'#DFDEDC'} w={'100%'} flex={1} />
         </Group>
 
-        <Text fw={500} fz={16} className='!text-primary'>
-          لديك حساب؟
-          <Link href={AUTH_ROUTES.LOGIN} className='underline hover:!cursor-pointer'>
-            تسجيل الدخول
-          </Link>
-        </Text>
+        <Button component={Link} href='login' variant='subtle' className='!text-primary' data-testid='forgot-password-login'>
+          العودة إلى تسجيل الدخول
+        </Button>
       </Stack>
     </Stack>
   );

@@ -18,6 +18,27 @@ if (!configuredSecret) logger.warn("Using ephemeral development-only SESSION_SEC
 export function hashSessionToken(token: string): string {
   return createHmac("sha256", sessionSecret).update(token).digest("hex");
 }
+/** Credential tokens use a separate namespace from session tokens. */
+export function hashCredentialToken(token: string): string {
+  return createHmac("sha256", sessionSecret)
+    .update(`credential:${token}`)
+    .digest("hex");
+}
+
+export function passwordPolicyError(password: string): string | undefined {
+  if (password.length < 12 || password.length > 128) {
+    return "Password must be between 12 and 128 characters";
+  }
+  if (
+    !/[a-z]/.test(password) ||
+    !/[A-Z]/.test(password) ||
+    !/[0-9]/.test(password) ||
+    !/[^A-Za-z0-9]/.test(password)
+  ) {
+    return "Password must include uppercase, lowercase, number, and symbol characters";
+  }
+  return undefined;
+}
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString("hex");
   return `${salt}:${Buffer.from((await scrypt(password, salt, 64)) as ArrayBuffer).toString("hex")}`;

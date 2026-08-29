@@ -6,7 +6,6 @@ import { zodResolver } from '@/lib/zod-resolver';
 import { useRouter  } from '@/lib/nextjs-mocks';
 import { notifications } from '@mantine/notifications';
 import { useMutation } from '@tanstack/react-query';
-import { AUTH_ROUTES } from '@/constants/routes';
 import { useQueryStates, parseAsString } from 'nuqs';
 import { createNewPassword, createNewPasswordProps } from '@/actions/auth/createNewPassword';
 import {
@@ -25,8 +24,8 @@ export default function Create_New_Password() {
     validate: zodResolver(createNewPasswordSchema),
   });
 
-  const [query, setQuery] = useQueryStates(
-    { email: parseAsString.withDefault('') },
+  const [query] = useQueryStates(
+    { token: parseAsString.withDefault('') },
     { shallow: true }
   );
 
@@ -47,7 +46,8 @@ export default function Create_New_Password() {
           loading: true,
         });
 
-        router.push(AUTH_ROUTES.LOGIN);
+        // This component is rendered inside the nested /auth router.
+        router.push('login');
         form.reset();
       } else {
         throw new Error(data.error || 'فشل في تحديث كلمة المرور');
@@ -68,7 +68,7 @@ export default function Create_New_Password() {
 
   const handleSubmit = form.onSubmit((values: createNewPasswordType) => {
     createNewPasswordMutation.mutate({
-      email: query.email,
+      token: query.token,
       password: values.password,
       confirm_password: values.confirm_password,
     });
@@ -100,9 +100,15 @@ export default function Create_New_Password() {
         <Text fw={400} fz={14} c={'#817C74'} ta={'center'} w={{ base: 343, md: 400 }}>
           أدخل كلمة المرور الجديدة وتأكيدها
         </Text>
+        {!query.token && (
+          <Text c='red' ta='center' data-testid='credential-token-error'>
+            رابط تعيين كلمة المرور غير صالح أو ينقصه رمز التحقق.
+          </Text>
+        )}
 
         <form className='!relative !flex flex-col items-center gap-0' onSubmit={handleSubmit}>
           <PasswordInput
+            data-testid='new-password'
             type='password'
             label={
               <Text fw={500} fz={16} mb={3}>
@@ -121,6 +127,7 @@ export default function Create_New_Password() {
           />
 
           <PasswordInput
+            data-testid='confirm-password'
             type='password'
             label={
               <Text fw={500} fz={16} mb={3}>
@@ -140,6 +147,7 @@ export default function Create_New_Password() {
           />
 
           <Button
+            data-testid='complete-credential-submit'
             type='submit'
             mt={32}
             fz={20}
@@ -151,7 +159,7 @@ export default function Create_New_Password() {
                 ? '!bg-primary/70'
                 : '!bg-primary'
             }`}
-            disabled={!form.getValues().password || !form.getValues().confirm_password}
+            disabled={!query.token || !form.getValues().password || !form.getValues().confirm_password}
           >
             حفظ
           </Button>
