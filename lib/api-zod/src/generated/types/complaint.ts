@@ -14,8 +14,13 @@ export interface Complaint {
   description: string;
   status: ComplaintStatus;
   location?: string | null;
+  reply?: string | null;
+  repliedById?: string | null;
+  repliedAt?: Date | null;
+  createdById: string;
   createdAt: Date;
   updatedAt: Date;
+  archivedAt?: Date | null;
   /** @minimum 1 */
   version: number;
 }

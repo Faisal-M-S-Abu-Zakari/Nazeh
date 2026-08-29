@@ -3,69 +3,62 @@
 import { ActionIcon, Button, Group, Modal, Stack, Text, ThemeIcon } from '@mantine/core';
 import { Trash2 } from 'lucide-react';
 import { useDisclosure } from '@mantine/hooks';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { commonActionResponse } from '@/@types/common/action/commonActionResponse.type';
-import {
-  deleteCommonComplaint,
-  deleteCommonComplaintProps,
-} from '@/actions/actors/general/complaints/deleteCommonComplaint';
 import { UserRank, UserType } from '@/constants/userTypes';
+import { getListComplaintsQueryKey, useArchiveSyncComplaint } from '@workspace/api-client-react';
 
 interface CommonDeleteComplaintProps {
-  complaint_Id: number;
+  complaintId: string;
+  version: number;
   actor_Id: number;
   role: UserRank | UserType;
 }
 
 export default function Common_Delete_Complaint({
-  complaint_Id,
+  complaintId,
+  version,
   actor_Id,
   role,
 }: CommonDeleteComplaintProps) {
   const [opened, { open, close }] = useDisclosure(false);
   const queryClient = useQueryClient();
 
-  const deleteMutation = useMutation<commonActionResponse, unknown, deleteCommonComplaintProps>({
-    mutationFn: deleteCommonComplaint,
-    onSuccess: (data) => {
-      if (data.status === 200) {
+  const deleteMutation = useArchiveSyncComplaint({ mutation: {
+    onSuccess: () => {
         notifications.show({
           title: 'تم الحذف',
-          message: data.message,
+          message: 'تمت أرشفة الشكوى',
           color: 'grape',
           position: 'top-left',
           withBorder: true,
         });
-        queryClient.invalidateQueries({ queryKey: ['common-complaints'] });
+        queryClient.invalidateQueries({ queryKey: getListComplaintsQueryKey() });
         close();
-      } else {
-        throw new Error(data.error || 'فشل في الحذف');
-      }
     },
     onError: (error: any) => {
+      const conflict = error?.status === 409;
+      if (conflict) queryClient.invalidateQueries({ queryKey: getListComplaintsQueryKey() });
       notifications.show({
-        title: 'خطأ',
-        message: error?.message || 'فشل في الحذف',
+        title: conflict ? 'تعارض في التحديث' : 'خطأ',
+        message: conflict ? 'تم تعديل الشكوى من جهاز آخر. حُدّثت القائمة، راجع البيانات وحاول مجدداً.' : error?.message || 'فشل في الأرشفة',
         color: 'red',
         position: 'top-left',
         withBorder: true,
       });
     },
-  });
+  }});
 
   const handleClick = (event: React.MouseEvent) => {
     event.stopPropagation();
-    deleteMutation.mutate({
-      complaint_Id,
-      actor_Id,
-      role,
-    });
+    deleteMutation.mutate({ complaintId, data: { expectedVersion: version } });
   };
 
   return (
     <>
       <ActionIcon
+        data-testid={`complaint-archive-open-${complaintId}`}
         data-click='delete'
         variant='subtle'
         color='red'
@@ -106,6 +99,7 @@ export default function Common_Delete_Complaint({
 
           <Group justify='flex-end'>
             <Button
+              data-testid={`complaint-archive-cancel-${complaintId}`}
               size='sm'
               variant='outline'
               onClick={(e) => {
@@ -118,12 +112,13 @@ export default function Common_Delete_Complaint({
             </Button>
 
             <Button
+              data-testid={`complaint-archive-confirm-${complaintId}`}
               size='sm'
               className='!bg-red-600 !text-white'
               loading={deleteMutation.isPending}
               onClick={handleClick}
             >
-              حذف
+               أرشفة
             </Button>
           </Group>
         </Stack>

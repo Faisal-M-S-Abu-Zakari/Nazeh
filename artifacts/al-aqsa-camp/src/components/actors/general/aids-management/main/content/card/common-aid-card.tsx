@@ -125,6 +125,12 @@ export default function Common_Aid_Card({ aid, actor_Id, role }: CommonAidCardPr
               {aid.additional_notes}
             </Text>
           )}
+          <Common_Aid_Action
+            aid={aid}
+            aid_distribution_mechanism={aid.distribution_mechanism}
+            actor_Id={actor_Id}
+            role={role}
+          />
         </Stack>
       </Group>
     </Card>

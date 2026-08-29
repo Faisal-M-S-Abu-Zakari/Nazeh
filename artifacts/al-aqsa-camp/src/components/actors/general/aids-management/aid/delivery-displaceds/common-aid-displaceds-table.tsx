@@ -86,7 +86,7 @@ export default function Common_Aid_Displaceds_Table({
   const rows = (DISPLACED_DATA?.displaceds || []).map((element, index) => (
     <Table.Tr
       key={element.id}
-      bg={isRowReceived(element.id) ? 'var(--mantine-color-blue-light)' : undefined}
+      bg={isRowReceived(Number(element.id)) ? 'var(--mantine-color-blue-light)' : undefined}
     >
       <Table.Td px={5} ta='center' w='fit-content'>
         {((query.displaced_page ?? (DISPLACED_DATA?.pagination?.page as number)) - 1) *
@@ -113,11 +113,11 @@ export default function Common_Aid_Displaceds_Table({
         {element.delegate.name}
       </Table.Td>
       <Table.Td px={5} ta='center' w='fit-content'>
-        {isRowReceived(element.id) ? (
+        {isRowReceived(Number(element.id)) ? (
           'تم'
         ) : (
           <Common_Receive_Displaced_Aid
-            displaced_Id={element.id as number}
+            displaced_Id={Number(element.id)}
             aid_Id={aid_Data.id as number}
           />
         )}

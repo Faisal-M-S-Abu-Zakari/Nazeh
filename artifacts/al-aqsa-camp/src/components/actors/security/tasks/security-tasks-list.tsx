@@ -45,8 +45,8 @@ export default function Security_Tasks_List({
         </Center>
       ) : (
         <Stack gap='xs'>
-          {tasks.map((task, index) => (
-            <Security_Tasks_Card key={index} task={task} security_Id={security_Id} />
+          {tasks.map((task) => (
+            <Security_Tasks_Card key={task.apiId ?? task.id} task={task} security_Id={security_Id} />
           ))}
         </Stack>
       )}

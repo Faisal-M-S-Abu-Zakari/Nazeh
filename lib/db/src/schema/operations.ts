@@ -255,6 +255,9 @@ export const aids = pgTable("sync_aids", {
   notes: text("notes"),
   createdById: uuid("created_by_id").notNull().references(() => staffUsers.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  version: integer("version").notNull().default(1),
 });
 
 export const tasks = pgTable("sync_tasks", {
@@ -267,8 +270,10 @@ export const tasks = pgTable("sync_tasks", {
   version: integer("version").notNull().default(1),
   assignedToId: uuid("assigned_to_id").references(() => staffUsers.id),
   dueAt: timestamp("due_at", { withTimezone: true }),
+  createdById: uuid("created_by_id").notNull().references(() => staffUsers.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
 });
 
 export const complaints = pgTable("sync_complaints", {
@@ -279,8 +284,13 @@ export const complaints = pgTable("sync_complaints", {
   status: complaintStatus("status").notNull().default("OPEN"),
   version: integer("version").notNull().default(1),
   location: text("location"),
+  reply: text("reply"),
+  repliedById: uuid("replied_by_id").references(() => staffUsers.id),
+  repliedAt: timestamp("replied_at", { withTimezone: true }),
+  createdById: uuid("created_by_id").notNull().references(() => staffUsers.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
 });
 
 export const people = pgTable("sync_people", {
@@ -295,5 +305,24 @@ export const people = pgTable("sync_people", {
   notes: text("notes"),
   createdById: uuid("created_by_id").notNull().references(() => staffUsers.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  version: integer("version").notNull().default(1),
 });
+
+export const syncAuditEvents = pgTable(
+  "sync_audit_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    actorStaffId: uuid("actor_staff_id")
+      .notNull()
+      .references(() => staffUsers.id),
+    action: varchar("action", { length: 100 }).notNull(),
+    entityType: varchar("entity_type", { length: 80 }).notNull(),
+    entityId: uuid("entity_id").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("sync_audit_entity_idx").on(table.entityType, table.entityId)],
+);
 

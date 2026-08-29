@@ -5,16 +5,30 @@
  * AL-AQSA Camp persistent staff operations API
  * OpenAPI spec version: 0.2.0
  */
-import type { AidUpdateStatus } from './aidUpdateStatus';
+import type { AidType } from './aidType';
 
 export interface AidUpdate {
+  /**
+     * @minLength 2
+     * @maxLength 200
+     */
   title?: string;
-  type?: string;
-  /** @nullable */
-  description?: string | null;
-  /** @minimum 0 */
+  type?: AidType;
+  /** @minimum 1 */
   quantity?: number;
-  status?: AidUpdateStatus;
-  /** @nullable */
-  distributionDate?: Date | null;
+  /**
+     * @minLength 1
+     * @maxLength 50
+     */
+  unit?: string;
+  /**
+     * @minLength 2
+     * @maxLength 200
+     */
+  location?: string;
+  distributionDate?: Date;
+  /** @maxLength 1000 */
+  notes?: string | null;
+  /** @minimum 1 */
+  expectedVersion: number;
 }

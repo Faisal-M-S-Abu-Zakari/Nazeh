@@ -282,26 +282,42 @@ export interface AidInput {
   distributionDate?: string;
 }
 
-export type AidUpdateStatus = typeof AidUpdateStatus[keyof typeof AidUpdateStatus];
+export type AidType = typeof AidType[keyof typeof AidType];
 
 
-export const AidUpdateStatus = {
-  planned: 'planned',
-  active: 'active',
-  completed: 'completed',
-  cancelled: 'cancelled',
+export const AidType = {
+  FOOD: 'FOOD',
+  WATER: 'WATER',
+  MEDICAL: 'MEDICAL',
+  SHELTER: 'SHELTER',
+  HYGIENE: 'HYGIENE',
+  OTHER: 'OTHER',
 } as const;
 
 export interface AidUpdate {
+  /**
+     * @minLength 2
+     * @maxLength 200
+     */
   title?: string;
-  type?: string;
-  /** @nullable */
-  description?: string | null;
-  /** @minimum 0 */
+  type?: AidType;
+  /** @minimum 1 */
   quantity?: number;
-  status?: AidUpdateStatus;
-  /** @nullable */
-  distributionDate?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 50
+     */
+  unit?: string;
+  /**
+     * @minLength 2
+     * @maxLength 200
+     */
+  location?: string;
+  distributionDate?: string;
+  /** @maxLength 1000 */
+  notes?: string | null;
+  /** @minimum 1 */
+  expectedVersion: number;
 }
 
 export interface AidRecipientsInput {
@@ -315,9 +331,23 @@ export interface AidReceiptInput {
 }
 
 export interface ComplaintInput {
+  /**
+     * @minLength 2
+     * @maxLength 200
+     */
+  complainantName: string;
+  /**
+     * @minLength 2
+     * @maxLength 240
+     */
   subject: string;
-  message: string;
-  displacedPersonId?: number;
+  /**
+     * @minLength 1
+     * @maxLength 5000
+     */
+  description: string;
+  /** @maxLength 200 */
+  location?: string;
 }
 
 export type ComplaintStatusUpdateStatus = typeof ComplaintStatusUpdateStatus[keyof typeof ComplaintStatusUpdateStatus];
@@ -548,18 +578,6 @@ export interface AuthSessionResponse {
   user: StaffUser;
 }
 
-export type AidType = typeof AidType[keyof typeof AidType];
-
-
-export const AidType = {
-  FOOD: 'FOOD',
-  WATER: 'WATER',
-  MEDICAL: 'MEDICAL',
-  SHELTER: 'SHELTER',
-  HYGIENE: 'HYGIENE',
-  OTHER: 'OTHER',
-} as const;
-
 export interface Aid {
   id: string;
   title: string;
@@ -572,6 +590,10 @@ export interface Aid {
   notes?: string | null;
   createdById: string;
   createdAt: string;
+  updatedAt: string;
+  archivedAt?: string | null;
+  /** @minimum 1 */
+  version: number;
 }
 
 export interface CreateAidRequest {
@@ -618,6 +640,10 @@ export interface Person {
   notes?: string | null;
   createdById: string;
   createdAt: string;
+  updatedAt: string;
+  archivedAt?: string | null;
+  /** @minimum 1 */
+  version: number;
 }
 
 export interface CreatePersonRequest {
@@ -649,6 +675,37 @@ export interface CreatePersonRequest {
   notes?: string;
 }
 
+export interface PersonUpdate {
+  /**
+     * @minLength 6
+     * @maxLength 30
+     */
+  nationalId?: string;
+  /**
+     * @minLength 2
+     * @maxLength 200
+     */
+  fullName?: string;
+  gender?: Gender;
+  birthDate?: string;
+  /** @maxLength 30 */
+  phone?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 30
+     */
+  tentNumber?: string;
+  /**
+     * @minimum 1
+     * @maximum 50
+     */
+  familySize?: number;
+  /** @maxLength 1000 */
+  notes?: string | null;
+  /** @minimum 1 */
+  expectedVersion: number;
+}
+
 export type ComplaintStatus = typeof ComplaintStatus[keyof typeof ComplaintStatus];
 
 
@@ -666,14 +723,38 @@ export interface Complaint {
   description: string;
   status: ComplaintStatus;
   location?: string | null;
+  reply?: string | null;
+  repliedById?: string | null;
+  repliedAt?: string | null;
+  createdById: string;
   createdAt: string;
   updatedAt: string;
+  archivedAt?: string | null;
   /** @minimum 1 */
   version: number;
 }
 
-export interface UpdateComplaintStatusRequest {
-  status: ComplaintStatus;
+export interface ComplaintUpdate {
+  /**
+     * @minLength 2
+     * @maxLength 200
+     */
+  complainantName?: string;
+  /**
+     * @minLength 2
+     * @maxLength 240
+     */
+  subject?: string;
+  /**
+     * @minLength 1
+     * @maxLength 5000
+     */
+  description?: string;
+  /** @maxLength 200 */
+  location?: string | null;
+  status?: ComplaintStatus;
+  /** @maxLength 5000 */
+  reply?: string | null;
   /** @minimum 1 */
   expectedVersion: number;
 }
@@ -707,14 +788,60 @@ export interface Task {
   status: TaskStatus;
   assignedToId?: string | null;
   dueAt?: string | null;
+  createdById: string;
   createdAt: string;
   updatedAt: string;
+  archivedAt?: string | null;
   /** @minimum 1 */
   version: number;
 }
 
-export interface UpdateTaskStatusRequest {
-  status: TaskStatus;
+export interface TaskInput {
+  /**
+     * @minLength 2
+     * @maxLength 240
+     */
+  title: string;
+  /**
+     * @minLength 1
+     * @maxLength 5000
+     */
+  description: string;
+  /**
+     * @minLength 2
+     * @maxLength 200
+     */
+  location: string;
+  priority: TaskPriority;
+  assignedToId?: string | null;
+  dueAt?: string | null;
+}
+
+export interface TaskUpdate {
+  /**
+     * @minLength 2
+     * @maxLength 240
+     */
+  title?: string;
+  /**
+     * @minLength 1
+     * @maxLength 5000
+     */
+  description?: string;
+  /**
+     * @minLength 2
+     * @maxLength 200
+     */
+  location?: string;
+  priority?: TaskPriority;
+  status?: TaskStatus;
+  assignedToId?: string | null;
+  dueAt?: string | null;
+  /** @minimum 1 */
+  expectedVersion: number;
+}
+
+export interface ArchiveRecord {
   /** @minimum 1 */
   expectedVersion: number;
 }
@@ -916,4 +1043,3 @@ page?: PageParameter;
  */
 limit?: LimitParameter;
 };
-

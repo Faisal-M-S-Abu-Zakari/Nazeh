@@ -33,16 +33,16 @@ export default function AddPersonScreen() {
   return (
     <KeyboardAwareScrollViewCompat contentContainerStyle={styles.content} bottomOffset={60}>
       <Text style={[styles.copy, { color: colors.mutedForeground }]}>يُحفظ السجل في قاعدة بيانات الفريق المشتركة.</Text>
-      <Field label="الاسم الكامل" value={name} onChangeText={setName} />
-      <Field label="رقم الهوية" value={nationalId} onChangeText={setNationalId} />
-      <Field label="رقم الهاتف (اختياري)" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+      <Field testID="person-name" label="الاسم الكامل" value={name} onChangeText={setName} />
+      <Field testID="person-national-id" label="رقم الهوية" value={nationalId} onChangeText={setNationalId} />
+      <Field testID="person-phone" label="رقم الهاتف (اختياري)" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
       <Text style={[styles.label, { color: colors.foreground }]}>الجنس</Text>
       <View style={styles.options}>
-        {([[Gender.MALE, 'ذكر'], [Gender.FEMALE, 'أنثى']] as const).map(([value, label]) => <Pressable key={value} onPress={() => setGender(value)} style={[styles.option, { backgroundColor: gender === value ? colors.primary : colors.muted }]}><Text style={[styles.optionText, { color: gender === value ? colors.primaryForeground : colors.foreground }]}>{label}</Text></Pressable>)}
+        {([[Gender.MALE, 'ذكر'], [Gender.FEMALE, 'أنثى']] as const).map(([value, label]) => <Pressable testID={`person-gender-${value}`} key={value} onPress={() => setGender(value)} style={[styles.option, { backgroundColor: gender === value ? colors.primary : colors.muted }]}><Text style={[styles.optionText, { color: gender === value ? colors.primaryForeground : colors.foreground }]}>{label}</Text></Pressable>)}
       </View>
-      <Field label="تاريخ الميلاد" value={birthDate} onChangeText={setBirthDate} placeholder="1990-01-30" />
-      <Field label="رقم الخيمة" value={tentNumber} onChangeText={setTentNumber} />
-      <Field label="عدد أفراد الأسرة" value={familySize} onChangeText={setFamilySize} keyboardType="number-pad" />
+      <Field testID="person-birth-date" label="تاريخ الميلاد" value={birthDate} onChangeText={setBirthDate} placeholder="1990-01-30" />
+      <Field testID="person-tent" label="رقم الخيمة" value={tentNumber} onChangeText={setTentNumber} />
+      <Field testID="person-family-size" label="عدد أفراد الأسرة" value={familySize} onChangeText={setFamilySize} keyboardType="number-pad" />
       {error ? <Text style={[styles.error, { color: colors.destructive }]}>{error}</Text> : null}
       <PrimaryButton testID="save-person" label={saving ? 'جارٍ الحفظ…' : 'حفظ ومزامنة السجل'} icon="person-add-outline" disabled={!valid || saving || !canManagePeople} onPress={() => void submit()} />
     </KeyboardAwareScrollViewCompat>

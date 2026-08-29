@@ -32,13 +32,13 @@ async function seed() {
   ]).onConflictDoNothing();
 
   await db.insert(complaints).values([
-    { id: "40000000-0000-4000-8000-000000000001", complainantName: "ليلى حسن", subject: "تأخر تعبئة خزان المياه", description: "لم تصل صهاريج المياه إلى القطاع الغربي منذ يومين.", status: "IN_REVIEW", location: "القطاع الغربي" },
-    { id: "40000000-0000-4000-8000-000000000002", complainantName: "يوسف إبراهيم", subject: "إنارة الممر", description: "الممر بين الصفين د وهـ يحتاج إلى مصباح إضافي.", status: "OPEN", location: "الممر د-هـ" },
+    { id: "40000000-0000-4000-8000-000000000001", complainantName: "ليلى حسن", subject: "تأخر تعبئة خزان المياه", description: "لم تصل صهاريج المياه إلى القطاع الغربي منذ يومين.", status: "IN_REVIEW", location: "القطاع الغربي", createdById: ids.manager },
+    { id: "40000000-0000-4000-8000-000000000002", complainantName: "يوسف إبراهيم", subject: "إنارة الممر", description: "الممر بين الصفين د وهـ يحتاج إلى مصباح إضافي.", status: "OPEN", location: "الممر د-هـ", createdById: ids.delegate },
   ]).onConflictDoNothing();
 
   await db.insert(tasks).values([
-    { id: "50000000-0000-4000-8000-000000000001", title: "تأمين توزيع الطرود", description: "تنظيم الطابور وتأمين نقطة التوزيع الصباحية.", location: "نقطة التوزيع الشرقية", priority: "HIGH", status: "PENDING", assignedToId: ids.security },
-    { id: "50000000-0000-4000-8000-000000000002", title: "جولة السلامة الليلية", description: "فحص الإنارة ومخارج الطوارئ في جميع القطاعات.", location: "كامل المخيم", priority: "MEDIUM", status: "IN_PROGRESS", assignedToId: ids.security },
+    { id: "50000000-0000-4000-8000-000000000001", title: "تأمين توزيع الطرود", description: "تنظيم الطابور وتأمين نقطة التوزيع الصباحية.", location: "نقطة التوزيع الشرقية", priority: "HIGH", status: "PENDING", assignedToId: ids.security, createdById: ids.manager },
+    { id: "50000000-0000-4000-8000-000000000002", title: "جولة السلامة الليلية", description: "فحص الإنارة ومخارج الطوارئ في جميع القطاعات.", location: "كامل المخيم", priority: "MEDIUM", status: "IN_PROGRESS", assignedToId: ids.security, createdById: ids.manager },
   ]).onConflictDoNothing();
 }
 

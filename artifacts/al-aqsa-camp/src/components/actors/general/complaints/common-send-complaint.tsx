@@ -1,10 +1,5 @@
 'use client';
 
-import { commonActionResponse } from '@/@types/common/action/commonActionResponse.type';
-import {
-  sendCommonComplaint,
-  sendCommonComplaintProps,
-} from '@/actions/actors/general/complaints/sendCommonComplaint';
 import { USER_RANK, USER_RANK_LABELS, USER_TYPE, UserRank, UserType } from '@/constants/userTypes';
 import useAuth from '@/hooks/useAuth';
 import { cn } from '@/utils/cn';
@@ -26,21 +21,25 @@ import {
 import { useForm } from '@mantine/form';
 import { zodResolver } from '@/lib/zod-resolver';
 import { useDisclosure } from '@mantine/hooks';
+import { useState } from 'react';
 import { notifications } from '@mantine/notifications';
-import { useMutation } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { MessageSquareDiff, Send, X } from 'lucide-react';
+import { getListComplaintsQueryKey, useCreateSyncComplaint } from '@workspace/api-client-react';
 
 const ALLOWED_RECEPTIONS: Record<UserRank, UserRank[]> = {
   DISPLACED: [USER_TYPE.MANAGER, USER_TYPE.DELEGATE, USER_RANK.SECURITY_OFFICER],
   DELEGATE: [USER_TYPE.MANAGER, USER_RANK.SECURITY_OFFICER],
   SECURITY: [USER_TYPE.MANAGER, USER_RANK.SECURITY_OFFICER],
   SECURITY_OFFICER: [USER_TYPE.MANAGER],
-  MANAGER: [],
+  MANAGER: [USER_TYPE.DELEGATE],
 };
 
 export default function Common_Send_Complaint() {
-  const { user } = useAuth();
+  const { user, isManager, isDelegate } = useAuth();
   const [opened, { open, close }] = useDisclosure(false);
+  const queryClient = useQueryClient();
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
 
   const allowedReceptions = (user?.role && ALLOWED_RECEPTIONS[user.role as UserType]) || [];
 
@@ -66,27 +65,21 @@ export default function Common_Send_Complaint() {
     validate: zodResolver(formSchema),
   });
 
-  const sendCommonComplaintMutation = useMutation<
-    commonActionResponse,
-    unknown,
-    sendCommonComplaintProps
-  >({
-    mutationFn: sendCommonComplaint,
-    onSuccess: (data) => {
-      if (data.status === 200) {
+  const sendCommonComplaintMutation = useCreateSyncComplaint({
+    mutation: {
+      onSuccess: () => {
         notifications.show({
           title: 'تمت العملية بنجاح',
-          message: data.message,
+          message: 'تم إنشاء الشكوى',
           color: 'grape',
           position: 'top-left',
           withBorder: true,
         });
         close();
         form.reset();
-      } else {
-        throw new Error(data.error || 'فشل في إرسال الشكوى');
-      }
-    },
+        setIdempotencyKey(crypto.randomUUID());
+        queryClient.invalidateQueries({ queryKey: getListComplaintsQueryKey() });
+      },
     onError: (error: any) => {
       notifications.show({
         title: 'خطأ',
@@ -95,28 +88,28 @@ export default function Common_Send_Complaint() {
         position: 'top-left',
         withBorder: true,
       });
+      },
     },
+    request: { headers: { 'Idempotency-Key': idempotencyKey } },
   });
 
   const handleSubmit = (values: commonSendComplaintFormValues) => {
-    if (!user?.id || !user?.role) return;
-
+    if (!user || (!isManager && !isDelegate)) return;
     sendCommonComplaintMutation.mutate({
-      actor_Id: user.id,
-      role: (user.role == USER_TYPE.SECURITY
-        ? user.rank
-        : user.role) as sendCommonComplaintProps['role'],
-      reception: values.reception,
-      title: values.title,
-      content: values.content,
+      data: {
+        complainantName: user.name,
+        subject: values.title,
+        description: values.content,
+      },
     });
   };
 
-  const disabled = sendCommonComplaintMutation.isPending || allowedReceptions.length === 0;
+  const disabled = sendCommonComplaintMutation.isPending || (!isManager && !isDelegate);
 
   return (
     <>
       <Button
+        data-testid='complaint-create-open'
         type='button'
         size='sm'
         radius='md'
@@ -198,6 +191,7 @@ export default function Common_Send_Complaint() {
 
             <Group justify='flex-end' mt='xs'>
               <Button
+                data-testid='complaint-create-cancel'
                 variant='outline'
                 color='red'
                 size='sm'
@@ -213,6 +207,7 @@ export default function Common_Send_Complaint() {
               </Button>
 
               <Button
+                data-testid='complaint-create-submit'
                 size='sm'
                 type='submit'
                 radius='md'

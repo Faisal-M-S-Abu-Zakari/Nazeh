@@ -8,29 +8,30 @@ import {
   Paper,
   ThemeIcon,
   Textarea,
+  TextInput,
+  Select,
   Button,
   Divider,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { zodResolver } from '@/lib/zod-resolver';
 import { notifications } from '@mantine/notifications';
-import { useMutation } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Calendar, Clock, MessageSquareReply, UserCircle } from 'lucide-react';
 import { parseAsStringEnum, useQueryStates } from 'nuqs';
 import { cn } from '@/utils/cn';
 import { Complaint } from '@/@types/actors/general/Complaints/ComplaintsResponse.type';
-import { commonActionResponse } from '@/@types/common/action/commonActionResponse.type';
-import {
-  replyCommonComplaint,
-  replyCommonComplaintProps,
-} from '@/actions/actors/general/complaints/replyCommonComplaint';
 import { USER_RANK, USER_RANK_LABELS, USER_TYPE, UserRank, UserType } from '@/constants/userTypes';
 import { z } from 'zod';
 import useAuth from '@/hooks/useAuth';
 import { COMPLAINTS_TABS } from '@/@types/actors/common-types/index.type';
+import { ComplaintStatus, getListComplaintsQueryKey, useUpdateComplaintStatus } from '@workspace/api-client-react';
 
 const complaintSchema = z.object({
-  reply: z.string().min(3, 'الرجاء إدخال الرد'),
+  title: z.string().min(2, 'الرجاء إدخال العنوان'),
+  body: z.string().min(1, 'الرجاء إدخال التفاصيل'),
+  reply: z.string(),
+  status: z.nativeEnum(ComplaintStatus),
 });
 
 type complaintType = z.infer<typeof complaintSchema>;
@@ -59,54 +60,59 @@ export default function Common_Complaint_Modal({
   });
 
   const form = useForm<complaintType>({
-    initialValues: { reply: '' },
+    initialValues: {
+      title: complaint.title, body: complaint.body, reply: '',
+      status: Object.values(ComplaintStatus).includes(complaint.status as ComplaintStatus)
+        ? complaint.status as ComplaintStatus
+        : complaint.status === 'READ' ? ComplaintStatus.RESOLVED : ComplaintStatus.OPEN,
+    },
     validate: zodResolver(complaintSchema),
   });
 
-  const replyMutation = useMutation<commonActionResponse, unknown, replyCommonComplaintProps>({
-    mutationFn: replyCommonComplaint,
-    onSuccess: (data) => {
-      if (data.status === 200) {
+  const queryClient = useQueryClient();
+  const replyMutation = useUpdateComplaintStatus({
+    mutation: {
+      onSuccess: () => {
         notifications.show({
           title: 'تم الإرسال',
-          message: data.message,
+          message: 'تم تحديث الشكوى',
           color: 'grape',
           position: 'top-left',
           withBorder: true,
         });
         close();
         form.reset();
-      } else {
-        throw new Error(data.error || 'فشل في إرسال الرد');
-      }
-    },
+        queryClient.invalidateQueries({ queryKey: getListComplaintsQueryKey() });
+      },
     onError: (error: any) => {
+      const conflict = error?.status === 409;
+      if (conflict) queryClient.invalidateQueries({ queryKey: getListComplaintsQueryKey() });
       notifications.show({
-        title: 'خطأ',
-        message: error?.message || 'فشل في إرسال الرد',
+        title: conflict ? 'تعارض في التحديث' : 'خطأ',
+        message: conflict ? 'تم تعديل الشكوى من جهاز آخر. حُدّثت القائمة، راجع البيانات وحاول مجدداً.' : error?.message || 'فشل في تحديث الشكوى',
         color: 'red',
         position: 'top-left',
         withBorder: true,
       });
+      },
     },
   });
 
   const handleSubmit = (values: complaintType) => {
-    replyMutation.mutate({
-      reply: values.reply,
-      complaint_Id: complaint.id,
-      actor_Id,
-      role: role as Exclude<UserRank, typeof USER_RANK.SECURITY | typeof USER_RANK.DISPLACED>,
-    });
+    if (!complaint.apiId || complaint.version === undefined) return;
+    replyMutation.mutate({ complaintId: complaint.apiId, data: {
+      subject: values.title,
+      description: values.body,
+      ...(values.reply.trim() ? { reply: values.reply.trim() } : {}),
+      status: values.status,
+      expectedVersion: complaint.version,
+    }});
   };
 
   const isReceived = query['complaints-tab'] === COMPLAINTS_TABS.RECEIVED_COMPLAINTS;
   const isSent = query['complaints-tab'] === COMPLAINTS_TABS.SENT_COMPLAINTS;
 
-  const isReply =
-    user?.role === USER_TYPE.MANAGER ||
-    ((user?.role === USER_TYPE.DELEGATE || user?.rank === USER_RANK.SECURITY_OFFICER) &&
-      query['complaints-tab'] === COMPLAINTS_TABS.RECEIVED_COMPLAINTS);
+  const isReply = user?.role === USER_TYPE.MANAGER || user?.role === USER_TYPE.DELEGATE;
 
   return (
     <Modal
@@ -220,7 +226,21 @@ export default function Common_Complaint_Modal({
         {isReply && (
           <form onSubmit={form.onSubmit(handleSubmit)}>
             <Stack>
+              <TextInput data-testid='complaint-edit-title' label='العنوان' {...form.getInputProps('title')} />
+              <Textarea data-testid='complaint-edit-description' label='تفاصيل الشكوى' minRows={3} {...form.getInputProps('body')} />
+              <Select
+                data-testid='complaint-edit-status'
+                label='حالة الشكوى'
+                data={[
+                  { value: ComplaintStatus.OPEN, label: 'مفتوحة' },
+                  { value: ComplaintStatus.IN_REVIEW, label: 'قيد المراجعة' },
+                  { value: ComplaintStatus.RESOLVED, label: 'تم الحل' },
+                  { value: ComplaintStatus.REJECTED, label: 'مرفوضة' },
+                ]}
+                {...form.getInputProps('status')}
+              />
               <Textarea
+                data-testid='complaint-reply'
                 size='sm'
                 label={
                   <Text size='sm' fw={500} className='!text-primary'>
@@ -238,6 +258,7 @@ export default function Common_Complaint_Modal({
 
               <Group justify='flex-end'>
                 <Button
+                  data-testid='complaint-edit-cancel'
                   size='sm'
                   variant='outline'
                   onClick={() => {
@@ -249,16 +270,16 @@ export default function Common_Complaint_Modal({
                   إلغاء
                 </Button>
                 <Button
+                  data-testid='complaint-edit-submit'
                   size='sm'
                   type='submit'
-                  disabled={!form.values.reply.trim()}
                   className={cn(
                     'shadow-md',
-                    !form.values.reply.trim() ? '!bg-primary/70' : '!bg-primary'
+                     '!bg-primary'
                   )}
                   loading={replyMutation.isPending}
                 >
-                  تأكيد
+                   حفظ وإرسال الرد
                 </Button>
               </Group>
             </Stack>

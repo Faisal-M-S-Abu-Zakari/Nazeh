@@ -206,13 +206,13 @@ export default function Aid_Add_Displaceds_Table({
   const rows = (displacedData?.displaceds || []).map((element, index) => (
     <Table.Tr
       key={element.id}
-      bg={isRowSelected(element.id) ? 'var(--mantine-color-blue-light)' : undefined}
+      bg={isRowSelected(Number(element.id)) ? 'var(--mantine-color-blue-light)' : undefined}
     >
       <Table.Td px={5} ta='center' w='fit-content'>
         <Checkbox
           aria-label='Select row'
-          checked={isRowSelected(element.id)}
-          onChange={(e) => handleRowSelection(element.id, e.currentTarget.checked)}
+          checked={isRowSelected(Number(element.id))}
+          onChange={(e) => handleRowSelection(Number(element.id), e.currentTarget.checked)}
         />
       </Table.Td>
       <Table.Td px={5} ta='center' w='fit-content'>

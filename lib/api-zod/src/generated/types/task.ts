@@ -17,8 +17,10 @@ export interface Task {
   status: TaskStatus;
   assignedToId?: string | null;
   dueAt?: Date | null;
+  createdById: string;
   createdAt: Date;
   updatedAt: Date;
+  archivedAt?: Date | null;
   /** @minimum 1 */
   version: number;
 }

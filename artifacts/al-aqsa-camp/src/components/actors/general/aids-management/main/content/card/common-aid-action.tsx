@@ -3,7 +3,7 @@
 import { DELEGATE_ROUTES_fUNC, MANAGER_ROUTES_fUNC } from '@/constants/routes';
 import { cn } from '@/utils/cn';
 import { ActionIcon, Button, Popover, Stack, ThemeIcon } from '@mantine/core';
-import { EllipsisVertical, Eye, UserPen, UserPlus } from 'lucide-react';
+import { EllipsisVertical, Eye, Trash, UserPen, UserPlus } from 'lucide-react';
 import { useRouter  } from '@/lib/nextjs-mocks';
 import { useState } from 'react';
 import useAuth from '@/hooks/useAuth';
@@ -14,6 +14,9 @@ import {
   TYPE_GROUP_AIDS,
 } from '@/@types/actors/common-types/index.type';
 import { parseAsStringEnum, useQueryStates } from 'nuqs';
+import type { Aid } from '@/@types/actors/manager/aid-management/add-aid-management.types';
+import Common_Aid_Delete_Modal from './common-aid-delete-modal';
+import Common_Aid_Edit_Modal from './common-aid-edit-modal';
 
 interface ActionItem {
   label: string;
@@ -22,7 +25,7 @@ interface ActionItem {
 }
 
 interface CommonAidActionProps {
-  aid_Id: number;
+  aid: Aid;
   aid_distribution_mechanism: DISTRIBUTION_MECHANISM;
   actor_Id: number;
   role: Exclude<
@@ -32,7 +35,7 @@ interface CommonAidActionProps {
 }
 
 export default function Common_Aid_Action({
-  aid_Id,
+  aid,
   aid_distribution_mechanism,
   actor_Id,
   role,
@@ -45,6 +48,8 @@ export default function Common_Aid_Action({
 
   const { user, isManager, isDelegate, isSecurityOfficer } = useAuth();
   const [openedPopover, setOpenedPopover] = useState(false);
+  const [modal, setModal] = useState<'edit' | 'archive' | null>(null);
+  const aid_Id = aid.id;
 
   const router = useRouter();
   const isOwner = actor_Id === user?.id;
@@ -55,9 +60,7 @@ export default function Common_Aid_Action({
       : DELEGATE_ROUTES_fUNC({ delegate_Id: actor_Id, aid_Id });
 
   const ACTIONS: ActionItem[] = (() => {
-    // Manager owns this aid → can view and edit.
-    if (role === USER_TYPE.MANAGER && isManager && isOwner) {
-      if (query['aids-tab'] === TYPE_GROUP_AIDS.COMING_AIDS) {
+    if ((isManager || isDelegate) && aid.apiId && aid.version !== undefined) {
         return [
           {
             label: 'عرض',
@@ -67,18 +70,10 @@ export default function Common_Aid_Action({
           {
             label: 'تعديل',
             icon: UserPen,
-            action: () => router.push(`${routeFunc.AID}?action=${ACTION_ADD_EDIT_DISPLAY.EDIT}`),
+            action: () => setModal('edit'),
           },
+          { label: 'أرشفة', icon: Trash, action: () => setModal('archive') },
         ];
-      } else {
-        return [
-          {
-            label: 'عرض',
-            icon: Eye,
-            action: () => router.push(routeFunc.AID),
-          },
-        ];
-      }
     }
 
     if (role === USER_TYPE.MANAGER && isManager && !isOwner) {
@@ -128,6 +123,7 @@ export default function Common_Aid_Action({
   const Dropdown_Items = ACTIONS.map((item, index) => (
     <Button
       key={index}
+      data-testid={`aid-action-${item.label}-${aid.apiId ?? aid.id}`}
       justify='flex-start'
       px={10}
       leftSection={
@@ -168,6 +164,7 @@ export default function Common_Aid_Action({
       >
         <Popover.Target>
           <ActionIcon
+            data-testid={`aid-actions-${aid.apiId ?? aid.id}`}
             bg='transparent'
             mt={5}
             onClick={(e) => {
@@ -183,6 +180,8 @@ export default function Common_Aid_Action({
           <Stack gap={0}>{Dropdown_Items}</Stack>
         </Popover.Dropdown>
       </Popover>
+      <Common_Aid_Edit_Modal aid={aid} opened={modal === 'edit'} close={() => setModal(null)} />
+      <Common_Aid_Delete_Modal aid={aid} actor_Id={actor_Id} opened={modal === 'archive'} close={() => setModal(null)} />
     </>
   );
 }

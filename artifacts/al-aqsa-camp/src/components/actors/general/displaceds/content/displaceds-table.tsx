@@ -17,7 +17,7 @@ import {
 import { parseAsInteger, parseAsString, useQueryStates } from 'nuqs';
 import { useEffect, useMemo, useState } from 'react';
 import { displacedsFilterValuesType } from '@/validation/actor/general/displaceds/displaceds-filter-form';
-import { DisplacedsResponse } from '@/@types/actors/general/displaceds/displacesResponse.type';
+import { Displaced, DisplacedsResponse } from '@/@types/actors/general/displaceds/displacesResponse.type';
 import Displaced_Table_Actions from '@/components/actors/general/displaceds/displaced-table-actions';
 import { ListChecks, ListX, Users } from 'lucide-react';
 import { cn } from '@/utils/cn';
@@ -48,13 +48,13 @@ export default function Displaceds_Table({ localFilters, setDisplacedNum }: Disp
   const matching = (peopleQuery.data ?? []).filter((person) =>
     !query.search || `${person.fullName} ${person.nationalId} ${person.tentNumber}`.includes(query.search)
   );
-  const toNumericId = (id: string) =>
-    Array.from(id).reduce((value, character) => ((value * 31) + character.charCodeAt(0)) | 0, 7);
-  const allDisplacedIDs = matching.map((person) => toNumericId(person.id));
+  const allDisplacedIDs = matching.map((_, index) => index + 1);
   const displacedData: DisplacedsResponse = {
     status: 200,
-    displaceds: matching.slice(offset, offset + limit).map((person) => ({
-      id: toNumericId(person.id),
+    displaceds: matching.slice(offset, offset + limit).map((person, index) => ({
+      id: offset + index + 1,
+      apiId: person.id,
+      version: person.version,
       name: person.fullName,
       identity: person.nationalId,
       tent: person.tentNumber,
@@ -183,7 +183,7 @@ export default function Displaceds_Table({ localFilters, setDisplacedNum }: Disp
           {element.delegate.name}
         </Table.Td>
         <Table.Td px={5} ta='center'>
-          <Text c='dimmed'>—</Text>
+          <Displaced_Table_Actions displaced={element} />
         </Table.Td>
       </Table.Tr>
     ));

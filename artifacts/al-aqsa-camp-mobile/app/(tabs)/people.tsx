@@ -17,11 +17,12 @@ export default function PeopleScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <SyncBanner />
         <View style={[styles.search, { backgroundColor: colors.background, borderColor: colors.border }]}>
-          <TextInput value={query} onChangeText={setQuery} placeholder="ابحث بالاسم أو الدور" placeholderTextColor={colors.mutedForeground} style={[styles.searchInput, { color: colors.foreground }]} textAlign="right" />
+          <TextInput testID="people-search" value={query} onChangeText={setQuery} placeholder="ابحث بالاسم أو الدور" placeholderTextColor={colors.mutedForeground} style={[styles.searchInput, { color: colors.foreground }]} textAlign="right" />
           <Ionicons name="search" size={20} color={colors.primary} />
         </View>
         {filtered.length === 0 ? <Card><Ionicons name="search-outline" size={30} color={colors.mutedForeground} style={styles.emptyIcon} /><Text style={[styles.empty, { color: colors.mutedForeground }]}>لا توجد نتائج مطابقة</Text></Card> : filtered.map((person) => (
-          <Card key={person.id}>
+          <Pressable testID={`open-person-${person.id}`} key={person.id} onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.id } } as never)}>
+            <Card>
             <View style={styles.row}>
               <StatusPill text={person.role} tone={person.role === 'نازح' ? 'gold' : 'green'} />
               <View style={styles.person}>
@@ -30,7 +31,8 @@ export default function PeopleScreen() {
               </View>
               <View style={[styles.avatar, { backgroundColor: colors.accent }]}><Ionicons name="person" size={22} color={colors.primary} /></View>
             </View>
-          </Card>
+            </Card>
+          </Pressable>
         ))}
         {signedIn && !canManagePeople ? <Text style={[styles.empty, { color: colors.destructive }]}>دور حسابك يسمح بعرض السجل فقط.</Text> : null}
       </ScrollView>

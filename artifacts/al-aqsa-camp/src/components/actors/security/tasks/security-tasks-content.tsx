@@ -1,6 +1,6 @@
 'use client';
 
-import { Box, Center, Paper, Text, ThemeIcon } from '@mantine/core';
+import { Box, Button, Center, Group, Paper, Text, ThemeIcon } from '@mantine/core';
 import { parseAsInteger, parseAsStringEnum, useQueryStates } from 'nuqs';
 import { TasksResponse } from '@/@types/actors/security/tasks/TasksResponse.type';
 import Security_Tasks_List from './security-tasks-list';
@@ -8,6 +8,8 @@ import { CalendarCheck, MessageCircleWarning } from 'lucide-react';
 import { TASKS_TABS } from '@/@types/actors/common-types/index.type';
 import { getListTasksQueryKey, TaskStatus, useListTasks } from '@workspace/api-client-react';
 import useAuth from '@/hooks/useAuth';
+import { useDisclosure } from '@mantine/hooks';
+import Security_Task_Form_Modal from './security-task-form-modal';
 
 interface SecurityTasksContentProps {
   security_Id: number;
@@ -34,10 +36,11 @@ export default function Security_Tasks_Content({ security_Id }: SecurityTasksCon
   const start = (query['tasks-page'] - 1) * limit;
   const tasksData: TasksResponse = {
     status: 200,
-    tasks: filtered.slice(start, start + limit).map((task, index) => ({
-      id: index + 1,
+    tasks: filtered.slice(start, start + limit).map((task) => ({
+      id: task.id,
       apiId: task.id,
       version: task.version,
+      assignedToId: task.assignedToId,
       dateTime: new Date(task.dueAt ?? task.createdAt),
       title: task.title,
       body: `${task.description}${task.location ? ` — ${task.location}` : ''}`,
@@ -48,6 +51,8 @@ export default function Security_Tasks_Content({ security_Id }: SecurityTasksCon
   };
   const isLoading = tasksQuery.isLoading;
   const error = tasksQuery.error;
+  const { isManager, isSecurityOfficer } = useAuth();
+  const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
 
   if (!security_Id) {
     return <Text c='red'>لا يمكن تحميل المهام، لم يتم تحديد هوية المستخدم.</Text>;
@@ -57,6 +62,11 @@ export default function Security_Tasks_Content({ security_Id }: SecurityTasksCon
 
   return (
     <Box dir='rtl' w='100%' p='sm'>
+      {(isManager || isSecurityOfficer) && (
+        <Group justify='flex-end' mb='md'>
+          <Button data-testid='task-create-open' onClick={openCreate}>إنشاء مهمة أمنية</Button>
+        </Group>
+      )}
       {hasError ? (
         <Paper p='md' withBorder mt='md' className='!bg-red-100 rounded-md text-center'>
           <Box>
@@ -79,6 +89,11 @@ export default function Security_Tasks_Content({ security_Id }: SecurityTasksCon
           security_Id={security_Id}
         />
       )}
+      <Security_Task_Form_Modal
+        opened={createOpened}
+        onClose={closeCreate}
+        security_Id={security_Id}
+      />
 
     </Box>
   );

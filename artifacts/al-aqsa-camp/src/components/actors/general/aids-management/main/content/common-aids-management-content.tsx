@@ -59,6 +59,11 @@ export default function Common_Aids_Management_Content({
       : TYPE_GROUP_AIDS.ONGOING_AIDS;
     return {
       id: index + 1,
+      apiId: aid.id,
+      version: aid.version,
+      apiType: aid.type,
+      apiUnit: aid.unit,
+      apiDistributionDate: aid.distributionDate,
       aid_name: aid.title,
       aid_type: typeMap[aid.type],
       aid_content: `${aid.quantity} ${aid.unit}`,

@@ -1,59 +1,53 @@
-import { commonActionResponse } from '@/@types/common/action/commonActionResponse.type';
-import {
-  deleteSecurityTask,
-  deleteSecurityTaskProps,
-} from '@/actions/actors/security/tasks/deleteSecurityTask';
+import type { Task } from '@/@types/actors/security/tasks/TasksResponse.type';
 import { Button, Group, Modal, Stack, Text, ThemeIcon } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
+import { getListTasksQueryKey, useArchiveSyncTask } from '@workspace/api-client-react';
 
 interface SecurityDeleteTaskProps {
-  task_Id: number;
+  task: Task;
   security_Id: number;
   opened: boolean;
   close: () => void;
 }
 
 export default function Security_Delete_Task_Modal({
-  task_Id,
+  task,
   security_Id,
   opened,
   close,
 }: SecurityDeleteTaskProps) {
   const queryClient = useQueryClient();
 
-  const deleteMutation = useMutation<commonActionResponse, unknown, deleteSecurityTaskProps>({
-    mutationFn: deleteSecurityTask,
-    onSuccess: (data) => {
-      if (data.status === 200) {
+  const deleteMutation = useArchiveSyncTask({ mutation: {
+    onSuccess: () => {
         notifications.show({
           title: 'تم الحذف',
-          message: data.message,
+          message: 'تمت أرشفة المهمة',
           color: 'grape',
           position: 'top-left',
           withBorder: true,
         });
-        queryClient.invalidateQueries({ queryKey: ['security-tasks'] });
+        queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
         close();
-      } else {
-        throw new Error(data.error || 'فشل في الحذف');
-      }
     },
     onError: (error: any) => {
+      const conflict = error?.status === 409;
+      if (conflict) queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
       notifications.show({
-        title: 'خطأ',
-        message: error?.message || 'فشل في الحذف',
+        title: conflict ? 'تعارض في التحديث' : 'خطأ',
+        message: conflict ? 'تم تعديل المهمة من جهاز آخر. حُدّثت القائمة، راجع البيانات وحاول مجدداً.' : error?.message || 'فشل في الأرشفة',
         color: 'red',
         position: 'top-left',
         withBorder: true,
       });
     },
-  });
+  }});
 
   const handleClick = (event: React.MouseEvent) => {
     event.stopPropagation();
-    deleteMutation.mutate({ security_Id, task_Id });
+    if (task.apiId && task.version !== undefined) deleteMutation.mutate({ taskId: task.apiId, data: { expectedVersion: task.version } });
   };
 
   return (
@@ -79,11 +73,12 @@ export default function Security_Delete_Task_Modal({
     >
       <Stack>
         <Text fz={16} fw={500} c='gray.7'>
-          هل أنت متأكد من حذف هذه المهمة؟ لا يمكن التراجع عن هذا الإجراء.
+           هل أنت متأكد من أرشفة هذه المهمة؟ لا يمكن التراجع عن هذا الإجراء.
         </Text>
 
         <Group justify='flex-end'>
           <Button
+            data-testid={`task-archive-cancel-${task.apiId}`}
             size='sm'
             variant='outline'
             onClick={(e) => {
@@ -96,12 +91,13 @@ export default function Security_Delete_Task_Modal({
           </Button>
 
           <Button
+            data-testid={`task-archive-confirm-${task.apiId}`}
             size='sm'
             className='!bg-red-600 !text-white'
             loading={deleteMutation.isPending}
             onClick={handleClick}
           >
-            حذف
+             أرشفة
           </Button>
         </Group>
       </Stack>

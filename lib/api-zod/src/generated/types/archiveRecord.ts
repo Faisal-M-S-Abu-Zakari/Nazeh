@@ -5,10 +5,8 @@
  * AL-AQSA Camp persistent staff operations API
  * OpenAPI spec version: 0.2.0
  */
-import type { ComplaintStatus } from './complaintStatus';
 
-export interface UpdateComplaintStatusRequest {
-  status: ComplaintStatus;
+export interface ArchiveRecord {
   /** @minimum 1 */
   expectedVersion: number;
 }

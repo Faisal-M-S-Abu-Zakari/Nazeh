@@ -1,5 +1,7 @@
 export interface Displaced {
     id: number;
+    apiId?: string;
+    version?: number;
     name: string;
     identity: string;
     tent: string;

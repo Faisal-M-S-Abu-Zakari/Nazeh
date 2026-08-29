@@ -22,6 +22,8 @@ export default function AccountScreen() {
   const pendingLabel = (item: typeof pendingWrites[number]) => {
     if (item.kind === 'aid') return `إضافة حملة: ${item.data.title}`;
     if (item.kind === 'person') return `إضافة سجل: ${item.data.fullName}`;
+    if (item.kind === 'complaint-create') return `إضافة شكوى: ${item.data.subject}`;
+    if (item.kind === 'task-create') return `إضافة مهمة: ${item.data.title}`;
     return item.kind === 'task' ? `تحديث مهمة: ${item.status}` : `تحديث شكوى: ${item.status}`;
   };
   return (

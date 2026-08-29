@@ -1,9 +1,10 @@
 import { UserRank, UserType } from "@/constants/userTypes";
 import { COMPLAINTS_STATUS } from "../../common-types/index.type";
+import type { ComplaintStatus } from '@workspace/api-client-react';
 
 
 export interface Complaint {
-    id: number;
+    id: string | number;
     apiId?: string;
     /** Present for records supplied by the synchronized operations API. */
     version?: number;
@@ -12,7 +13,8 @@ export interface Complaint {
     receiver: { id: Number, name: string, image: string, role: UserType | UserRank };
     title: string;
     body: string;
-    status: COMPLAINTS_STATUS;
+    /** Synchronized records retain the server lifecycle state; old views may still supply legacy values. */
+    status: ComplaintStatus | COMPLAINTS_STATUS;
 }
 
 

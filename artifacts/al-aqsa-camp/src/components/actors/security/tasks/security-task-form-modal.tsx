@@ -5,7 +5,6 @@ import {
   Group,
   LoadingOverlay,
   Modal,
-  MultiSelect,
   Stack,
   Text,
   Textarea,
@@ -20,29 +19,21 @@ import { zodResolver } from '@/lib/zod-resolver';
 import { useEffect, useState } from 'react';
 import { Send, X, ShieldAlert, Clock4, FileText, UserCheck, ClipboardList } from 'lucide-react';
 import { z } from 'zod';
-import { addSecurityTask } from '@/actions/actors/security/tasks/addSecurityTask';
-import { updateSecurityTask } from '@/actions/actors/security/tasks/updateSecurityTask';
 import { notifications } from '@mantine/notifications';
 import { Task } from '@/@types/actors/security/tasks/TasksResponse.type';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { TASKS_TABS } from '@/@types/actors/common-types/index.type';
-import { getSecurityNames } from '@/actions/actors/general/security-data/getSecurityNames';
-import { SecurityNamesResponse } from '@/@types/actors/general/security-data/securitiesDataResponse.types';
+import { getListTasksQueryKey, TaskPriority, TaskStatus, useCreateSyncTask, useListSecurityOfficers, useUpdateTaskStatus } from '@workspace/api-client-react';
 
 const createTaskSchema = z.object({
   title: z.string().min(3, 'العنوان قصير جدًا'),
   body: z.string().min(10, 'المحتوى قصير جدًا'),
   dateTime: z.date({ required_error: 'التاريخ والوقت مطلوبان' }),
-  security_men: z.array(z.string()),
+  assignedToId: z.string().nullable(),
   type: z.nativeEnum(TASKS_TABS),
 });
 
 type CreateTaskValues = z.infer<typeof createTaskSchema>;
-
-interface SecurityMan {
-  id: string;
-  name: string;
-}
 
 interface SecurityTaskFormModalProps {
   opened: boolean;
@@ -57,15 +48,16 @@ export default function Security_Task_Form_Modal({
   security_Id,
   taskToEdit,
 }: SecurityTaskFormModalProps) {
-  const [securityData, setSecurityData] = useState<SecurityMan[]>([]);
   const queryClient = useQueryClient();
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
+  const officersQuery = useListSecurityOfficers();
 
   const form = useForm<CreateTaskValues>({
     initialValues: {
       title: '',
       body: '',
       dateTime: new Date(),
-      security_men: [],
+      assignedToId: null,
       type: TASKS_TABS.COMPLETED_TASKS,
     },
     validate: zodResolver(createTaskSchema),
@@ -77,85 +69,79 @@ export default function Security_Task_Form_Modal({
         title: taskToEdit.title,
         body: taskToEdit.body,
         dateTime: new Date(taskToEdit.dateTime),
-        security_men: taskToEdit.security_men.map((id) => id.toString()),
+        assignedToId: taskToEdit.assignedToId ?? null,
         type: taskToEdit.type,
       });
     }
   }, [taskToEdit, opened]);
 
-  const {
-    data: securityNames,
-    isLoading,
-    error,
-  } = useQuery<SecurityNamesResponse>({
-    queryKey: ['security-names'],
-    queryFn: () => getSecurityNames({}),
-  });
-
-  useEffect(() => {
-    if (securityNames?.security_names) {
-      const securityNamesMapped = securityNames.security_names.map((security) => ({
-        ...security,
-        id: security.id.toString(),
-      }));
-      setSecurityData(securityNamesMapped);
-    }
-  }, [securityNames]);
-
-  const taskMutation = useMutation({
-    mutationFn: async (data: CreateTaskValues) => {
-      const payload = {
-        security_Id,
-        ...data,
-        security_men: data.security_men.map(Number),
-      };
-
-      if (taskToEdit) {
-        return await updateSecurityTask({ task_Id: taskToEdit.id, ...payload });
-      }
-
-      return await addSecurityTask(payload);
-    },
-    onSuccess: (res) => {
+  const mutationOptions = {
+    onSuccess: () => {
       notifications.show({
         title: 'نجاح',
-        message: res.message,
+        message: taskToEdit ? 'تم تحديث المهمة' : 'تم إنشاء المهمة',
         color: 'grape',
         position: 'top-left',
         withBorder: true,
       });
 
       form.reset();
+      setIdempotencyKey(crypto.randomUUID());
       onClose();
-      queryClient.invalidateQueries({ queryKey: ['security-tasks'] });
+      queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
     },
     onError: (err: any) => {
+      const conflict = err?.status === 409;
+      if (conflict) queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
       notifications.show({
-        title: 'خطأ',
-        message: err?.message || 'فشل في العملية',
+        title: conflict ? 'تعارض في التحديث' : 'خطأ',
+        message: conflict ? 'تم تعديل المهمة من جهاز آخر. حُدّثت القائمة، راجع البيانات وحاول مجدداً.' : err?.message || 'فشل في العملية',
         color: 'red',
         position: 'top-left',
         withBorder: true,
       });
     },
+  };
+  const createMutation = useCreateSyncTask({
+    mutation: mutationOptions,
+    request: { headers: { 'Idempotency-Key': idempotencyKey } },
   });
+  const updateMutation = useUpdateTaskStatus({ mutation: mutationOptions });
+  const taskMutation = taskToEdit ? updateMutation : createMutation;
 
   const handleSubmit = (values: CreateTaskValues) => {
-    taskMutation.mutate(values);
+    if (taskToEdit?.apiId && taskToEdit.version !== undefined) {
+      updateMutation.mutate({
+        taskId: taskToEdit.apiId,
+        data: {
+          title: values.title,
+          description: values.body,
+          location: 'المخيم',
+          priority: TaskPriority.MEDIUM,
+          dueAt: values.dateTime.toISOString(),
+          assignedToId: values.assignedToId,
+          status: values.type === TASKS_TABS.COMPLETED_TASKS ? TaskStatus.COMPLETED : TaskStatus.PENDING,
+          expectedVersion: taskToEdit.version,
+        },
+      });
+    } else {
+      createMutation.mutate({
+        data: {
+          title: values.title,
+          description: values.body,
+          location: 'المخيم',
+          priority: TaskPriority.MEDIUM,
+          dueAt: values.dateTime.toISOString(),
+          assignedToId: values.assignedToId,
+        },
+      });
+    }
   };
 
-  const securityOptions = [
-    ...securityData.map((item) => ({
-      value: item.id,
-      label: item.name,
-    })),
-    ...form.values.security_men
-      .filter((id) => !securityData.find((d) => d.id === id))
-      .map((id) => ({
-        value: id,
-        label: `عنصر #${id}`,
-      })),
-  ];
+  const securityOptions = (officersQuery.data ?? []).map((officer) => ({
+    value: officer.id,
+    label: officer.name,
+  }));
 
   return (
     <Modal
@@ -188,6 +174,7 @@ export default function Security_Task_Form_Modal({
       <form onSubmit={form.onSubmit(handleSubmit)} data-click='action'>
         <Stack gap={20}>
           <TextInput
+            data-testid='task-form-title'
             label={labelWithIcon(FileText, 'عنوان المهمة')}
             placeholder='أدخل العنوان'
             size='sm'
@@ -199,6 +186,7 @@ export default function Security_Task_Form_Modal({
           />
 
           <Textarea
+            data-testid='task-form-description'
             label={labelWithIcon(ClipboardList, 'تفاصيل المهمة')}
             placeholder='اكتب التفاصيل...'
             size='sm'
@@ -228,19 +216,21 @@ export default function Security_Task_Form_Modal({
             }}
           />
 
-          <MultiSelect
+          <Select
+            data-testid='task-form-assignee'
             label={labelWithIcon(UserCheck, 'عناصر الأمن')}
-            placeholder='اختر عناصر الأمن'
+            placeholder='اختر عنصر الأمن (اختياري)'
             data={securityOptions}
+            clearable
             searchable
             size='sm'
             radius='md'
             nothingFoundMessage='لا توجد نتائج'
-            {...form.getInputProps('security_men')}
+            {...form.getInputProps('assignedToId')}
             classNames={{
               input: 'placeholder:!text-sm !text-primary !font-normal',
             }}
-            disabled={isLoading}
+            disabled={officersQuery.isLoading}
           />
 
           <Select
@@ -263,6 +253,7 @@ export default function Security_Task_Form_Modal({
 
         <Group justify='flex-end' mt='md'>
           <Button
+            data-testid='task-form-submit'
             variant='outline'
             color='red'
             size='sm'

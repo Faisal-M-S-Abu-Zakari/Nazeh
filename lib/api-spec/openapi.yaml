@@ -540,6 +540,46 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
+  /sync/aids/{aidId}:
+    patch:
+      operationId: updateSyncAid
+      tags: [aids]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: aidId, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: "#/components/parameters/OptionalIdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AidUpdate" }
+      responses:
+        "200": { description: Updated aid, content: { application/json: { schema: { $ref: "#/components/schemas/Aid" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sync/aids/{aidId}/archive:
+    patch:
+      operationId: archiveAid
+      tags: [aids]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: aidId, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: "#/components/parameters/OptionalIdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ArchiveRecord" }
+      responses:
+        "200": { description: Archived aid, content: { application/json: { schema: { $ref: "#/components/schemas/Aid" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
   /sync/people:
     get:
       operationId: listPeople
@@ -574,6 +614,46 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
+  /sync/people/{personId}:
+    patch:
+      operationId: updatePerson
+      tags: [people]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: personId, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: "#/components/parameters/OptionalIdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PersonUpdate" }
+      responses:
+        "200": { description: Updated person, content: { application/json: { schema: { $ref: "#/components/schemas/Person" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sync/people/{personId}/archive:
+    patch:
+      operationId: archivePerson
+      tags: [people]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: personId, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: "#/components/parameters/OptionalIdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ArchiveRecord" }
+      responses:
+        "200": { description: Archived person, content: { application/json: { schema: { $ref: "#/components/schemas/Person" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
   /sync/complaints:
     get:
       operationId: listComplaints
@@ -588,6 +668,22 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/Complaint" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      operationId: createSyncComplaint
+      tags: [complaints]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ComplaintInput" }
+      responses:
+        "201": { description: Complaint created, content: { application/json: { schema: { $ref: "#/components/schemas/Complaint" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /sync/complaints/{complaintId}:
     patch:
       operationId: updateComplaintStatus
@@ -603,13 +699,33 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/UpdateComplaintStatusRequest" }
+            schema: { $ref: "#/components/schemas/ComplaintUpdate" }
       responses:
         "200":
           description: Updated complaint
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Complaint" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sync/complaints/{complaintId}/archive:
+    patch:
+      operationId: archiveSyncComplaint
+      tags: [complaints]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: complaintId, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: "#/components/parameters/OptionalIdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ArchiveRecord" }
+      responses:
+        "200": { description: Archived complaint, content: { application/json: { schema: { $ref: "#/components/schemas/Complaint" } } } }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
@@ -629,6 +745,38 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/Task" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      operationId: createSyncTask
+      tags: [tasks]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TaskInput" }
+      responses:
+        "201": { description: Task created, content: { application/json: { schema: { $ref: "#/components/schemas/Task" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /sync/security-officers:
+    get:
+      operationId: listSecurityOfficers
+      tags: [tasks]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Security officer staff summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/StaffUser" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /sync/tasks/{taskId}:
     patch:
       operationId: updateTaskStatus
@@ -644,13 +792,33 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/UpdateTaskStatusRequest" }
+            schema: { $ref: "#/components/schemas/TaskUpdate" }
       responses:
         "200":
           description: Updated task
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Task" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sync/tasks/{taskId}/archive:
+    patch:
+      operationId: archiveSyncTask
+      tags: [tasks]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: taskId, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: "#/components/parameters/OptionalIdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ArchiveRecord" }
+      responses:
+        "200": { description: Archived task, content: { application/json: { schema: { $ref: "#/components/schemas/Task" } } } }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
@@ -1355,7 +1523,10 @@ components:
         notes: { type: string, nullable: true }
         createdById: { type: string, format: uuid }
         createdAt: { type: string, format: date-time }
-      required: [id, title, type, quantity, unit, location, distributionDate, createdById, createdAt]
+        updatedAt: { type: string, format: date-time }
+        archivedAt: { type: string, format: date-time, nullable: true }
+        version: { type: integer, minimum: 1 }
+      required: [id, title, type, quantity, unit, location, distributionDate, createdById, createdAt, updatedAt, version]
     CreateAidRequest:
       type: object
       additionalProperties: false
@@ -1368,6 +1539,19 @@ components:
         distributionDate: { type: string, format: date }
         notes: { type: string, maxLength: 1000 }
       required: [title, type, quantity, unit, location, distributionDate]
+    AidUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 2, maxLength: 200 }
+        type: { $ref: "#/components/schemas/AidType" }
+        quantity: { type: integer, minimum: 1 }
+        unit: { type: string, minLength: 1, maxLength: 50 }
+        location: { type: string, minLength: 2, maxLength: 200 }
+        distributionDate: { type: string, format: date }
+        notes: { type: string, maxLength: 1000, nullable: true }
+        expectedVersion: { type: integer, minimum: 1 }
+      required: [expectedVersion]
     Gender:
       type: string
       enum: [MALE, FEMALE]
@@ -1385,7 +1569,10 @@ components:
         notes: { type: string, nullable: true }
         createdById: { type: string, format: uuid }
         createdAt: { type: string, format: date-time }
-      required: [id, nationalId, fullName, gender, birthDate, tentNumber, familySize, createdById, createdAt]
+        updatedAt: { type: string, format: date-time }
+        archivedAt: { type: string, format: date-time, nullable: true }
+        version: { type: integer, minimum: 1 }
+      required: [id, nationalId, fullName, gender, birthDate, tentNumber, familySize, createdById, createdAt, updatedAt, version]
     CreatePersonRequest:
       type: object
       additionalProperties: false
@@ -1399,6 +1586,20 @@ components:
         familySize: { type: integer, minimum: 1, maximum: 50 }
         notes: { type: string, maxLength: 1000 }
       required: [nationalId, fullName, gender, birthDate, tentNumber, familySize]
+    PersonUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        nationalId: { type: string, minLength: 6, maxLength: 30 }
+        fullName: { type: string, minLength: 2, maxLength: 200 }
+        gender: { $ref: "#/components/schemas/Gender" }
+        birthDate: { type: string, format: date }
+        phone: { type: string, maxLength: 30, nullable: true }
+        tentNumber: { type: string, minLength: 1, maxLength: 30 }
+        familySize: { type: integer, minimum: 1, maximum: 50 }
+        notes: { type: string, maxLength: 1000, nullable: true }
+        expectedVersion: { type: integer, minimum: 1 }
+      required: [expectedVersion]
     ComplaintStatus:
       type: string
       enum: [OPEN, IN_REVIEW, RESOLVED, REJECTED]
@@ -1411,17 +1612,36 @@ components:
         description: { type: string }
         status: { $ref: "#/components/schemas/ComplaintStatus" }
         location: { type: string, nullable: true }
+        reply: { type: string, nullable: true }
+        repliedById: { type: string, format: uuid, nullable: true }
+        repliedAt: { type: string, format: date-time, nullable: true }
+        createdById: { type: string, format: uuid }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+        archivedAt: { type: string, format: date-time, nullable: true }
         version: { type: integer, minimum: 1 }
-      required: [id, complainantName, subject, description, status, createdAt, updatedAt, version]
-    UpdateComplaintStatusRequest:
+      required: [id, complainantName, subject, description, status, createdById, createdAt, updatedAt, version]
+    ComplaintInput:
       type: object
       additionalProperties: false
       properties:
+        complainantName: { type: string, minLength: 2, maxLength: 200 }
+        subject: { type: string, minLength: 2, maxLength: 240 }
+        description: { type: string, minLength: 1, maxLength: 5000 }
+        location: { type: string, maxLength: 200 }
+      required: [complainantName, subject, description]
+    ComplaintUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        complainantName: { type: string, minLength: 2, maxLength: 200 }
+        subject: { type: string, minLength: 2, maxLength: 240 }
+        description: { type: string, minLength: 1, maxLength: 5000 }
+        location: { type: string, maxLength: 200, nullable: true }
         status: { $ref: "#/components/schemas/ComplaintStatus" }
+        reply: { type: string, maxLength: 5000, nullable: true }
         expectedVersion: { type: integer, minimum: 1 }
-      required: [status, expectedVersion]
+      required: [expectedVersion]
     TaskStatus:
       type: string
       enum: [PENDING, IN_PROGRESS, COMPLETED, CANCELLED]
@@ -1439,17 +1659,42 @@ components:
         status: { $ref: "#/components/schemas/TaskStatus" }
         assignedToId: { type: string, format: uuid, nullable: true }
         dueAt: { type: string, format: date-time, nullable: true }
+        createdById: { type: string, format: uuid }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+        archivedAt: { type: string, format: date-time, nullable: true }
         version: { type: integer, minimum: 1 }
-      required: [id, title, description, location, priority, status, createdAt, updatedAt, version]
-    UpdateTaskStatusRequest:
+      required: [id, title, description, location, priority, status, createdById, createdAt, updatedAt, version]
+    TaskInput:
       type: object
       additionalProperties: false
       properties:
+        title: { type: string, minLength: 2, maxLength: 240 }
+        description: { type: string, minLength: 1, maxLength: 5000 }
+        location: { type: string, minLength: 2, maxLength: 200 }
+        priority: { $ref: "#/components/schemas/TaskPriority" }
+        assignedToId: { type: string, format: uuid, nullable: true }
+        dueAt: { type: string, format: date-time, nullable: true }
+      required: [title, description, location, priority]
+    TaskUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 2, maxLength: 240 }
+        description: { type: string, minLength: 1, maxLength: 5000 }
+        location: { type: string, minLength: 2, maxLength: 200 }
+        priority: { $ref: "#/components/schemas/TaskPriority" }
         status: { $ref: "#/components/schemas/TaskStatus" }
+        assignedToId: { type: string, format: uuid, nullable: true }
+        dueAt: { type: string, format: date-time, nullable: true }
         expectedVersion: { type: integer, minimum: 1 }
-      required: [status, expectedVersion]
+      required: [expectedVersion]
+    ArchiveRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+      required: [expectedVersion]
     ErrorResponse:
       type: object
       properties:

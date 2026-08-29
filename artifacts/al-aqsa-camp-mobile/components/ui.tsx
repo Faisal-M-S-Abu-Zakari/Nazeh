@@ -75,6 +75,7 @@ export function SyncBanner() {
   const bad = syncState === 'offline' || syncState === 'error';
   return (
     <Pressable
+      testID="retry-sync"
       accessibilityRole="button"
       accessibilityLabel={`${syncMessage}. اضغط لإعادة المحاولة`}
       onPress={() => void retrySync()}

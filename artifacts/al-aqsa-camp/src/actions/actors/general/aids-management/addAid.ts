@@ -3,6 +3,9 @@ import { commonActionResponse } from "@/@types/common/action/commonActionRespons
 import { AidType, createAid } from "@workspace/api-client-react";
 import { TYPE_AIDS } from "@/@types/actors/common-types/index.type";
 
+// React Query retries invoke the same form payload; keep its key until the create succeeds.
+const submissionKeys = new WeakMap<object, string>();
+
 export const addAid = async (payload: Aid): Promise<commonActionResponse> => {
     const typeMap: Partial<Record<TYPE_AIDS, AidType>> = {
         [TYPE_AIDS.FOOD_AID]: AidType.FOOD,
@@ -14,8 +17,8 @@ export const addAid = async (payload: Aid): Promise<commonActionResponse> => {
         [TYPE_AIDS.FINANCIAL_AID]: AidType.OTHER,
     };
     try {
-        // A submission must retain one unique key so a retried POST cannot create a duplicate aid.
-        const idempotencyKey = `web-aid-${crypto.randomUUID()}`;
+        const idempotencyKey = submissionKeys.get(payload) ?? `web-aid-${crypto.randomUUID()}`;
+        submissionKeys.set(payload, idempotencyKey);
         await createAid({
             title: payload.aid_name,
             type: typeMap[payload.aid_type] ?? AidType.OTHER,
@@ -25,6 +28,7 @@ export const addAid = async (payload: Aid): Promise<commonActionResponse> => {
             distributionDate: (payload.delivery_date ?? new Date()).toISOString().slice(0, 10),
             notes: payload.additional_notes || undefined,
         }, { headers: { "Idempotency-Key": idempotencyKey } });
+        submissionKeys.delete(payload);
         return { status: 200, message: "تم إضافة المساعدة بنجاح" };
     } catch (error: any) {
         return {

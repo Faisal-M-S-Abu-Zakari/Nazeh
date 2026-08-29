@@ -9,6 +9,7 @@ import {
   idempotencyKeys,
   sessions,
   staffUsers,
+  syncAuditEvents,
   tasks,
 } from "@workspace/db";
 import app from "./app";
@@ -75,12 +76,14 @@ test("idempotent response-loss retries and optimistic status conflicts", async (
       complainantName: "Integration",
       subject: "Conflict",
       description: "Complaint conflict test",
+      createdById: userId,
     }).returning({ id: complaints.id });
     complaintId = complaint.id;
     const [task] = await db.insert(tasks).values({
       title: "Conflict",
       description: "Task conflict test",
       location: "integration-test",
+      createdById: userId,
     }).returning({ id: tasks.id });
     taskId = task.id;
 
@@ -125,6 +128,7 @@ test("idempotent response-loss retries and optimistic status conflicts", async (
     await db.delete(idempotencyKeys).where(eq(idempotencyKeys.userId, userId));
     await db.delete(aids).where(eq(aids.createdById, userId));
     await db.delete(sessions).where(eq(sessions.userId, userId));
+    await db.delete(syncAuditEvents).where(eq(syncAuditEvents.actorStaffId, userId));
     await db.delete(staffUsers).where(eq(staffUsers.id, userId));
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }

@@ -22,7 +22,7 @@ export default function OperationsScreen() {
           <Text style={[styles.section, { color: colors.foreground }]}>الحملات الحالية</Text>
         </View>
         {aids.map((aid) => (
-          <Pressable key={aid.id} onPress={() => router.push({ pathname: '/aid/[id]', params: { id: aid.id } })}>
+          <Pressable testID={`open-aid-${aid.id}`} key={aid.id} onPress={() => router.push({ pathname: '/aid/[id]', params: { id: aid.id } })}>
             <Card>
               <View style={styles.row}>
                 <StatusPill text={aid.status} tone={aid.status === 'نشطة' ? 'green' : 'gold'} />

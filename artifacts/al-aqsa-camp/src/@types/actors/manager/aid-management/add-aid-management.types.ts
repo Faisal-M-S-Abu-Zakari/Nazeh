@@ -70,6 +70,12 @@ export type AddAidFormValues = DelegateAidForm | DirectAidForm;
 
 export type Aid = AddAidFormValues & {
     id: number;
+    apiId?: string;
+    version?: number;
+    /** Exact synchronized values retained for lifecycle editing. */
+    apiType?: string;
+    apiUnit?: string;
+    apiDistributionDate?: string;
     selected_displaced_Ids: number[];
     selected_delegates_portions?: SelectedDelegatePortion[];
     received_displaceds: ReceivedDisplaceds[];

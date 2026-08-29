@@ -7,7 +7,21 @@
  */
 
 export interface ComplaintInput {
+  /**
+     * @minLength 2
+     * @maxLength 200
+     */
+  complainantName: string;
+  /**
+     * @minLength 2
+     * @maxLength 240
+     */
   subject: string;
-  message: string;
-  displacedPersonId?: number;
+  /**
+     * @minLength 1
+     * @maxLength 5000
+     */
+  description: string;
+  /** @maxLength 200 */
+  location?: string;
 }

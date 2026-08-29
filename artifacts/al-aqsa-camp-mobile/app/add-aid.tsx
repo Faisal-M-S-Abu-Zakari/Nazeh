@@ -37,13 +37,13 @@ export default function AddAidScreen() {
   return (
     <KeyboardAwareScrollViewCompat contentContainerStyle={styles.content} bottomOffset={60}>
       <Text style={[styles.copy, { color: colors.mutedForeground }]}>ستتم مزامنة الحملة مع خادم الفريق. عند انقطاع الاتصال سيظهر بوضوح أنها بانتظار الإرسال.</Text>
-      <Field label="اسم الحملة" value={title} onChangeText={setTitle} />
+      <Field testID="aid-title" label="اسم الحملة" value={title} onChangeText={setTitle} />
       <Text style={[styles.label, { color: colors.foreground }]}>نوع المساعدة</Text>
-      <View style={styles.options}>{types.map(([value, label]) => <Pressable key={value} onPress={() => setType(value)} style={[styles.option, { backgroundColor: type === value ? colors.primary : colors.muted }]}><Text style={{ color: type === value ? colors.primaryForeground : colors.foreground, fontFamily: fonts.bold }}>{label}</Text></Pressable>)}</View>
-      <Field label="الكمية" value={quantity} onChangeText={setQuantity} keyboardType="number-pad" />
-      <Field label="الوحدة" value={unit} onChangeText={setUnit} placeholder="سلة، عبوة، قطعة..." />
-      <Field label="الموقع" value={location} onChangeText={setLocation} />
-      <Field label="تاريخ التوزيع" value={date} onChangeText={setDate} placeholder="2026-08-28" autoCapitalize="none" />
+      <View style={styles.options}>{types.map(([value, label]) => <Pressable testID={`aid-type-${value}`} key={value} onPress={() => setType(value)} style={[styles.option, { backgroundColor: type === value ? colors.primary : colors.muted }]}><Text style={{ color: type === value ? colors.primaryForeground : colors.foreground, fontFamily: fonts.bold }}>{label}</Text></Pressable>)}</View>
+      <Field testID="aid-quantity" label="الكمية" value={quantity} onChangeText={setQuantity} keyboardType="number-pad" />
+      <Field testID="aid-unit" label="الوحدة" value={unit} onChangeText={setUnit} placeholder="سلة، عبوة، قطعة..." />
+      <Field testID="aid-location" label="الموقع" value={location} onChangeText={setLocation} />
+      <Field testID="aid-date" label="تاريخ التوزيع" value={date} onChangeText={setDate} placeholder="2026-08-28" autoCapitalize="none" />
       {error ? <Text style={[styles.error, { color: colors.destructive }]}>{error}</Text> : null}
       <PrimaryButton testID="save-aid" label={saving ? 'جارٍ الحفظ…' : 'حفظ ومزامنة الحملة'} icon="checkmark" disabled={!valid || saving || !canManageAids} onPress={() => void submit()} />
     </KeyboardAwareScrollViewCompat>

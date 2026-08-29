@@ -1,94 +1,74 @@
 'use client';
-import { commonActionResponse } from '@/@types/common/action/commonActionResponse.type';
-import {
-  sendUpdateRequest,
-  sendUpdateRequestProps,
-} from '@/actions/actors/general/displaceds/sendUpdateRequest';
-import { Button, Group, Modal, Stack, Text } from '@mantine/core';
+
+import type { Displaced } from '@/@types/actors/general/displaceds/displacesResponse.type';
+import { Button, Group, Modal, NumberInput, Stack, Text, TextInput } from '@mantine/core';
+import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
-import { useMutation } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { getListPeopleQueryKey, useUpdatePerson } from '@workspace/api-client-react';
+import { useEffect } from 'react';
 
 interface UpdateModalProps {
-  displaced_Ids: number[];
+  person?: Displaced;
   opened: boolean;
   close: () => void;
 }
 
-export default function Update_Displaced_Modal({ displaced_Ids, opened, close }: UpdateModalProps) {
-  const updateMutation = useMutation<commonActionResponse, unknown, sendUpdateRequestProps>({
-    mutationFn: sendUpdateRequest,
-    onSuccess: (data) => {
-      if (data.status === 200) {
-        notifications.show({
-          title: 'تم الارسال',
-          message: data.message,
-          color: 'grape',
-          position: 'top-left',
-          withBorder: true,
-        });
+export default function Update_Displaced_Modal({ person, opened, close }: UpdateModalProps) {
+  const queryClient = useQueryClient();
+  const form = useForm({
+    initialValues: { fullName: '', nationalId: '', phone: '', tentNumber: '', familySize: 1 },
+  });
+
+  useEffect(() => {
+    if (opened && person) form.setValues({
+      fullName: person.name,
+      nationalId: person.identity,
+      phone: person.mobile_number === '—' ? '' : person.mobile_number,
+      tentNumber: person.tent,
+      familySize: person.family_number,
+    });
+  }, [opened, person]);
+
+  const updateMutation = useUpdatePerson({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListPeopleQueryKey() });
+        notifications.show({ title: 'تمت العملية بنجاح', message: 'تم تحديث بيانات النازح', color: 'grape' });
         close();
-      } else {
-        throw new Error(data.error || 'فشل في الارسال');
-      }
-    },
-    onError: (error: any) => {
-      const errorMessage = error?.message || 'فشل في الارسال';
-      notifications.show({
-        title: 'خطأ',
-        message: errorMessage,
-        color: 'red',
-        position: 'top-left',
-        withBorder: true,
-      });
+      },
+      onError: (error: any) => {
+        const conflict = error?.status === 409;
+        if (conflict) queryClient.invalidateQueries({ queryKey: getListPeopleQueryKey() });
+        notifications.show({
+          title: conflict ? 'تعارض في التحديث' : 'خطأ',
+          message: conflict ? 'تم تعديل السجل من جهاز آخر. حُدّثت القائمة، راجع البيانات وحاول مجدداً.' : error?.message || 'فشل في تحديث البيانات',
+          color: 'red',
+        });
+      },
     },
   });
 
-  const handleClick = () => {
-    updateMutation.mutate({
-      displaced_Ids,
-    });
-  };
-
   return (
-    <Modal
-      opened={opened}
-      onClose={close}
-      title={
-        <Text fz={18} fw={600} ta={'center'} className='!text-primary'>
-          تحديث البيانات
-        </Text>
-      }
-      classNames={{
-        title: '!w-full',
-      }}
-      centered
-    >
-      <Stack>
-        <Text fz={16} fw={500}>
-          الرجاء التوجه لتحديث البيانات
-        </Text>
-        <Group justify='flex-end'>
-          <Button
-            size='sm'
-            type='button'
-            variant='outline'
-            onClick={close}
-            fw={600}
-            className='!shadow-md !border-primary !text-primary'
-          >
-            إلغاء
-          </Button>
-          <Button
-            size='sm'
-            type='button'
-            className='!bg-primary !shadow-md'
-            loading={updateMutation.isPending}
-            onClick={handleClick}
-          >
-            تأكيد
-          </Button>
-        </Group>
-      </Stack>
+    <Modal opened={opened} onClose={close} centered title={<Text fw={600}>تعديل بيانات النازح</Text>}>
+      <form onSubmit={form.onSubmit((values) => {
+        if (person?.apiId && person.version !== undefined) updateMutation.mutate({
+          personId: person.apiId,
+          data: { ...values, phone: values.phone || null, expectedVersion: person.version },
+        });
+      })}>
+        <Stack>
+          <TextInput data-testid='person-edit-name' label='الاسم الكامل' required {...form.getInputProps('fullName')} />
+          <TextInput data-testid='person-edit-national-id' label='رقم الهوية' required {...form.getInputProps('nationalId')} />
+          <TextInput data-testid='person-edit-phone' label='رقم الجوال' {...form.getInputProps('phone')} />
+          <TextInput data-testid='person-edit-tent' label='رقم الخيمة' required {...form.getInputProps('tentNumber')} />
+          <NumberInput data-testid='person-edit-family-size' label='عدد أفراد الأسرة' min={1} max={50} {...form.getInputProps('familySize')} />
+          <Group justify='flex-end'>
+            <Button data-testid='person-edit-cancel' variant='outline' onClick={close}>إلغاء</Button>
+            <Button data-testid='person-edit-submit' type='submit' loading={updateMutation.isPending}>حفظ</Button>
+          </Group>
+        </Stack>
+      </form>
     </Modal>
   );
 }

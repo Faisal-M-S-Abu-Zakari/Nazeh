@@ -2,10 +2,11 @@ import { TASKS_TABS } from "../../common-types/index.type";
 
 
 export interface Task {
-    id: number;
+    id: string | number;
     apiId?: string;
     /** Present for records supplied by the synchronized operations API. */
     version?: number;
+    assignedToId?: string | null;
     dateTime: Date;
     title: string;
     body: string;

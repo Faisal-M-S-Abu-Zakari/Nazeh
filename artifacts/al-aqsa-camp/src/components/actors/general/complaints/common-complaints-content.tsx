@@ -51,8 +51,8 @@ export default function Common_Complaints_Content({
   });
   const filtered = (complaintsQuery.data ?? [])
     .filter((item) => !query.search || `${item.complainantName} ${item.subject}`.includes(query.search))
-    .map((item, index) => ({
-      id: index + 1,
+    .map((item) => ({
+      id: item.id,
       apiId: item.id,
       version: item.version,
       date: new Date(item.createdAt).toLocaleDateString('ar-EG'),
@@ -60,8 +60,7 @@ export default function Common_Complaints_Content({
       receiver: { id: actor_Id, name: 'إدارة المخيم', image: '', role: USER_TYPE.MANAGER },
       title: item.subject,
       body: item.description,
-      status: item.status === ComplaintStatus.RESOLVED || item.status === ComplaintStatus.REJECTED
-        ? COMPLAINTS_STATUS.READ : COMPLAINTS_STATUS.PENDING,
+      status: item.status,
     } as ComplaintResponse['complaints'][number]));
   const start = (query['complaints-page'] - 1) * limit;
   const complaintsData: ComplaintResponse = {

@@ -19,4 +19,8 @@ export interface Aid {
   notes?: string | null;
   createdById: string;
   createdAt: Date;
+  updatedAt: Date;
+  archivedAt?: Date | null;
+  /** @minimum 1 */
+  version: number;
 }

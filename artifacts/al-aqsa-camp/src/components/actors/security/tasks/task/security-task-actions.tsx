@@ -21,7 +21,7 @@ interface SecurityTaskActionProps {
 }
 
 export default function Security_Task_Actions({ security_Id, task }: SecurityTaskActionProps) {
-  const { isSecurityOfficer } = useAuth();
+  const { isSecurityOfficer, isManager } = useAuth();
   const [openedPopover, setOpenedPopover] = useState(false);
   const [modalType, setModalType] = useState<'edit' | 'delete' | null>(null);
 
@@ -32,7 +32,7 @@ export default function Security_Task_Actions({ security_Id, task }: SecurityTas
 
   const closeModal = () => setModalType(null);
 
-  const ACTIONS: ActionItem[] = isSecurityOfficer
+  const ACTIONS: ActionItem[] = (isSecurityOfficer || isManager)
     ? [
         {
           label: 'تعديل',
@@ -40,7 +40,7 @@ export default function Security_Task_Actions({ security_Id, task }: SecurityTas
           action: () => openModal('edit'),
         },
         {
-          label: 'حذف',
+          label: 'أرشفة',
           icon: Trash,
           action: () => openModal('delete'),
         },
@@ -50,6 +50,7 @@ export default function Security_Task_Actions({ security_Id, task }: SecurityTas
   const Dropdown_Items = ACTIONS.map((item, index) => (
     <Button
       data-click='action'
+      data-testid={`task-action-${item.label}-${task.apiId ?? task.id}`}
       justify='flex-start'
       key={item.label}
       leftSection={
@@ -92,6 +93,7 @@ export default function Security_Task_Actions({ security_Id, task }: SecurityTas
         <Popover.Target>
           <ActionIcon
             data-click='action'
+            data-testid={`task-actions-${task.apiId ?? task.id}`}
             bg='transparent'
             mt={5}
             onClick={() => setOpenedPopover((o) => !o)}
@@ -108,7 +110,7 @@ export default function Security_Task_Actions({ security_Id, task }: SecurityTas
       </Popover>
 
       <Security_Delete_Task_Modal
-        task_Id={task.id}
+        task={task}
         security_Id={security_Id}
         opened={modalType === 'delete'}
         close={closeModal}

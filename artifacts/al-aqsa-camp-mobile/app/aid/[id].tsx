@@ -1,31 +1,110 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Card, fonts, ScreenHeader, StatusPill } from '@/components/ui';
+import { AidType, getListAidsQueryKey, useArchiveAid, useUpdateSyncAid } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
+import { ArchiveConfirmModal } from '@/components/ArchiveConfirmModal';
+import { Field, fonts, PrimaryButton, ScreenHeader } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { showMutationError } from '@/lib/mutationErrors';
+
+const types = [
+  [AidType.FOOD, 'غذاء'], [AidType.WATER, 'مياه'], [AidType.MEDICAL, 'صحة'],
+  [AidType.SHELTER, 'إيواء'], [AidType.HYGIENE, 'نظافة'], [AidType.OTHER, 'أخرى'],
+] as const;
 
 export default function AidDetailScreen() {
   const colors = useColors();
+  const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { aids } = useApp();
+  const { aids, canManageAids } = useApp();
   const aid = aids.find((item) => item.id === id);
+  const updateMutation = useUpdateSyncAid();
+  const archiveMutation = useArchiveAid();
+  const [title, setTitle] = useState(aid?.title ?? '');
+  const [type, setType] = useState(aid?.apiType ?? AidType.FOOD);
+  const [quantity, setQuantity] = useState(String(aid?.families ?? ''));
+  const [unit, setUnit] = useState(aid?.unit ?? '');
+  const [location, setLocation] = useState(aid?.location ?? '');
+  const [date, setDate] = useState(aid?.distributionDate.slice(0, 10) ?? '');
+  const [notes, setNotes] = useState(aid?.notes ?? '');
+  const [archiveOpen, setArchiveOpen] = useState(false);
+
   if (!aid) return <View style={[styles.center, { backgroundColor: colors.background }]}><Text style={{ color: colors.foreground, fontFamily: fonts.bold }}>لم يتم العثور على الحملة</Text></View>;
+
+  const refresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: getListAidsQueryKey() });
+    await queryClient.refetchQueries({ queryKey: getListAidsQueryKey() });
+  };
+  const save = async () => {
+    try {
+      await updateMutation.mutateAsync({
+        aidId: aid.id,
+        data: {
+          title: title.trim(), type, quantity: Number(quantity), unit: unit.trim(),
+          location: location.trim(), distributionDate: new Date(date).toISOString(),
+          notes: notes.trim() || null, expectedVersion: aid.version,
+        },
+      });
+      await refresh();
+      Alert.alert('تم الحفظ', 'تم تحديث الحملة ومزامنتها.');
+      router.back();
+    } catch (error) {
+      await showMutationError(error, refresh);
+      if (typeof error === 'object' && error !== null && 'status' in error && error.status === 409) router.back();
+    }
+  };
+  const archive = async () => {
+    try {
+      await archiveMutation.mutateAsync({ aidId: aid.id, data: { expectedVersion: aid.version } });
+      setArchiveOpen(false);
+      await refresh();
+      router.back();
+    } catch (error) {
+      setArchiveOpen(false);
+      await showMutationError(error, refresh);
+    }
+  };
+  const valid = title.trim().length >= 2 && Number(quantity) >= 1 && unit.trim().length > 0 && location.trim().length >= 2 && !Number.isNaN(new Date(date).getTime());
+
   return (
     <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
-      <ScreenHeader title={aid.title} subtitle={`${aid.type} · ${aid.date}`} />
-      <ScrollView contentContainerStyle={styles.content}>
-        <Card><View style={styles.top}><StatusPill text={aid.status} /><Ionicons name="cube-outline" size={30} color={colors.primary} /></View><Text style={[styles.number, { color: colors.primary }]}>{aid.families}</Text><Text style={[styles.caption, { color: colors.mutedForeground }]}>عائلة مستفيدة حتى الآن</Text></Card>
-        <Card><Text style={[styles.heading, { color: colors.foreground }]}>سجل التوزيع</Text>{['المربع أ — 46 عائلة', 'المربع ب — 48 عائلة', 'المربع ج — 34 عائلة'].map((line) => <View key={line} style={[styles.line, { borderBottomColor: colors.border }]}><Ionicons name="checkmark-circle" size={19} color={colors.success} /><Text style={[styles.lineText, { color: colors.foreground }]}>{line}</Text></View>)}</Card>
-        <Card><Text style={[styles.heading, { color: colors.foreground }]}>ملاحظة</Text><Text style={[styles.note, { color: colors.mutedForeground }]}>تفاصيل هذه الشاشة تجريبية ومحلية، ولا تمثل حالة توزيع مشتركة مع الموقع.</Text></Card>
-      </ScrollView>
+      <ScreenHeader title={aid.title} subtitle="تعديل بيانات الحملة" />
+      <KeyboardAwareScrollViewCompat contentContainerStyle={styles.content} bottomOffset={60}>
+        <Field testID="edit-aid-title" label="اسم الحملة" value={title} onChangeText={setTitle} editable={canManageAids} />
+        <Text style={[styles.label, { color: colors.foreground }]}>نوع المساعدة</Text>
+        <View style={styles.options}>{types.map(([value, label]) => <Pressable testID={`edit-aid-type-${value}`} disabled={!canManageAids} key={value} onPress={() => setType(value)} style={[styles.option, { backgroundColor: type === value ? colors.primary : colors.muted }]}><Text style={{ color: type === value ? colors.primaryForeground : colors.foreground, fontFamily: fonts.bold }}>{label}</Text></Pressable>)}</View>
+        <Field testID="edit-aid-quantity" label="الكمية" value={quantity} onChangeText={setQuantity} keyboardType="number-pad" editable={canManageAids} />
+        <Field testID="edit-aid-unit" label="الوحدة" value={unit} onChangeText={setUnit} editable={canManageAids} />
+        <Field testID="edit-aid-location" label="الموقع" value={location} onChangeText={setLocation} editable={canManageAids} />
+        <Field testID="edit-aid-date" label="تاريخ التوزيع" value={date} onChangeText={setDate} editable={canManageAids} />
+        <Field testID="edit-aid-notes" label="ملاحظات" value={notes} onChangeText={setNotes} multiline editable={canManageAids} />
+        {canManageAids ? <>
+          <PrimaryButton testID="save-aid-edits" label={updateMutation.isPending ? 'جارٍ الحفظ…' : 'حفظ التعديلات'} icon="checkmark" disabled={!valid || updateMutation.isPending || archiveMutation.isPending} onPress={() => void save()} />
+          <Pressable testID="archive-aid" disabled={archiveMutation.isPending} onPress={() => setArchiveOpen(true)} style={[styles.archive, { borderColor: colors.destructive }]}><Text style={[styles.archiveText, { color: colors.destructive }]}>أرشفة الحملة</Text></Pressable>
+        </> : <Text style={[styles.readOnly, { color: colors.destructive }]}>هذا السجل متاح للعرض فقط حسب دور حسابك.</Text>}
+      </KeyboardAwareScrollViewCompat>
+      <ArchiveConfirmModal
+        visible={archiveOpen}
+        title="تأكيد أرشفة الحملة"
+        message={`هل تريد أرشفة حملة «${aid.title}»؟ لن تظهر في قائمة الحملات النشطة.`}
+        loading={archiveMutation.isPending}
+        testIDPrefix="archive-aid"
+        onCancel={() => setArchiveOpen(false)}
+        onConfirm={() => void archive()}
+      />
     </View>
   );
 }
+
 const styles = StyleSheet.create({
-  page: { flex: 1 }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' }, content: { padding: 16, gap: 13, paddingBottom: 40 },
-  top: { flexDirection: 'row', justifyContent: 'space-between' }, number: { fontFamily: fonts.extraBold, fontSize: 42, textAlign: 'right', marginTop: 8 },
-  caption: { fontFamily: fonts.regular, textAlign: 'right' }, heading: { fontFamily: fonts.bold, fontSize: 17, textAlign: 'right', marginBottom: 8 },
-  line: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, paddingVertical: 12, borderBottomWidth: 1 },
-  lineText: { fontFamily: fonts.medium, fontSize: 14 }, note: { fontFamily: fonts.regular, lineHeight: 22, textAlign: 'right' },
+  page: { flex: 1 }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  content: { padding: 18, paddingBottom: 50, gap: 16 },
+  label: { fontFamily: fonts.bold, textAlign: 'right' },
+  options: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 7 },
+  option: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10 },
+  archive: { minHeight: 48, borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  archiveText: { fontFamily: fonts.bold }, readOnly: { fontFamily: fonts.bold, textAlign: 'center' },
 });

@@ -18,7 +18,9 @@ export async function withIdempotency<T>(
 ): Promise<StoredResult<T> | undefined> {
   const key = req.get("Idempotency-Key");
   if (!key && options.required === false) {
-    return work(db);
+    // Optional idempotency must not make the mutation itself non-atomic.
+    // Resource and audit writes still commit or roll back together.
+    return db.transaction(work);
   }
   if (!key || !key.trim() || key.length > 200) {
     res.status(400).json({

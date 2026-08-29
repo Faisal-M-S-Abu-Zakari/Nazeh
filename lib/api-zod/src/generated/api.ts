@@ -391,17 +391,29 @@ export const UpdateAidParams = zod.object({
   "id": zod.coerce.number().int()
 })
 
-export const updateAidBodyQuantityMin = 0;
+export const updateAidBodyTitleMin = 2;
+export const updateAidBodyTitleMax = 200;
+
+
+export const updateAidBodyUnitMax = 50;
+
+export const updateAidBodyLocationMin = 2;
+export const updateAidBodyLocationMax = 200;
+
+export const updateAidBodyNotesMax = 1000;
+
 
 
 
 export const UpdateAidBody = zod.object({
-  "title": zod.string().optional(),
-  "type": zod.string().optional(),
-  "description": zod.string().nullish(),
-  "quantity": zod.int().min(updateAidBodyQuantityMin).optional(),
-  "status": zod.enum(['planned', 'active', 'completed', 'cancelled']).optional(),
-  "distributionDate": zod.coerce.date().nullish()
+  "title": zod.string().min(updateAidBodyTitleMin).max(updateAidBodyTitleMax).optional(),
+  "type": zod.enum(['FOOD', 'WATER', 'MEDICAL', 'SHELTER', 'HYGIENE', 'OTHER']).optional(),
+  "quantity": zod.int().min(1).optional(),
+  "unit": zod.string().min(1).max(updateAidBodyUnitMax).optional(),
+  "location": zod.string().min(updateAidBodyLocationMin).max(updateAidBodyLocationMax).optional(),
+  "distributionDate": zod.coerce.date().optional(),
+  "notes": zod.string().max(updateAidBodyNotesMax).nullish(),
+  "expectedVersion": zod.int().min(1)
 })
 
 export const updateAidResponseQuantityMin = 0;
@@ -500,10 +512,23 @@ export const ListManagedComplaintsResponse = zod.object({
 })
 
 
+export const createComplaintBodyComplainantNameMin = 2;
+export const createComplaintBodyComplainantNameMax = 200;
+
+export const createComplaintBodySubjectMin = 2;
+export const createComplaintBodySubjectMax = 240;
+
+export const createComplaintBodyDescriptionMax = 5000;
+
+export const createComplaintBodyLocationMax = 200;
+
+
+
 export const CreateComplaintBody = zod.object({
-  "subject": zod.string(),
-  "message": zod.string(),
-  "displacedPersonId": zod.int().optional()
+  "complainantName": zod.string().min(createComplaintBodyComplainantNameMin).max(createComplaintBodyComplainantNameMax),
+  "subject": zod.string().min(createComplaintBodySubjectMin).max(createComplaintBodySubjectMax),
+  "description": zod.string().min(1).max(createComplaintBodyDescriptionMax),
+  "location": zod.string().max(createComplaintBodyLocationMax).optional()
 })
 
 export const CreateComplaintResponse = zod.object({
@@ -972,6 +997,7 @@ export const IssueStaffPasswordResetResponse = zod.object({
 
 
 
+
 export const ListAidsResponseItem = zod.object({
   "id": zod.uuid(),
   "title": zod.string(),
@@ -982,7 +1008,10 @@ export const ListAidsResponseItem = zod.object({
   "distributionDate": zod.coerce.date(),
   "notes": zod.string().nullish(),
   "createdById": zod.uuid(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1)
 })
 export const ListAidsResponse = zod.array(ListAidsResponseItem)
 
@@ -1021,6 +1050,7 @@ export const CreateAidBody = zod.object({
 
 
 
+
 export const CreateAidResponse = zod.object({
   "id": zod.uuid(),
   "title": zod.string(),
@@ -1031,8 +1061,112 @@ export const CreateAidResponse = zod.object({
   "distributionDate": zod.coerce.date(),
   "notes": zod.string().nullish(),
   "createdById": zod.uuid(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1)
 })
+
+
+export const UpdateSyncAidParams = zod.object({
+  "aidId": zod.uuid()
+})
+
+export const updateSyncAidHeaderIdempotencyKeyMax = 200;
+
+
+
+export const UpdateSyncAidHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(updateSyncAidHeaderIdempotencyKeyMax).optional().describe('Optional caller-generated retry key (1–200 characters). Replays the original completed mutation response.')
+})
+
+export const updateSyncAidBodyTitleMin = 2;
+export const updateSyncAidBodyTitleMax = 200;
+
+
+export const updateSyncAidBodyUnitMax = 50;
+
+export const updateSyncAidBodyLocationMin = 2;
+export const updateSyncAidBodyLocationMax = 200;
+
+export const updateSyncAidBodyNotesMax = 1000;
+
+
+
+
+export const UpdateSyncAidBody = zod.object({
+  "title": zod.string().min(updateSyncAidBodyTitleMin).max(updateSyncAidBodyTitleMax).optional(),
+  "type": zod.enum(['FOOD', 'WATER', 'MEDICAL', 'SHELTER', 'HYGIENE', 'OTHER']).optional(),
+  "quantity": zod.int().min(1).optional(),
+  "unit": zod.string().min(1).max(updateSyncAidBodyUnitMax).optional(),
+  "location": zod.string().min(updateSyncAidBodyLocationMin).max(updateSyncAidBodyLocationMax).optional(),
+  "distributionDate": zod.coerce.date().optional(),
+  "notes": zod.string().max(updateSyncAidBodyNotesMax).nullish(),
+  "expectedVersion": zod.int().min(1)
+})
+
+
+
+
+
+export const UpdateSyncAidResponse = zod.object({
+  "id": zod.uuid(),
+  "title": zod.string(),
+  "type": zod.enum(['FOOD', 'WATER', 'MEDICAL', 'SHELTER', 'HYGIENE', 'OTHER']),
+  "quantity": zod.int().min(1),
+  "unit": zod.string(),
+  "location": zod.string(),
+  "distributionDate": zod.coerce.date(),
+  "notes": zod.string().nullish(),
+  "createdById": zod.uuid(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1)
+})
+
+
+export const ArchiveAidParams = zod.object({
+  "aidId": zod.uuid()
+})
+
+export const archiveAidHeaderIdempotencyKeyMax = 200;
+
+
+
+export const ArchiveAidHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(archiveAidHeaderIdempotencyKeyMax).optional().describe('Optional caller-generated retry key (1–200 characters). Replays the original completed mutation response.')
+})
+
+
+
+
+export const ArchiveAidBody = zod.object({
+  "expectedVersion": zod.int().min(1)
+})
+
+
+
+
+
+export const ArchiveAidResponse = zod.object({
+  "id": zod.uuid(),
+  "title": zod.string(),
+  "type": zod.enum(['FOOD', 'WATER', 'MEDICAL', 'SHELTER', 'HYGIENE', 'OTHER']),
+  "quantity": zod.int().min(1),
+  "unit": zod.string(),
+  "location": zod.string(),
+  "distributionDate": zod.coerce.date(),
+  "notes": zod.string().nullish(),
+  "createdById": zod.uuid(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1)
+})
+
+
+
 
 
 export const ListPeopleResponseItem = zod.object({
@@ -1046,7 +1180,10 @@ export const ListPeopleResponseItem = zod.object({
   "familySize": zod.int(),
   "notes": zod.string().nullish(),
   "createdById": zod.uuid(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1)
 })
 export const ListPeopleResponse = zod.array(ListPeopleResponseItem)
 
@@ -1086,6 +1223,9 @@ export const CreatePersonBody = zod.object({
   "notes": zod.string().max(createPersonBodyNotesMax).optional()
 })
 
+
+
+
 export const CreatePersonResponse = zod.object({
   "id": zod.uuid(),
   "nationalId": zod.string(),
@@ -1097,7 +1237,112 @@ export const CreatePersonResponse = zod.object({
   "familySize": zod.int(),
   "notes": zod.string().nullish(),
   "createdById": zod.uuid(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1)
+})
+
+
+export const UpdatePersonParams = zod.object({
+  "personId": zod.uuid()
+})
+
+export const updatePersonHeaderIdempotencyKeyMax = 200;
+
+
+
+export const UpdatePersonHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(updatePersonHeaderIdempotencyKeyMax).optional().describe('Optional caller-generated retry key (1–200 characters). Replays the original completed mutation response.')
+})
+
+export const updatePersonBodyNationalIdMin = 6;
+export const updatePersonBodyNationalIdMax = 30;
+
+export const updatePersonBodyFullNameMin = 2;
+export const updatePersonBodyFullNameMax = 200;
+
+export const updatePersonBodyPhoneMax = 30;
+
+export const updatePersonBodyTentNumberMax = 30;
+
+export const updatePersonBodyFamilySizeMax = 50;
+
+export const updatePersonBodyNotesMax = 1000;
+
+
+
+
+export const UpdatePersonBody = zod.object({
+  "nationalId": zod.string().min(updatePersonBodyNationalIdMin).max(updatePersonBodyNationalIdMax).optional(),
+  "fullName": zod.string().min(updatePersonBodyFullNameMin).max(updatePersonBodyFullNameMax).optional(),
+  "gender": zod.enum(['MALE', 'FEMALE']).optional(),
+  "birthDate": zod.coerce.date().optional(),
+  "phone": zod.string().max(updatePersonBodyPhoneMax).nullish(),
+  "tentNumber": zod.string().min(1).max(updatePersonBodyTentNumberMax).optional(),
+  "familySize": zod.int().min(1).max(updatePersonBodyFamilySizeMax).optional(),
+  "notes": zod.string().max(updatePersonBodyNotesMax).nullish(),
+  "expectedVersion": zod.int().min(1)
+})
+
+
+
+
+export const UpdatePersonResponse = zod.object({
+  "id": zod.uuid(),
+  "nationalId": zod.string(),
+  "fullName": zod.string(),
+  "gender": zod.enum(['MALE', 'FEMALE']),
+  "birthDate": zod.coerce.date(),
+  "phone": zod.string().nullish(),
+  "tentNumber": zod.string(),
+  "familySize": zod.int(),
+  "notes": zod.string().nullish(),
+  "createdById": zod.uuid(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1)
+})
+
+
+export const ArchivePersonParams = zod.object({
+  "personId": zod.uuid()
+})
+
+export const archivePersonHeaderIdempotencyKeyMax = 200;
+
+
+
+export const ArchivePersonHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(archivePersonHeaderIdempotencyKeyMax).optional().describe('Optional caller-generated retry key (1–200 characters). Replays the original completed mutation response.')
+})
+
+
+
+
+export const ArchivePersonBody = zod.object({
+  "expectedVersion": zod.int().min(1)
+})
+
+
+
+
+export const ArchivePersonResponse = zod.object({
+  "id": zod.uuid(),
+  "nationalId": zod.string(),
+  "fullName": zod.string(),
+  "gender": zod.enum(['MALE', 'FEMALE']),
+  "birthDate": zod.coerce.date(),
+  "phone": zod.string().nullish(),
+  "tentNumber": zod.string(),
+  "familySize": zod.int(),
+  "notes": zod.string().nullish(),
+  "createdById": zod.uuid(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1)
 })
 
 
@@ -1111,11 +1356,64 @@ export const ListComplaintsResponseItem = zod.object({
   "description": zod.string(),
   "status": zod.enum(['OPEN', 'IN_REVIEW', 'RESOLVED', 'REJECTED']),
   "location": zod.string().nullish(),
+  "reply": zod.string().nullish(),
+  "repliedById": zod.uuid().nullish(),
+  "repliedAt": zod.coerce.date().nullish(),
+  "createdById": zod.uuid(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullish(),
   "version": zod.int().min(1)
 })
 export const ListComplaintsResponse = zod.array(ListComplaintsResponseItem)
+
+
+export const createSyncComplaintHeaderIdempotencyKeyMax = 200;
+
+
+
+export const CreateSyncComplaintHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(createSyncComplaintHeaderIdempotencyKeyMax).describe('A caller-generated, non-empty key (maximum 200 characters) used to safely retry this mutation.')
+})
+
+export const createSyncComplaintBodyComplainantNameMin = 2;
+export const createSyncComplaintBodyComplainantNameMax = 200;
+
+export const createSyncComplaintBodySubjectMin = 2;
+export const createSyncComplaintBodySubjectMax = 240;
+
+export const createSyncComplaintBodyDescriptionMax = 5000;
+
+export const createSyncComplaintBodyLocationMax = 200;
+
+
+
+export const CreateSyncComplaintBody = zod.object({
+  "complainantName": zod.string().min(createSyncComplaintBodyComplainantNameMin).max(createSyncComplaintBodyComplainantNameMax),
+  "subject": zod.string().min(createSyncComplaintBodySubjectMin).max(createSyncComplaintBodySubjectMax),
+  "description": zod.string().min(1).max(createSyncComplaintBodyDescriptionMax),
+  "location": zod.string().max(createSyncComplaintBodyLocationMax).optional()
+})
+
+
+
+
+export const CreateSyncComplaintResponse = zod.object({
+  "id": zod.uuid(),
+  "complainantName": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string(),
+  "status": zod.enum(['OPEN', 'IN_REVIEW', 'RESOLVED', 'REJECTED']),
+  "location": zod.string().nullish(),
+  "reply": zod.string().nullish(),
+  "repliedById": zod.uuid().nullish(),
+  "repliedAt": zod.coerce.date().nullish(),
+  "createdById": zod.uuid(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1)
+})
 
 
 export const UpdateComplaintStatusParams = zod.object({
@@ -1130,11 +1428,28 @@ export const UpdateComplaintStatusHeader = zod.object({
   "Idempotency-Key": zod.string().min(1).max(updateComplaintStatusHeaderIdempotencyKeyMax).optional().describe('Optional caller-generated retry key (1–200 characters). Replays the original completed mutation response.')
 })
 
+export const updateComplaintStatusBodyComplainantNameMin = 2;
+export const updateComplaintStatusBodyComplainantNameMax = 200;
+
+export const updateComplaintStatusBodySubjectMin = 2;
+export const updateComplaintStatusBodySubjectMax = 240;
+
+export const updateComplaintStatusBodyDescriptionMax = 5000;
+
+export const updateComplaintStatusBodyLocationMax = 200;
+
+export const updateComplaintStatusBodyReplyMax = 5000;
+
 
 
 
 export const UpdateComplaintStatusBody = zod.object({
-  "status": zod.enum(['OPEN', 'IN_REVIEW', 'RESOLVED', 'REJECTED']),
+  "complainantName": zod.string().min(updateComplaintStatusBodyComplainantNameMin).max(updateComplaintStatusBodyComplainantNameMax).optional(),
+  "subject": zod.string().min(updateComplaintStatusBodySubjectMin).max(updateComplaintStatusBodySubjectMax).optional(),
+  "description": zod.string().min(1).max(updateComplaintStatusBodyDescriptionMax).optional(),
+  "location": zod.string().max(updateComplaintStatusBodyLocationMax).nullish(),
+  "status": zod.enum(['OPEN', 'IN_REVIEW', 'RESOLVED', 'REJECTED']).optional(),
+  "reply": zod.string().max(updateComplaintStatusBodyReplyMax).nullish(),
   "expectedVersion": zod.int().min(1)
 })
 
@@ -1148,8 +1463,53 @@ export const UpdateComplaintStatusResponse = zod.object({
   "description": zod.string(),
   "status": zod.enum(['OPEN', 'IN_REVIEW', 'RESOLVED', 'REJECTED']),
   "location": zod.string().nullish(),
+  "reply": zod.string().nullish(),
+  "repliedById": zod.uuid().nullish(),
+  "repliedAt": zod.coerce.date().nullish(),
+  "createdById": zod.uuid(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1)
+})
+
+
+export const ArchiveSyncComplaintParams = zod.object({
+  "complaintId": zod.uuid()
+})
+
+export const archiveSyncComplaintHeaderIdempotencyKeyMax = 200;
+
+
+
+export const ArchiveSyncComplaintHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(archiveSyncComplaintHeaderIdempotencyKeyMax).optional().describe('Optional caller-generated retry key (1–200 characters). Replays the original completed mutation response.')
+})
+
+
+
+
+export const ArchiveSyncComplaintBody = zod.object({
+  "expectedVersion": zod.int().min(1)
+})
+
+
+
+
+export const ArchiveSyncComplaintResponse = zod.object({
+  "id": zod.uuid(),
+  "complainantName": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string(),
+  "status": zod.enum(['OPEN', 'IN_REVIEW', 'RESOLVED', 'REJECTED']),
+  "location": zod.string().nullish(),
+  "reply": zod.string().nullish(),
+  "repliedById": zod.uuid().nullish(),
+  "repliedAt": zod.coerce.date().nullish(),
+  "createdById": zod.uuid(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullish(),
   "version": zod.int().min(1)
 })
 
@@ -1166,11 +1526,73 @@ export const ListTasksResponseItem = zod.object({
   "status": zod.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
   "assignedToId": zod.uuid().nullish(),
   "dueAt": zod.coerce.date().nullish(),
+  "createdById": zod.uuid(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullish(),
   "version": zod.int().min(1)
 })
 export const ListTasksResponse = zod.array(ListTasksResponseItem)
+
+
+export const createSyncTaskHeaderIdempotencyKeyMax = 200;
+
+
+
+export const CreateSyncTaskHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(createSyncTaskHeaderIdempotencyKeyMax).describe('A caller-generated, non-empty key (maximum 200 characters) used to safely retry this mutation.')
+})
+
+export const createSyncTaskBodyTitleMin = 2;
+export const createSyncTaskBodyTitleMax = 240;
+
+export const createSyncTaskBodyDescriptionMax = 5000;
+
+export const createSyncTaskBodyLocationMin = 2;
+export const createSyncTaskBodyLocationMax = 200;
+
+
+
+export const CreateSyncTaskBody = zod.object({
+  "title": zod.string().min(createSyncTaskBodyTitleMin).max(createSyncTaskBodyTitleMax),
+  "description": zod.string().min(1).max(createSyncTaskBodyDescriptionMax),
+  "location": zod.string().min(createSyncTaskBodyLocationMin).max(createSyncTaskBodyLocationMax),
+  "priority": zod.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']),
+  "assignedToId": zod.uuid().nullish(),
+  "dueAt": zod.coerce.date().nullish()
+})
+
+
+
+
+export const CreateSyncTaskResponse = zod.object({
+  "id": zod.uuid(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "location": zod.string(),
+  "priority": zod.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']),
+  "status": zod.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
+  "assignedToId": zod.uuid().nullish(),
+  "dueAt": zod.coerce.date().nullish(),
+  "createdById": zod.uuid(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1)
+})
+
+
+export const ListSecurityOfficersResponseItem = zod.object({
+  "id": zod.uuid(),
+  "email": zod.email(),
+  "name": zod.string(),
+  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER']),
+  "active": zod.boolean(),
+  "passwordSet": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListSecurityOfficersResponse = zod.array(ListSecurityOfficersResponseItem)
 
 
 export const UpdateTaskStatusParams = zod.object({
@@ -1185,11 +1607,25 @@ export const UpdateTaskStatusHeader = zod.object({
   "Idempotency-Key": zod.string().min(1).max(updateTaskStatusHeaderIdempotencyKeyMax).optional().describe('Optional caller-generated retry key (1–200 characters). Replays the original completed mutation response.')
 })
 
+export const updateTaskStatusBodyTitleMin = 2;
+export const updateTaskStatusBodyTitleMax = 240;
+
+export const updateTaskStatusBodyDescriptionMax = 5000;
+
+export const updateTaskStatusBodyLocationMin = 2;
+export const updateTaskStatusBodyLocationMax = 200;
+
 
 
 
 export const UpdateTaskStatusBody = zod.object({
-  "status": zod.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
+  "title": zod.string().min(updateTaskStatusBodyTitleMin).max(updateTaskStatusBodyTitleMax).optional(),
+  "description": zod.string().min(1).max(updateTaskStatusBodyDescriptionMax).optional(),
+  "location": zod.string().min(updateTaskStatusBodyLocationMin).max(updateTaskStatusBodyLocationMax).optional(),
+  "priority": zod.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional(),
+  "status": zod.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
+  "assignedToId": zod.uuid().nullish(),
+  "dueAt": zod.coerce.date().nullish(),
   "expectedVersion": zod.int().min(1)
 })
 
@@ -1205,8 +1641,49 @@ export const UpdateTaskStatusResponse = zod.object({
   "status": zod.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
   "assignedToId": zod.uuid().nullish(),
   "dueAt": zod.coerce.date().nullish(),
+  "createdById": zod.uuid(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1)
+})
+
+
+export const ArchiveSyncTaskParams = zod.object({
+  "taskId": zod.uuid()
+})
+
+export const archiveSyncTaskHeaderIdempotencyKeyMax = 200;
+
+
+
+export const ArchiveSyncTaskHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(archiveSyncTaskHeaderIdempotencyKeyMax).optional().describe('Optional caller-generated retry key (1–200 characters). Replays the original completed mutation response.')
+})
+
+
+
+
+export const ArchiveSyncTaskBody = zod.object({
+  "expectedVersion": zod.int().min(1)
+})
+
+
+
+
+export const ArchiveSyncTaskResponse = zod.object({
+  "id": zod.uuid(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "location": zod.string(),
+  "priority": zod.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']),
+  "status": zod.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
+  "assignedToId": zod.uuid().nullish(),
+  "dueAt": zod.coerce.date().nullish(),
+  "createdById": zod.uuid(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullish(),
   "version": zod.int().min(1)
 })
 

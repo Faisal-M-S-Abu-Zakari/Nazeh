@@ -6,6 +6,7 @@ import type {
   Notification as ApiNotification,
   SecurityTask,
 } from "@workspace/api-client-react";
+import { ComplaintStatus } from "@workspace/api-client-react";
 import type { Aid } from "@/@types/actors/manager/aid-management/add-aid-management.types";
 import type { Complaint } from "@/@types/actors/general/Complaints/ComplaintsResponse.type";
 import type { Displaced } from "@/@types/actors/general/displaceds/displacesResponse.type";
@@ -88,10 +89,13 @@ export const toLegacyComplaint = (
     receiver: role === USER_TYPE.DISPLACED ? { ...current, role: USER_TYPE.MANAGER } : current,
     title: complaint.subject,
     body: complaint.message,
-    status:
-      complaint.status === "open" || complaint.status === "inProgress"
-        ? COMPLAINTS_STATUS.PENDING
-        : COMPLAINTS_STATUS.READ,
+    // Keep a real lifecycle state even when this legacy list endpoint is used.
+    status: ({
+      open: ComplaintStatus.OPEN,
+      inProgress: ComplaintStatus.IN_REVIEW,
+      resolved: ComplaintStatus.RESOLVED,
+      closed: ComplaintStatus.REJECTED,
+    } as const)[complaint.status],
   };
 };
 

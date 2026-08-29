@@ -1,9 +1,11 @@
 import { ComplaintStatus, TaskStatus } from '@workspace/api-client-react';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card, fonts, ScreenHeader, StatusPill, SyncBanner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { getErrorStatus } from '@/lib/mutationErrors';
 
 const taskStatus = { PENDING: 'معلّقة', IN_PROGRESS: 'قيد التنفيذ', COMPLETED: 'مكتملة', CANCELLED: 'ملغاة' } as const;
 const complaintStatus = { OPEN: 'مفتوحة', IN_REVIEW: 'قيد المراجعة', RESOLVED: 'محلولة', REJECTED: 'مرفوضة' } as const;
@@ -11,16 +13,24 @@ const priority = { LOW: 'منخفضة', MEDIUM: 'متوسطة', HIGH: 'عالي�
 
 export default function AlertsScreen() {
   const colors = useColors();
-  const { complaints, tasks, canManageComplaints, canManageTasks, setComplaintStatus, setTaskStatus } = useApp();
+  const { complaints, tasks, canManageComplaints, canManageTasks, setComplaintStatus, setTaskStatus, retrySync } = useApp();
   const run = async (operation: () => Promise<{ queued: boolean }>) => {
     try {
       const result = await operation();
       Alert.alert(result.queued ? 'بانتظار المزامنة' : 'تم التحديث', result.queued ? 'الإجراء معلّق ولم يرسل إلى الخادم بعد.' : 'تمت مزامنة الحالة مع الفريق.');
-    } catch (cause) { Alert.alert('تعذر التحديث', cause instanceof Error ? cause.message : 'حدث خطأ غير متوقع.'); }
+    } catch (cause) {
+      if (getErrorStatus(cause) === 409) {
+        try { await retrySync(); } catch { /* keep the conflict message as the primary feedback */ }
+        Alert.alert('تعارض في التحديث', 'عدّل مستخدم آخر هذا السجل. تم تحميل أحدث نسخة؛ راجعها ثم أعد المحاولة.');
+      } else Alert.alert('تعذر التحديث', cause instanceof Error ? cause.message : 'حدث خطأ غير متوقع.');
+    }
   };
   return (
     <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
-      <ScreenHeader title="التنبيهات والمهام" subtitle="المهام والشكاوى المشتركة" />
+      <ScreenHeader title="التنبيهات والمهام" subtitle="المهام والشكاوى المشتركة" action={(canManageComplaints || canManageTasks) ? <View style={styles.headerActions}>
+        {canManageComplaints ? <Pressable testID="add-complaint" onPress={() => router.push('/complaint-form' as never)}><Ionicons name="chatbox-ellipses" size={25} color={colors.gold} /></Pressable> : null}
+        {canManageTasks ? <Pressable testID="add-task" onPress={() => router.push('/task-form' as never)}><Ionicons name="shield-checkmark" size={27} color={colors.gold} /></Pressable> : null}
+      </View> : undefined} />
       <ScrollView contentContainerStyle={styles.content}>
         <SyncBanner />
         <Text style={[styles.section, { color: colors.foreground }]}>المهام الأمنية</Text>
@@ -31,7 +41,10 @@ export default function AlertsScreen() {
               <View style={styles.text}><Text style={[styles.title, { color: colors.foreground }]}>{task.title}</Text><Text style={[styles.body, { color: colors.mutedForeground }]}>{task.description} · {task.location}</Text></View>
               <Ionicons name="shield-checkmark-outline" size={25} color={colors.primary} />
             </View>
-            {canManageTasks && task.status !== TaskStatus.COMPLETED ? <Pressable testID={`complete-task-${task.id}`} onPress={() => void run(() => setTaskStatus(task.id, TaskStatus.COMPLETED, task.version))}><Text style={[styles.action, { color: colors.primary }]}>تحديد كمكتملة</Text></Pressable> : null}
+            {canManageTasks ? <View style={styles.manageRow}>
+              {task.status !== TaskStatus.COMPLETED ? <Pressable testID={`complete-task-${task.id}`} onPress={() => void run(() => setTaskStatus(task.id, TaskStatus.COMPLETED, task.version))}><Text style={[styles.action, { color: colors.primary }]}>تحديد كمكتملة</Text></Pressable> : null}
+              <Pressable testID={`edit-task-${task.id}`} onPress={() => router.push({ pathname: '/task-form', params: { id: task.id } } as never)}><Text style={[styles.action, { color: colors.primary }]}>إدارة</Text></Pressable>
+            </View> : null}
           </Card>
         ))}
         <Text style={[styles.section, { color: colors.foreground }]}>الشكاوى</Text>
@@ -42,7 +55,10 @@ export default function AlertsScreen() {
               <View style={styles.text}><Text style={[styles.title, { color: colors.foreground }]}>{complaint.subject}</Text><Text style={[styles.body, { color: colors.mutedForeground }]}>{complaint.complainantName}: {complaint.description}</Text></View>
               <Ionicons name="chatbox-ellipses-outline" size={25} color={colors.primary} />
             </View>
-            {canManageComplaints && complaint.status !== ComplaintStatus.RESOLVED ? <Pressable testID={`resolve-complaint-${complaint.id}`} onPress={() => void run(() => setComplaintStatus(complaint.id, ComplaintStatus.RESOLVED, complaint.version))}><Text style={[styles.action, { color: colors.primary }]}>تحديد كمحلولة</Text></Pressable> : null}
+            {canManageComplaints ? <View style={styles.manageRow}>
+              {complaint.status !== ComplaintStatus.RESOLVED ? <Pressable testID={`resolve-complaint-${complaint.id}`} onPress={() => void run(() => setComplaintStatus(complaint.id, ComplaintStatus.RESOLVED, complaint.version))}><Text style={[styles.action, { color: colors.primary }]}>تحديد كمحلولة</Text></Pressable> : null}
+              <Pressable testID={`edit-complaint-${complaint.id}`} onPress={() => router.push({ pathname: '/complaint-form', params: { id: complaint.id } } as never)}><Text style={[styles.action, { color: colors.primary }]}>إدارة</Text></Pressable>
+            </View> : null}
           </Card>
         ))}
         {!tasks.length && !complaints.length ? <Card><Text style={[styles.body, { color: colors.mutedForeground }]}>لا توجد مهام أو شكاوى في آخر نسخة متاحة.</Text></Card> : null}
@@ -56,4 +72,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 11 }, text: { flex: 1, alignItems: 'flex-end' },
   title: { fontFamily: fonts.bold, fontSize: 16 }, body: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, textAlign: 'right', marginTop: 3 },
   action: { fontFamily: fonts.bold, textAlign: 'center', paddingTop: 14 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  manageRow: { flexDirection: 'row-reverse', justifyContent: 'space-around', alignItems: 'center' },
 });

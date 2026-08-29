@@ -1,6 +1,6 @@
 'use client';
 
-import { Box, Card, Flex, Group, Stack, Text, ThemeIcon } from '@mantine/core';
+import { Box, Button, Card, Flex, Group, Stack, Text, ThemeIcon } from '@mantine/core';
 import { cn } from '@/utils/cn';
 import { Complaint } from '@/@types/actors/general/Complaints/ComplaintsResponse.type';
 import { Image } from '@/lib/nextjs-mocks';
@@ -16,6 +16,13 @@ import useAuth from '@/hooks/useAuth';
 import { COMPLAINTS_STATUS, COMPLAINTS_TABS } from '@/@types/actors/common-types/index.type';
 import { Calendar, User, FileText, MailWarning, CheckCircle2, Clock } from 'lucide-react';
 import { ComplaintStatus, getListComplaintsQueryKey, useUpdateComplaintStatus } from '@workspace/api-client-react';
+
+const complaintStatusLabels: Record<ComplaintStatus, string> = {
+  [ComplaintStatus.OPEN]: 'مفتوحة',
+  [ComplaintStatus.IN_REVIEW]: 'قيد المراجعة',
+  [ComplaintStatus.RESOLVED]: 'تم الحل',
+  [ComplaintStatus.REJECTED]: 'مرفوضة',
+};
 
 interface CommonComplaintCardProps {
   complaint: Complaint;
@@ -34,10 +41,14 @@ export default function Common_Complaint_Card({
     ).withDefault(COMPLAINTS_TABS.SENT_COMPLAINTS),
   });
 
-  const { user } = useAuth();
+  const { user, isManager, isDelegate } = useAuth();
   const isOwner = user?.id === actor_Id && user?.role === role;
 
   const [opened, { open, close }] = useDisclosure(false);
+  const apiStatus = Object.values(ComplaintStatus).includes(complaint.status as ComplaintStatus)
+    ? complaint.status as ComplaintStatus
+    : complaint.status === COMPLAINTS_STATUS.READ ? ComplaintStatus.RESOLVED : ComplaintStatus.OPEN;
+  const isClosed = apiStatus === ComplaintStatus.RESOLVED || apiStatus === ComplaintStatus.REJECTED;
   const queryClient = useQueryClient();
 
   const changeStatusMutation = useUpdateComplaintStatus({
@@ -79,16 +90,6 @@ export default function Common_Complaint_Card({
     });
 
     if (!clickedOnDelete) {
-      if (
-        query['complaints-tab'] === COMPLAINTS_TABS.RECEIVED_COMPLAINTS &&
-        complaint.status === COMPLAINTS_STATUS.PENDING &&
-        user?.role !== USER_TYPE.DISPLACED
-      ) {
-        if (complaint.apiId && complaint.version !== undefined) changeStatusMutation.mutate({
-          complaintId: complaint.apiId,
-          data: { status: ComplaintStatus.IN_REVIEW, expectedVersion: complaint.version },
-        });
-      }
       open();
     }
   };
@@ -103,7 +104,7 @@ export default function Common_Complaint_Card({
         shadow='sm'
         className={cn(
           'hover:shadow-md !border !border-gray-300 transition-all cursor-pointer',
-          complaint.status === COMPLAINTS_STATUS.READ ? '!bg-gray-50' : '!bg-red-50'
+          isClosed ? '!bg-gray-50' : '!bg-red-50'
         )}
         onClick={handleClick}
       >
@@ -130,16 +131,16 @@ export default function Common_Complaint_Card({
                 <ThemeIcon
                   size='sm'
                   variant='light'
-                  color={complaint.status === COMPLAINTS_STATUS.READ ? 'green' : 'orange'}
+                  color={isClosed ? 'green' : 'orange'}
                 >
-                  {complaint.status === COMPLAINTS_STATUS.READ ? (
+                  {isClosed ? (
                     <CheckCircle2 size={14} />
                   ) : (
                     <Clock size={14} />
                   )}
                 </ThemeIcon>
                 <Text size='xs' c='dimmed'>
-                  {complaint.status === COMPLAINTS_STATUS.READ ? 'مقروءة' : 'قيد الانتظار'}
+                  {complaintStatusLabels[apiStatus]}
                 </Text>
               </Group>
             </Flex>
@@ -155,6 +156,34 @@ export default function Common_Complaint_Card({
                   `إلى ${USER_RANK_LABELS[complaint.receiver.role]}: ${complaint.receiver.name}`}
               </Text>
             </Group>
+            {(isManager || isDelegate) && complaint.apiId && complaint.version !== undefined && (
+              <Group data-click='delete'>
+                <Button
+                  data-testid={`complaint-status-${complaint.apiId}`}
+                  size='xs'
+                  variant='light'
+                  loading={changeStatusMutation.isPending}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    changeStatusMutation.mutate({
+                      complaintId: complaint.apiId!,
+                      data: {
+                        status: isClosed ? ComplaintStatus.IN_REVIEW : ComplaintStatus.RESOLVED,
+                        expectedVersion: complaint.version!,
+                      },
+                    });
+                  }}
+                >
+                  {isClosed ? 'إعادة للمراجعة' : 'تحديد كمحلولة'}
+                </Button>
+                <Common_Delete_Complaint
+                  complaintId={complaint.apiId}
+                  version={complaint.version}
+                  actor_Id={actor_Id}
+                  role={role}
+                />
+              </Group>
+            )}
 
             <Group gap={6}>
               <ThemeIcon size='sm' variant='light' color='grape'>

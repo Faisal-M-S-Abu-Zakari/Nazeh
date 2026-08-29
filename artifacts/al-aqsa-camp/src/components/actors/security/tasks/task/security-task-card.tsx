@@ -115,7 +115,7 @@ export default function Security_Tasks_Card({ task, security_Id }: SecurityTasks
               )}
             </Stack>
 
-            {false && <Security_Task_Actions security_Id={security_Id} task={task} />}
+            {(isSecurityOfficer || isManager) && <Security_Task_Actions security_Id={security_Id} task={task} />}
           </Group>
         </Group>
       </Card>

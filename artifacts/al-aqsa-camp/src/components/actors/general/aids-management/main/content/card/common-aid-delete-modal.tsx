@@ -1,44 +1,43 @@
 'use client';
-import { commonActionResponse } from '@/@types/common/action/commonActionResponse.type';
-import { deleteAid, deleteAidProps } from '@/actions/actors/general/aids-management/deleteAid';
+import type { Aid } from '@/@types/actors/manager/aid-management/add-aid-management.types';
 import useAuth from '@/hooks/useAuth';
 import { Button, Group, Modal, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { useMutation } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { getListAidsQueryKey, useArchiveAid } from '@workspace/api-client-react';
 
 interface CommonAidDeleteModalProps {
-  aid_Id: number;
+  aid: Aid;
   actor_Id: number;
   opened: boolean;
   close: () => void;
 }
 
 export default function Common_Aid_Delete_Modal({
-  aid_Id,
+  aid,
   actor_Id,
   opened,
   close,
 }: CommonAidDeleteModalProps) {
   const { user, isManager } = useAuth();
+  const queryClient = useQueryClient();
 
-  const deleteMutation = useMutation<commonActionResponse, unknown, deleteAidProps>({
-    mutationFn: deleteAid,
-    onSuccess: (data) => {
-      if (data.status === 200) {
+  const deleteMutation = useArchiveAid({ mutation: {
+    onSuccess: () => {
         notifications.show({
           title: 'تمت العملية بنجاح',
-          message: data.message,
+          message: 'تمت أرشفة المساعدة',
           color: 'grape',
           position: 'top-left',
           withBorder: true,
         });
+        queryClient.invalidateQueries({ queryKey: getListAidsQueryKey() });
         close();
-      } else {
-        throw new Error(data.error || 'فشل في الحذف');
-      }
     },
     onError: (error: any) => {
-      const errorMessage = error?.message || 'فشل في الحذف';
+      const conflict = error?.status === 409;
+      if (conflict) queryClient.invalidateQueries({ queryKey: getListAidsQueryKey() });
+      const errorMessage = conflict ? 'تم تعديل المساعدة من جهاز آخر. حُدّثت القائمة، راجع البيانات وحاول مجدداً.' : error?.message || 'فشل في الأرشفة';
       notifications.show({
         title: 'خطأ',
         message: errorMessage,
@@ -47,13 +46,13 @@ export default function Common_Aid_Delete_Modal({
         withBorder: true,
       });
     },
-  });
+  }});
 
   const handleClick = () => {
-    if (isManager && actor_Id == user?.id) {
+    if ((isManager || user) && aid.apiId && aid.version !== undefined) {
       deleteMutation.mutate({
-        aid_Id,
-        manager_Id: user?.id as number,
+        aidId: aid.apiId,
+        data: { expectedVersion: aid.version },
       });
     }
   };
@@ -74,11 +73,12 @@ export default function Common_Aid_Delete_Modal({
     >
       <Stack>
         <Text fz={16} fw={500}>
-          هل أنت متأكد من حذف هذه المساعدة؟ هذا الإجراء لا يمكن التراجع عنه.
+           هل أنت متأكد من أرشفة هذه المساعدة؟ هذا الإجراء لا يمكن التراجع عنه.
         </Text>
 
         <Group justify='flex-end'>
           <Button
+            data-testid={`aid-archive-cancel-${aid.apiId}`}
             size='sm'
             type='button'
             variant='outline'
@@ -89,13 +89,14 @@ export default function Common_Aid_Delete_Modal({
             إلغاء
           </Button>
           <Button
+            data-testid={`aid-archive-confirm-${aid.apiId}`}
             size='sm'
             type='button'
             className='!bg-red-500 !shadow-md'
             loading={deleteMutation.isPending}
             onClick={handleClick}
           >
-            حذف
+            أرشفة
           </Button>
         </Group>
       </Stack>

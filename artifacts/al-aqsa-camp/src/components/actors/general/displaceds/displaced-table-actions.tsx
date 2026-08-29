@@ -23,6 +23,7 @@ import Update_Displaced_Modal from './modals/update-displaced-modal';
 import Meeting_Displaced_Modal from './modals/meeting-displaced-modal';
 import Change_Delegate_In_Displaced_Modal from './modals/change-delegate-in-displaceds-modal';
 import { ACTION_ADD_EDIT_DISPLAY } from '@/@types/actors/common-types/index.type';
+import type { Displaced } from '@/@types/actors/general/displaceds/displacesResponse.type';
 
 interface ActionItem {
   label: string;
@@ -31,13 +32,13 @@ interface ActionItem {
 }
 
 interface DisplacedTableActionsProps {
-  displaced_Id?: number;
+  displaced?: Displaced;
   displaced_Ids?: number[];
   disabled?: boolean;
 }
 
 export default function Displaced_Table_Actions({
-  displaced_Id,
+  displaced,
   displaced_Ids,
   disabled,
 }: DisplacedTableActionsProps) {
@@ -56,13 +57,8 @@ export default function Displaced_Table_Actions({
 
   const closeModal = () => setModalType(null);
 
-  const buildRoute = (id: number, edit = false) => {
-    const base = DISPLACED_ROUTES_fUNC({ displaced_Id: id });
-    return edit ? `${base.PROFILE}?action=${ACTION_ADD_EDIT_DISPLAY.EDIT}` : base.PROFILE;
-  };
-
   const commonActions: ActionItem[] = [
-    { label: 'حذف', icon: Trash, action: () => openModal('delete') },
+    { label: 'أرشفة', icon: Trash, action: () => openModal('delete') },
     { label: 'استدعاء', icon: Speech, action: () => openModal('call') },
     { label: 'تحديث بيانات', icon: UserCog, action: () => openModal('update') },
     { label: 'اجتماع', icon: Users, action: () => openModal('meeting') },
@@ -78,41 +74,32 @@ export default function Displaced_Table_Actions({
 
   const viewEditActions: ActionItem[] = [
     {
-      label: 'عرض',
-      icon: Eye,
-      action: () => router.push(buildRoute(displaced_Id || 0)),
-    },
-    {
       label: 'تعديل',
       icon: UserPen,
-      action: () => router.push(buildRoute(displaced_Id || 0, true)),
+      action: () => openModal('edit'),
     },
   ];
 
-  const securityActions: ActionItem[] = [
-    {
-      label: 'عرض',
-      icon: Eye,
-      action: () => router.push(buildRoute(displaced_Id || 0)),
-    },
-    { label: 'استدعاء', icon: Speech, action: () => openModal('call') },
-  ];
+  const securityActions: ActionItem[] = [];
 
   const getActions = (): ActionItem[] => {
-    if (isManager && displaced_Ids) return [...commonActions, ...managerExtras];
-    if (isManager && displaced_Id) return [...viewEditActions, ...commonActions, ...managerExtras];
+    // The synchronized API requires each record's UUID and version. Bulk selections
+    // intentionally have only display IDs, so do not expose a nonfunctional archive.
+    if (displaced_Ids) return [];
+    if (isManager && displaced) return [...viewEditActions, ...commonActions, ...managerExtras];
     if (isDelegate && displaced_Ids) return [...commonActions];
-    if (isDelegate && displaced_Id) return [...viewEditActions, ...commonActions];
+    if (isDelegate && displaced) return [...viewEditActions, ...commonActions];
     if (isSecurity || isSecurityOfficer) return securityActions;
     return [];
   };
 
   const ACTIONS = getActions();
-  const IDs = displaced_Ids || (displaced_Id ? [displaced_Id] : []);
+  const IDs = displaced_Ids || (displaced ? [displaced.id] : []);
 
   const Dropdown_Items = ACTIONS.map((item, index) => (
     <Button
       key={item.label}
+      data-testid={`person-action-${item.label}-${displaced?.apiId ?? 'bulk'}`}
       justify='flex-start'
       leftSection={
         <ThemeIcon variant='transparent' className='!text-dark'>
@@ -132,6 +119,8 @@ export default function Displaced_Table_Actions({
       {item.label}
     </Button>
   ));
+
+  if (ACTIONS.length === 0) return null;
 
   return (
     <>
@@ -166,7 +155,7 @@ export default function Displaced_Table_Actions({
               العمليات
             </Button>
           ) : (
-            <ActionIcon bg='transparent' mt={5} onClick={() => setOpenedPopover((o) => !o)}>
+            <ActionIcon data-testid={`person-actions-${displaced?.apiId}`} bg='transparent' mt={5} onClick={() => setOpenedPopover((o) => !o)}>
               <EllipsisVertical size={20} className='mx-auto text-primary' />
             </ActionIcon>
           )}
@@ -188,7 +177,7 @@ export default function Displaced_Table_Actions({
 
       {(isDelegate || isManager) && (
         <Delete_Displaced_Modal
-          displaced_Ids={IDs}
+          people={displaced ? [displaced] : []}
           opened={modalType === 'delete'}
           close={closeModal}
         />
@@ -198,8 +187,15 @@ export default function Displaced_Table_Actions({
 
       {(isDelegate || isManager) && (
         <Update_Displaced_Modal
-          displaced_Ids={IDs}
+          person={displaced}
           opened={modalType === 'update'}
+          close={closeModal}
+        />
+      )}
+      {(isDelegate || isManager) && displaced && (
+        <Update_Displaced_Modal
+          person={displaced}
+          opened={modalType === 'edit'}
           close={closeModal}
         />
       )}
