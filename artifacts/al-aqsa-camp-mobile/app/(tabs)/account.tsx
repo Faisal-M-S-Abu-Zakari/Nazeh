@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card, fonts, PrimaryButton, ScreenHeader, StatusPill, SyncBanner } from '@/components/ui';
 import { getRoleArabic, useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
@@ -8,6 +8,17 @@ import { useColors } from '@/hooks/useColors';
 export default function AccountScreen() {
   const colors = useColors();
   const { signedIn, authLoading, signOut, user, queuedCount, pendingWrites, retrySync, discardQueuedWrite } = useApp();
+  const requestSignOut = () => {
+    if (Platform.OS === 'web') {
+      void signOut();
+      return;
+    }
+    Alert.alert(
+      'تسجيل الخروج',
+      'سيتم مسح بيانات الحساب ونسخة القراءة المحفوظة من هذا الهاتف.',
+      [{ text: 'إلغاء' }, { text: 'خروج', style: 'destructive', onPress: () => void signOut() }],
+    );
+  };
   const pendingLabel = (item: typeof pendingWrites[number]) => {
     if (item.kind === 'aid') return `إضافة حملة: ${item.data.title}`;
     if (item.kind === 'person') return `إضافة سجل: ${item.data.fullName}`;
@@ -44,7 +55,7 @@ export default function AccountScreen() {
                 <Pressable testID={`retry-pending-${item.id}`} onPress={() => void retrySync()}><Text style={[styles.pendingAction, { color: colors.primary }]}>إعادة المحاولة</Text></Pressable>
               </View>)}
             </Card> : null}
-            <PrimaryButton label="تسجيل الخروج" icon="log-out-outline" onPress={() => Alert.alert('تسجيل الخروج', 'سيتم مسح بيانات الحساب ونسخة القراءة المحفوظة من هذا الهاتف.', [{ text: 'إلغاء' }, { text: 'خروج', style: 'destructive', onPress: () => void signOut() }])} />
+            <PrimaryButton testID="account-logout" label="تسجيل الخروج" icon="log-out-outline" onPress={requestSignOut} />
           </>
         ) : authLoading ? (
           <Card><Text style={[styles.copy, { color: colors.mutedForeground }]}>جارٍ التحقق من جلسة الحساب ومزامنة بياناته…</Text></Card>

@@ -47,6 +47,7 @@ export default function Header_Avatar() {
     <Popover position='bottom-end' withArrow shadow='md'>
       <Popover.Target>
         <Avatar
+          data-testid='header-account-menu'
           src={MAN || user?.profile_image || MAN}
           alt={user?.name || 'User'}
           radius='xl'
@@ -89,6 +90,7 @@ export default function Header_Avatar() {
             الملف الشخصي
           </Button>
           <Button
+            data-testid='header-logout'
             variant='light'
             color='red'
             size='xs'

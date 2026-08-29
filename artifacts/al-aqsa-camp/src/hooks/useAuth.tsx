@@ -4,11 +4,14 @@ import { User } from '@/@types/auth/loginResponse.type';
 import { USER_RANK, USER_TYPE } from '@/constants/userTypes';
 import { getGetCurrentUserQueryKey, Role, useGetCurrentUser } from '@workspace/api-client-react';
 import { useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { AUTH_ROUTES } from '@/constants/routes';
 import { canonicalIdToNumber } from '@/utils/auth/canonicalId';
+import { createAuthLifecycle } from '@/utils/auth/authLifecycle';
 
 export default function useAuth() {
   const token = getAuthToken();
+  const queryClient = useQueryClient();
   const me = useGetCurrentUser({
     query: {
       queryKey: getGetCurrentUserQueryKey(),
@@ -18,12 +21,15 @@ export default function useAuth() {
   });
   useEffect(() => {
     if (me.error && 'status' in me.error && me.error.status === 401) {
-      clearAuthToken();
-      if (!window.location.pathname.includes('/auth/login')) {
-        window.location.href = AUTH_ROUTES.LOGIN;
-      }
+      createAuthLifecycle({
+        getToken: getAuthToken,
+        setToken: () => undefined,
+        clearToken: clearAuthToken,
+        clearQueries: () => queryClient.clear(),
+        navigate: (path) => { window.location.href = path; },
+      }).unauthorized(window.location.pathname, AUTH_ROUTES.LOGIN);
     }
-  }, [me.error]);
+  }, [me.error, queryClient]);
 
   const role = me.data?.role;
   const uiRole = role === Role.SECURITY_OFFICER ? USER_TYPE.SECURITY

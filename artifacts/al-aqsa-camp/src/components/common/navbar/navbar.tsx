@@ -76,6 +76,7 @@ export default function Navbar() {
         </Text>
 
         <Button
+          data-testid='navbar-logout'
           variant='transparent'
           size='xs'
           radius='md'

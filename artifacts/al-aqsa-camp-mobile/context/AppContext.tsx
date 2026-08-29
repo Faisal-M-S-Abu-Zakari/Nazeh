@@ -31,8 +31,9 @@ import {
   type Person as ApiPerson,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
+import { cacheStorageKey, createMobileAuthLifecycle, loadOwnerStorage, queueStorageKey, replayOwnerQueue } from './offlineSync';
 
 export type Aid = { id: string; title: string; type: string; families: number; status: 'نشطة' | 'مكتملة'; date: string };
 export type Person = { id: string; name: string; role: 'نازح'; phone: string; location: string };
@@ -74,8 +75,6 @@ type AppValue = {
 
 const AppContext = createContext<AppValue | null>(null);
 const TOKEN_KEY = 'al-aqsa-auth-token';
-const CACHE_KEY = 'al-aqsa-read-cache-v2';
-const QUEUE_KEY = 'al-aqsa-write-queue-v2';
 const emptyCache: Cache = { aids: [], people: [], complaints: [], tasks: [] };
 
 /**
@@ -115,9 +114,10 @@ const clearToken = async () => {
   if (Platform.OS === 'web') { if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(TOKEN_KEY); return; }
   await SecureStore.deleteItemAsync(TOKEN_KEY);
 };
+const mobileAuthLifecycle = createMobileAuthLifecycle({ get: getToken, set: saveToken, remove: clearToken });
 setAuthTokenGetter(getToken);
 
-const requestHeaders = (id: string) => ({ headers: { 'Idempotency-Key': id, 'X-Request-Id': id } });
+const requestHeaders = (id: string, signal?: AbortSignal) => ({ headers: { 'Idempotency-Key': id, 'X-Request-Id': id }, signal });
 const requestId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 type HttpError = Error & { status?: number };
 const httpStatus = (error: unknown) => typeof error === 'object' && error !== null && 'status' in error ? (error as HttpError).status : undefined;
@@ -150,9 +150,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [cache, setCache] = useState<Cache>(emptyCache);
   const [queue, setQueue] = useState<QueuedWrite[]>([]);
   const [manualError, setManualError] = useState('');
+  const identityEpoch = useRef(0);
+  const replayController = useRef<AbortController | null>(null);
+  const activeOwner = useRef<string | null>(null);
+  const rotateIdentity = useCallback(() => {
+    identityEpoch.current += 1;
+    replayController.current?.abort();
+    replayController.current = null;
+  }, []);
 
   useEffect(() => {
-    getToken()
+    mobileAuthLifecycle.restore()
       .then((savedToken) => {
         setToken(savedToken);
       })
@@ -172,20 +180,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const user = me.data ?? null;
   useEffect(() => {
     if (!user) return;
+    const hydrationEpoch = identityEpoch.current;
     if (ownerUserId && ownerUserId !== user.id) {
       // A new authenticated account must never inherit another account's data.
+      rotateIdentity();
       setCache(emptyCache); setQueue([]); setProtectedHydrated(false);
     }
+    activeOwner.current = user.id;
     setOwnerUserId(user.id);
     setProtectedHydrated(false);
-    Promise.all([AsyncStorage.getItem(`${CACHE_KEY}:${user.id}`), AsyncStorage.getItem(`${QUEUE_KEY}:${user.id}`)])
-      .then(([savedCache, savedQueue]) => {
-        if (savedCache) setCache(JSON.parse(savedCache) as Cache);
-        if (savedQueue) setQueue((JSON.parse(savedQueue) as QueuedWrite[]).filter((item) => item.ownerUserId === user.id));
+    loadOwnerStorage<Cache, QueuedWrite>(user.id, (key) => AsyncStorage.getItem(key))
+      .then((stored) => {
+        if (identityEpoch.current !== hydrationEpoch) return;
+        if (stored.cache) setCache(stored.cache);
+        setQueue(stored.queue);
       })
       .catch(() => setManualError('تعذر تحميل بيانات الحساب المحفوظة على الجهاز.'))
-      .finally(() => setProtectedHydrated(true));
-  }, [ownerUserId, user]);
+      .finally(() => {
+        if (identityEpoch.current === hydrationEpoch) setProtectedHydrated(true);
+      });
+  }, [ownerUserId, rotateIdentity, user]);
 
   const serverCache = useMemo<Cache>(() => ({
     aids: aidsQuery.data ?? cache.aids,
@@ -203,61 +217,84 @@ export function AppProvider({ children }: { children: ReactNode }) {
       tasks: tasksQuery.data ?? cache.tasks,
     };
     setCache(next);
-    AsyncStorage.setItem(`${CACHE_KEY}:${user.id}`, JSON.stringify(next)).catch(() => setManualError('تمت المزامنة، لكن تعذر حفظ نسخة القراءة دون اتصال.'));
+    AsyncStorage.setItem(cacheStorageKey(user.id), JSON.stringify(next)).catch(() => setManualError('تمت المزامنة، لكن تعذر حفظ نسخة القراءة دون اتصال.'));
     // Query payload changes are the only trigger; including cache would repeatedly persist the same response.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aidsQuery.data, complaintsQuery.data, peopleQuery.data, protectedHydrated, tasksQuery.data, user]);
 
   useEffect(() => {
     if (httpStatus(me.error) !== 401) return;
-    clearToken().finally(() => {
+    rotateIdentity();
+    mobileAuthLifecycle.logout().finally(() => {
       setToken(null);
-      if (ownerUserId) void AsyncStorage.multiRemove([`${CACHE_KEY}:${ownerUserId}`, `${QUEUE_KEY}:${ownerUserId}`]);
+      if (ownerUserId) void AsyncStorage.multiRemove([cacheStorageKey(ownerUserId), queueStorageKey(ownerUserId)]);
+      activeOwner.current = null;
       setOwnerUserId(null); setProtectedHydrated(false); setCache(emptyCache); setQueue([]);
       queryClient.clear();
       setManualError('انتهت الجلسة. سجّل الدخول مجدداً.');
     });
-  }, [me.error, ownerUserId, queryClient]);
+  }, [me.error, ownerUserId, queryClient, rotateIdentity]);
+
+  const saveQueueForOwner = useCallback(async (owner: string, next: QueuedWrite[]) => {
+    const owned = next.filter((item) => item.ownerUserId === owner);
+    await AsyncStorage.setItem(queueStorageKey(owner), JSON.stringify(owned));
+    if (activeOwner.current !== owner) return;
+    setQueue(owned);
+  }, []);
 
   const saveQueue = useCallback(async (next: QueuedWrite[]) => {
+    if (!ownerUserId) throw new Error('Cannot persist an offline queue without an owner');
     setQueue(next);
-    if (ownerUserId) await AsyncStorage.setItem(`${QUEUE_KEY}:${ownerUserId}`, JSON.stringify(next));
-  }, [ownerUserId]);
+    await saveQueueForOwner(ownerUserId, next);
+  }, [ownerUserId, saveQueueForOwner]);
 
   const refetchAll = useCallback(async () => {
     setManualError('');
-    await Promise.all([aidsQuery.refetch(), peopleQuery.refetch(), complaintsQuery.refetch(), tasksQuery.refetch()]);
+    await mobileAuthLifecycle.synchronizedRefresh(async () => {
+      await Promise.all([aidsQuery.refetch(), peopleQuery.refetch(), complaintsQuery.refetch(), tasksQuery.refetch()]);
+    });
   }, [aidsQuery.refetch, complaintsQuery.refetch, peopleQuery.refetch, tasksQuery.refetch]);
 
   const replayQueue = useCallback(async () => {
     if (!token || !user || ownerUserId !== user.id || !protectedHydrated || queue.length === 0) return;
-    const remaining = [...queue];
-    for (const item of queue) {
-      try {
-        if (item.kind === 'aid') await createAid(item.data, requestHeaders(item.id));
-        if (item.kind === 'person') await createPerson(item.data, requestHeaders(item.id));
-        if (item.kind === 'complaint') await updateComplaintStatus(item.targetId, { status: item.status, expectedVersion: item.expectedVersion }, requestHeaders(item.id));
-        if (item.kind === 'task') await updateTaskStatus(item.targetId, { status: item.status, expectedVersion: item.expectedVersion }, requestHeaders(item.id));
-        remaining.splice(remaining.findIndex((entry) => entry.id === item.id), 1);
-        await saveQueue(remaining);
-      } catch (error) {
-        if (httpStatus(error)) {
-          setManualError(httpStatus(error) === 403 ? 'ليس لديك صلاحية لتنفيذ أحد الإجراءات المعلّقة.' : `تعذر إرسال إجراء معلّق: ${(error as Error).message}`);
-        }
-        break;
+    replayController.current?.abort();
+    const controller = new AbortController();
+    replayController.current = controller;
+    const epoch = identityEpoch.current;
+    const replayOwner = user.id;
+    let remaining = queue.filter((item) => item.ownerUserId === replayOwner);
+    try {
+      remaining = await replayOwnerQueue({
+        ownerUserId: replayOwner,
+        items: remaining,
+        signal: controller.signal,
+        isCurrent: () => identityEpoch.current === epoch && ownerUserId === replayOwner,
+        execute: async (item, signal) => {
+          if (item.kind === 'aid') await createAid(item.data, requestHeaders(item.id, signal));
+          if (item.kind === 'person') await createPerson(item.data, requestHeaders(item.id, signal));
+          if (item.kind === 'complaint') await updateComplaintStatus(item.targetId, { status: item.status, expectedVersion: item.expectedVersion }, requestHeaders(item.id, signal));
+          if (item.kind === 'task') await updateTaskStatus(item.targetId, { status: item.status, expectedVersion: item.expectedVersion }, requestHeaders(item.id, signal));
+        },
+        persist: saveQueueForOwner,
+      });
+    } catch (error) {
+      if (!controller.signal.aborted && httpStatus(error)) {
+        setManualError(httpStatus(error) === 403 ? 'ليس لديك صلاحية لتنفيذ أحد الإجراءات المعلّقة.' : `تعذر إرسال إجراء معلّق: ${(error as Error).message}`);
       }
     }
     if (remaining.length === 0) await refetchAll();
-  }, [ownerUserId, protectedHydrated, queue, refetchAll, saveQueue, token, user]);
+  }, [ownerUserId, protectedHydrated, queue, refetchAll, saveQueueForOwner, token, user]);
 
   useEffect(() => { if (enabled && protectedHydrated && queue.length) void replayQueue(); }, [enabled, protectedHydrated]); // replay once after validated account hydration
 
-  const queueOnNetworkError = useCallback(async (error: unknown, item: QueuedWrite): Promise<MutationResult> => {
+  const queueOnNetworkError = useCallback(async (error: unknown, item: QueuedWrite, expectedEpoch: number): Promise<MutationResult> => {
     if (!isNetworkFailure(error)) {
       if (httpStatus(error) === 403) throw new Error('ليس لديك صلاحية لتنفيذ هذا الإجراء (403).');
       throw error;
     }
-    if (!user) throw new Error('يلزم التحقق من الجلسة قبل وضع إجراء في الانتظار.');
+    if (!user || identityEpoch.current !== expectedEpoch || activeOwner.current !== user.id) {
+      throw new Error('تغيّر الحساب قبل اكتمال الإجراء؛ لم تتم إضافته إلى قائمة الانتظار.');
+    }
     await saveQueue([...queue, { ...item, ownerUserId: user.id } as QueuedWrite]);
     setManualError('الجهاز غير متصل. تم وضع الإجراء في قائمة الانتظار ولم تتم مزامنته بعد.');
     return { queued: true };
@@ -265,31 +302,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(async (email: string, password: string) => {
     const session = await loginMutation.mutateAsync({ data: { email, password } });
+    rotateIdentity();
     if (ownerUserId) {
-      await AsyncStorage.multiRemove([`${CACHE_KEY}:${ownerUserId}`, `${QUEUE_KEY}:${ownerUserId}`]);
+      await AsyncStorage.multiRemove([cacheStorageKey(ownerUserId), queueStorageKey(ownerUserId)]);
+      activeOwner.current = null;
       setCache(emptyCache); setQueue([]); setOwnerUserId(null); setProtectedHydrated(false);
     }
     // Remove all user-scoped React Query results before accepting a different
     // bearer token, preventing a brief cross-account render.
     queryClient.clear();
-    await saveToken(session.token);
+    await mobileAuthLifecycle.login(session.token);
     setToken(session.token);
     // Do not trust the login payload as the active identity: /auth/me must
     // validate the token before protected data is hydrated or rendered.
     void queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
     setManualError('');
-  }, [loginMutation, queryClient]);
+  }, [loginMutation, ownerUserId, queryClient, rotateIdentity]);
 
   const signOut = useCallback(async () => {
+    rotateIdentity();
     try { await logoutMutation.mutateAsync(); } catch { /* local logout must still revoke local credentials */ }
-    await clearToken();
+    await mobileAuthLifecycle.logout();
     setToken(null);
-    if (ownerUserId) await AsyncStorage.multiRemove([`${CACHE_KEY}:${ownerUserId}`, `${QUEUE_KEY}:${ownerUserId}`]);
+    if (ownerUserId) await AsyncStorage.multiRemove([cacheStorageKey(ownerUserId), queueStorageKey(ownerUserId)]);
+    activeOwner.current = null;
     setOwnerUserId(null); setProtectedHydrated(false);
     setCache(emptyCache);
     setQueue([]);
     queryClient.clear();
-  }, [logoutMutation, ownerUserId, queryClient]);
+  }, [logoutMutation, ownerUserId, queryClient, rotateIdentity]);
 
   const manager = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const delegate = user?.role === 'DELEGATE';
@@ -323,38 +364,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
     signOut,
     addAid: async (data) => {
       const id = requestId();
+      const epoch = identityEpoch.current;
       try {
         // The identical key is persisted with the queued write below, so a
         // response-lost retry is deduplicated by the server.
         await createAid(data, requestHeaders(id));
         await queryClient.invalidateQueries({ queryKey: getListAidsQueryKey() });
         return { queued: false };
-      } catch (error) { return queueOnNetworkError(error, { id, ownerUserId: user?.id || '', kind: 'aid', data }); }
+      } catch (error) { return queueOnNetworkError(error, { id, ownerUserId: user?.id || '', kind: 'aid', data }, epoch); }
     },
     addPerson: async (data) => {
       const id = requestId();
+      const epoch = identityEpoch.current;
       try {
         // Use the same key for the first attempt and any queued replay.
         await createPerson(data, requestHeaders(id));
         await queryClient.invalidateQueries({ queryKey: getListPeopleQueryKey() });
         return { queued: false };
-      } catch (error) { return queueOnNetworkError(error, { id, ownerUserId: user?.id || '', kind: 'person', data }); }
+      } catch (error) { return queueOnNetworkError(error, { id, ownerUserId: user?.id || '', kind: 'person', data }, epoch); }
     },
     setComplaintStatus: async (id, status, expectedVersion) => {
       const writeId = requestId();
+      const epoch = identityEpoch.current;
       try {
         await updateComplaintStatus(id, { status, expectedVersion }, requestHeaders(writeId));
         await queryClient.invalidateQueries({ queryKey: getListComplaintsQueryKey() });
         return { queued: false };
-      } catch (error) { return queueOnNetworkError(error, { id: writeId, ownerUserId: user?.id || '', kind: 'complaint', targetId: id, status, expectedVersion }); }
+      } catch (error) { return queueOnNetworkError(error, { id: writeId, ownerUserId: user?.id || '', kind: 'complaint', targetId: id, status, expectedVersion }, epoch); }
     },
     setTaskStatus: async (id, status, expectedVersion) => {
       const writeId = requestId();
+      const epoch = identityEpoch.current;
       try {
         await updateTaskStatus(id, { status, expectedVersion }, requestHeaders(writeId));
         await queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
         return { queued: false };
-      } catch (error) { return queueOnNetworkError(error, { id: writeId, ownerUserId: user?.id || '', kind: 'task', targetId: id, status, expectedVersion }); }
+      } catch (error) { return queueOnNetworkError(error, { id: writeId, ownerUserId: user?.id || '', kind: 'task', targetId: id, status, expectedVersion }, epoch); }
     },
     retrySync: async () => { await replayQueue(); await refetchAll(); },
     discardQueuedWrite: async (id) => saveQueue(queue.filter((item) => item.id !== id)),
