@@ -1,3 +1,4 @@
 - [Vercel copy dependency versions](vercel-copy-dependencies.md) — verify copied package versions against the import; latest releases can break runtime compatibility.
 - [Expo API host routing](expo-api-host-routing.md) — Expo web and native need different API base handling in Replit development.
 - [Safe development schema startup](safe-development-schema-startup.md) — API startup verifies schema read-only; reviewed migrations run separately to avoid destructive prompts.
+- [Legacy and staff auth schemas](legacy-staff-auth-schemas.md) — shared generated auth names can collide; keep legacy login validation distinct from UUID staff auth.

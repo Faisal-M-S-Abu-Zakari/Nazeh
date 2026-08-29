@@ -115,6 +115,9 @@ export function seedDevelopmentData(): Promise<void> {
     const manager = await addUser("أحمد الخطيب", "staff@alaqsa.local", "MANAGER", "dev-manager", {
       phoneNumber: "0590000101", gender: "MALE", nationality: "فلسطيني", education: "إدارة الأزمات",
     });
+    await addUser("أحمد الخطيب", "manager2@local.invalid", "MANAGER", "dev-manager-2", {
+      phoneNumber: "0590000106", gender: "MALE", nationality: "فلسطيني", education: "إدارة الأزمات",
+    });
     const delegate = await addUser("سارة النجار", "delegate@local.invalid", "DELEGATE", "dev-delegate", {
       phoneNumber: "0590000102", gender: "FEMALE", nationality: "فلسطينية", education: "الخدمة الاجتماعية",
     });

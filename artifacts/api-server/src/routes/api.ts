@@ -21,6 +21,8 @@ import
 
 import * as V from "@workspace/api-zod"
 ;
+import { z } from "zod"
+;
 
 import 
 {
@@ -45,6 +47,25 @@ import
 
 
 const router: IRouter = Router()
+;
+const LegacyLoginBody = z.object({
+  email: z.email(),
+  password: z.string().min(8).max(128),
+  role: z.enum(["admin", "manager", "delegate", "displaced", "security"]),
+})
+;
+const LegacyLoginResponse = z.object({
+  user: z.object({
+    id: z.int(),
+    name: z.string(),
+    email: z.email(),
+    role: z.enum(["admin", "manager", "delegate", "displaced", "security"]),
+    phone: z.string().nullable(),
+    createdAt: z.coerce.date(),
+  }),
+  token: z.string(),
+  expiresAt: z.coerce.date(),
+})
 ;
 
 router.use(optionalAuth)
@@ -180,7 +201,7 @@ const displacedScope = (req: Request) => req.authUser!.role === "MANAGER" ? unde
 router.post("/auth/login", async (req, res): Promise<void> => 
 {
 
-  const input = parse<any>(V.LoginBody, req.body, res)
+  const input = parse<any>(LegacyLoginBody, req.body, res)
 ;
  if (!input) return
 ;
@@ -222,7 +243,7 @@ router.post("/auth/login", async (req, res): Promise<void> =>
 )
 ;
 
-  res.json(V.LoginResponse.parse(
+  res.json(LegacyLoginResponse.parse(
 {
  user: 
 {
