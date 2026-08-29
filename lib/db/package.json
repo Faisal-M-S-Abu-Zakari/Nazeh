@@ -10,8 +10,9 @@
   "scripts": {
     "push": "drizzle-kit push --config ./drizzle.config.ts",
     "push-force": "drizzle-kit push --force --config ./drizzle.config.ts",
+    "verify": "tsx ./src/verify-schema.ts",
     "seed": "tsx ./src/seed.ts",
-    "bootstrap": "pnpm run push && pnpm run seed"
+    "bootstrap": "pnpm run verify && pnpm run seed"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
