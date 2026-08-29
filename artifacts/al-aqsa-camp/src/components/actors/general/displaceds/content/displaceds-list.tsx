@@ -25,7 +25,7 @@ function Displaced_List_Header() {
           بيانات النازحين :
         </Text>
       </Group>
-      {showAddButton && (
+      {false && showAddButton && (
         <Button
           size='sm'
           fz={16}

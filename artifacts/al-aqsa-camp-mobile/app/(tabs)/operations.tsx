@@ -1,21 +1,22 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Card, fonts, ScreenHeader, StatusPill } from '@/components/ui';
+import { Card, fonts, ScreenHeader, StatusPill, SyncBanner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 
 export default function OperationsScreen() {
   const colors = useColors();
-  const { aids, signedIn } = useApp();
+  const { aids, signedIn, canManageAids } = useApp();
   return (
     <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
       <ScreenHeader
         title="إدارة المساعدات"
         subtitle="الحملات والتوزيعات"
-        action={signedIn ? <Pressable testID="add-aid" onPress={() => router.push('/add-aid')}><Ionicons name="add-circle" size={31} color={colors.gold} /></Pressable> : undefined}
+        action={canManageAids ? <Pressable testID="add-aid" onPress={() => router.push('/add-aid')}><Ionicons name="add-circle" size={31} color={colors.gold} /></Pressable> : undefined}
       />
       <ScrollView contentContainerStyle={styles.content}>
+        <SyncBanner />
         <View style={styles.summary}>
           <StatusPill text={`${aids.length} حملات`} tone="gold" />
           <Text style={[styles.section, { color: colors.foreground }]}>الحملات الحالية</Text>
@@ -40,7 +41,7 @@ export default function OperationsScreen() {
             </Card>
           </Pressable>
         ))}
-        {!signedIn ? <Card><Text style={[styles.notice, { color: colors.mutedForeground }]}>سجّل الدخول لإضافة حملة أو إدارة قوائم المستفيدين.</Text></Card> : null}
+        {!signedIn ? <Card><Text style={[styles.notice, { color: colors.mutedForeground }]}>سجّل الدخول لإضافة حملة أو إدارة قوائم المستفيدين.</Text></Card> : signedIn && !canManageAids ? <Card><Text style={[styles.notice, { color: colors.destructive }]}>دور حسابك يسمح بالعرض فقط ولا يملك صلاحية إضافة مساعدات.</Text></Card> : null}
       </ScrollView>
     </View>
   );

@@ -35,4 +35,9 @@ app.use(async (_req, _res, next) => { await seedDevelopmentData(); next(); });
 
 app.use("/api", router);
 
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  logger.error({ err }, "Unhandled request error");
+  res.status(500).json({ error: "Internal server error" });
+});
+
 export default app;

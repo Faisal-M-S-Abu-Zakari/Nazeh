@@ -8,84 +8,78 @@ import {
   Group,
   LoadingOverlay,
   PasswordInput,
-  Select,
   Stack,
   Text,
   TextInput,
 } from '@mantine/core';
-import { Link as Link } from '@/lib/nextjs-mocks';
 import { useMutation } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import useAuth from '@/hooks/useAuth';
 import { login, loginProps } from '@/actions/auth/login';
 import { loginSchema, loginType } from '@/validation/auth/loginSchema';
 import {
-  AUTH_ROUTES,
   DELEGATE_ROUTES_fUNC,
-  DISPLACED_ROUTES_fUNC,
+  GENERAL_ACTOR_ROUTES,
   LANDING_ROUTES,
   MANAGER_ROUTES_fUNC,
   SECURITY_ROUTES_fUNC,
 } from '@/constants/routes';
-import { LOCALSTORAGE_SESSION_KEY } from '@/constants/sessionKey';
-import { USER_RANK_LABELS, USER_TYPE } from '@/constants/userTypes';
-import { loginResponse } from '@/@types/auth/loginResponse.type';
+import { AuthSessionResponse, Role } from '@workspace/api-client-react';
+import { setAuthToken } from '@/utils/auth/getSession';
+import { useQueryClient } from '@tanstack/react-query';
+import { canonicalIdToNumber } from '@/utils/auth/canonicalId';
 
 export default function Login() {
   const [error, setError] = useState('');
   const { isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
+  const navigateToApp = (path: string) => window.location.replace(path);
 
   // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated) window.location.replace(LANDING_ROUTES.HOME);
+    if (isAuthenticated) navigateToApp(LANDING_ROUTES.HOME);
   }, [isAuthenticated]);
 
   const form = useForm<loginType>({
     mode: 'uncontrolled',
-    initialValues: { email: '', password: '', userType: USER_TYPE.DISPLACED },
+    initialValues: { email: '', password: '' },
     validate: zodResolver(loginSchema),
   });
 
-  const loginMutation = useMutation<loginResponse, Error, loginProps>({
+  const loginMutation = useMutation<AuthSessionResponse, Error, loginProps>({
     mutationFn: login,
     onSuccess: (data) => {
       form.reset();
 
-      if (data.status === 200) {
+      {
+        setAuthToken(data.token);
+        queryClient.clear();
+        const actorId = canonicalIdToNumber(data.user.id);
         const roleRedirects = {
-          [USER_TYPE.DISPLACED]:
-            DISPLACED_ROUTES_fUNC({ displaced_Id: data.user.id }).PROFILE,
-          [USER_TYPE.MANAGER]:
-            MANAGER_ROUTES_fUNC({ manager_Id: data.user.id }).PROFILE,
-          [USER_TYPE.DELEGATE]:
-            DELEGATE_ROUTES_fUNC({ delegate_Id: data.user.id }).PROFILE,
-          [USER_TYPE.SECURITY]:
-            SECURITY_ROUTES_fUNC({ security_Id: data.user.id }).PROFILE,
+          [Role.ADMIN]: () => navigateToApp(GENERAL_ACTOR_ROUTES.DISPLACEDS),
+          [Role.MANAGER]: () => navigateToApp(MANAGER_ROUTES_fUNC({ manager_Id: actorId }).PROFILE),
+          [Role.DELEGATE]: () => navigateToApp(DELEGATE_ROUTES_fUNC({ delegate_Id: actorId }).PROFILE),
+          [Role.SECURITY_OFFICER]: () => navigateToApp(SECURITY_ROUTES_fUNC({ security_Id: actorId }).TASKS),
         };
 
-        localStorage.setItem(
-          LOCALSTORAGE_SESSION_KEY,
-          JSON.stringify({
-            status: data.status,
-            message: data.message,
-            user: data.user,
-          }),
-        );
+        roleRedirects[data.user.role]?.();
 
-        notifications.show({
-          title: 'مرحبا بك',
-          message: 'تم تسجيل الدخول بنجاح',
-          color: 'grape',
-          position: 'top-left',
-          withBorder: true,
-        });
+        // defer non-critical work
+        setTimeout(() => {
+          try {
+            notifications.show({
+              title: 'مرحبا بك',
+              message: 'تم تسجيل الدخول بنجاح',
+              color: 'grape',
+              position: 'top-left',
+              withBorder: true,
+            });
+          } catch (err) {
+            console.error('Error saving session or showing notification', err);
+          }
+        }, 0);
 
-        window.location.replace(roleRedirects[data.user.role]);
-
-        return;
       }
-
-      throw new Error(data.error || 'فشل في تسجيل الدخول');
     },
     onError: (error: any) => {
       const errorMessage = error?.response?.data?.error || error?.message;
@@ -106,7 +100,6 @@ export default function Login() {
     loginMutation.mutate({
       email: values.email,
       password: values.password,
-      userType: values.userType,
     });
   });
 
@@ -133,27 +126,8 @@ export default function Login() {
       </Text>
 
       <form className='flex flex-col items-center gap-3' onSubmit={handleSubmit}>
-        <Select
-          label={
-            <Text fw={400} c={'#817C74'} fz={16}>
-              تسجيل الدخول كَ ؟
-            </Text>
-          }
-          data={Object.values(USER_TYPE).map((type) => ({
-            label: USER_RANK_LABELS[type],
-            value: type,
-          }))}
-          size='md'
-          w={{ base: 343, md: 400 }}
-          key={form.key('userType')}
-          {...form.getInputProps('userType')}
-          classNames={{
-            input: 'placeholder:!text-sm !text-primary !font-normal',
-            error: '!w-full !text-end !text-[#FD6265] !font-normal !text-sm',
-          }}
-        />
-
         <TextInput
+          data-testid='login-email'
           type='email'
           label={
             <Text fw={500} fz={16} mb={3}>
@@ -172,6 +146,7 @@ export default function Login() {
         />
 
         <PasswordInput
+          data-testid='login-password'
           type='password'
           label={
             <Text fw={500} fz={16} mb={3}>
@@ -190,12 +165,13 @@ export default function Login() {
         />
 
         <Group wrap='nowrap' align='center' w={'100%'}>
-          <Link href={AUTH_ROUTES.FORGET_PASSWORD} className='font-medium text-primary text-sm'>
-            نسيت كلمة المرور ؟
-          </Link>
+          <Text size='sm' c='dimmed'>
+            لاستعادة كلمة المرور، يرجى التواصل مع إدارة المخيم.
+          </Text>
         </Group>
 
         <Button
+          data-testid='login-submit'
           type='submit'
           size='sm'
           fz={18}

@@ -1,14 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Card, fonts, PrimaryButton, ScreenHeader, StatusPill } from '@/components/ui';
+import { Card, fonts, PrimaryButton, ScreenHeader, StatusPill, SyncBanner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { useState } from 'react';
 
 export default function HomeScreen() {
   const colors = useColors();
-  const { signedIn, aids, people } = useApp();
+  const { signedIn, aids, people, retrySync } = useApp();
   const [refreshing, setRefreshing] = useState(false);
   const stats = [
     { label: 'العائلات المستفيدة', value: '٢٧٥', icon: 'people' as const },
@@ -19,9 +19,10 @@ export default function HomeScreen() {
     <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
       <ScreenHeader title="مخيم الأقصى" subtitle="معاً لخدمة أهلنا بكرامة" />
       <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} tintColor={colors.primary} onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 700); }} />}
+        refreshControl={<RefreshControl refreshing={refreshing} tintColor={colors.primary} onRefresh={() => { setRefreshing(true); retrySync().finally(() => setRefreshing(false)); }} />}
         contentContainerStyle={styles.content}
       >
+        <SyncBanner />
         <Card style={{ backgroundColor: colors.accent }}>
           <StatusPill text="تحديث ميداني" tone="gold" />
           <Text style={[styles.heroTitle, { color: colors.foreground }]}>توزيع السلال الغذائية مستمر اليوم</Text>

@@ -1,17 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Box, Center, Paper, Text, ThemeIcon } from '@mantine/core';
 import { parseAsInteger, parseAsString, parseAsStringEnum, useQueryStates } from 'nuqs';
 import { ComplaintResponse } from '@/@types/actors/general/Complaints/ComplaintsResponse.type';
 import { USER_TYPE, UserRank, UserType } from '@/constants/userTypes';
 import { CommonComplaintFilterFormValues } from '@/validation/actor/general/complaints/commonComplaintsSchema';
-import { getCommonComplaints } from '@/actions/actors/general/complaints/getCommonComplaints';
 import Common_Complaints_Filters from './common-complaints-filters';
 import Common_Complaints_List from './common-complaints-list';
 import { COMPLAINTS_STATUS, COMPLAINTS_TABS } from '@/@types/actors/common-types/index.type';
 import { MessageCircleWarning } from 'lucide-react';
+import { ComplaintStatus, getListComplaintsQueryKey, useListComplaints } from '@workspace/api-client-react';
 
 interface CommonComplaintsContentProps {
   actor_Id: number;
@@ -47,35 +46,36 @@ export default function Common_Complaints_Content({
 
   const limit = 7;
 
-  const {
-    data: complaintsData,
-    isLoading,
-    error,
-  } = useQuery<ComplaintResponse>({
-    queryKey: ['common-complaints', query, localFilters, actor_Id],
-    queryFn: () =>
-      getCommonComplaints({
-        page: query['complaints-page'],
-        limit: limit,
-        status: localFilters.status || COMPLAINTS_STATUS.ALL,
-        date_range: localFilters.date_range,
-        search: query.search,
-        complaint_type: query['complaints-tab'],
-        // role == USER_TYPE.DISPLACED
-        //   ? COMPLAINTS_TABS.SENT_COMPLAINTS
-        //   : role == USER_TYPE.MANAGER
-        //   ? COMPLAINTS_TABS.RECEIVED_COMPLAINTS
-        //   : query['complaints-tab'],
-        role,
-        actor_Id: actor_Id!,
-      }),
-    enabled: !!actor_Id,
+  const complaintsQuery = useListComplaints({
+    query: { queryKey: getListComplaintsQueryKey(), enabled: !!actor_Id, refetchInterval: 20_000 },
   });
+  const filtered = (complaintsQuery.data ?? [])
+    .filter((item) => !query.search || `${item.complainantName} ${item.subject}`.includes(query.search))
+    .map((item, index) => ({
+      id: index + 1,
+      apiId: item.id,
+      version: item.version,
+      date: new Date(item.createdAt).toLocaleDateString('ar-EG'),
+      sender: { id: 0, name: item.complainantName, image: '', role: USER_TYPE.DELEGATE },
+      receiver: { id: actor_Id, name: 'إدارة المخيم', image: '', role: USER_TYPE.MANAGER },
+      title: item.subject,
+      body: item.description,
+      status: item.status === ComplaintStatus.RESOLVED || item.status === ComplaintStatus.REJECTED
+        ? COMPLAINTS_STATUS.READ : COMPLAINTS_STATUS.PENDING,
+    } as ComplaintResponse['complaints'][number]));
+  const start = (query['complaints-page'] - 1) * limit;
+  const complaintsData: ComplaintResponse = {
+    status: 200,
+    complaints: filtered.slice(start, start + limit),
+    pagination: { page: query['complaints-page'], limit, total_items: filtered.length, total_pages: Math.max(1, Math.ceil(filtered.length / limit)) },
+  };
+  const isLoading = complaintsQuery.isLoading;
+  const error = complaintsQuery.error;
 
   if (!actor_Id) {
     return <Text c='red'>لا يمكن تحميل الشكاوى، لم يتم تحديد هوية المستخدم.</Text>;
   }
-  const hasError = Boolean(error) || Boolean(complaintsData?.error);
+  const hasError = Boolean(error);
 
   return (
     <Box dir='rtl' w='100%' p='sm'>
@@ -95,7 +95,7 @@ export default function Common_Complaints_Content({
               </ThemeIcon>
             </Center>
             <Text c='red' fw={600}>
-              {complaintsData?.error || error?.message || 'حدث خطأ أثناء جلب الشكاوى'}
+              {error?.message || 'حدث خطأ أثناء جلب الشكاوى. تحقق من الاتصال ثم أعد المحاولة.'}
             </Text>
           </Box>
         </Paper>

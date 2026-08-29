@@ -1,4 +1,5 @@
 import {
+  date,
   index,
   integer,
   jsonb,
@@ -9,13 +10,13 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  uuid,
   varchar,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { usersTable } from "./auth";
+import { staffUsers, usersTable } from "./auth";
 import { displacedPersonsTable } from "./people";
-
 export const aidStatusEnum = pgEnum("aid_status", ["DRAFT", "ACTIVE", "COMPLETED", "CANCELLED"]);
 export const allocationStatusEnum = pgEnum("allocation_status", [
   "ASSIGNED",
@@ -210,3 +211,89 @@ export type SecurityTaskRecord = typeof securityTasksTable.$inferSelect;
 export type InsertAid = z.infer<typeof insertAidSchema>;
 export type InsertComplaint = z.infer<typeof insertComplaintSchema>;
 export type InsertSecurityTask = z.infer<typeof insertSecurityTaskSchema>;
+
+export const aidType = pgEnum("sync_aid_type", [
+  "FOOD",
+  "WATER",
+  "MEDICAL",
+  "SHELTER",
+  "HYGIENE",
+  "OTHER",
+]);
+
+export const gender = pgEnum("sync_gender", ["MALE", "FEMALE"]);
+
+export const complaintStatus = pgEnum("sync_complaint_status", [
+  "OPEN",
+  "IN_REVIEW",
+  "RESOLVED",
+  "REJECTED",
+]);
+
+export const taskStatus = pgEnum("sync_task_status", [
+  "PENDING",
+  "IN_PROGRESS",
+  "COMPLETED",
+  "CANCELLED",
+]);
+
+export const taskPriority = pgEnum("sync_task_priority", [
+  "LOW",
+  "MEDIUM",
+  "HIGH",
+  "URGENT",
+]);
+
+export const aids = pgTable("sync_aids", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  type: aidType("type").notNull(),
+  quantity: integer("quantity").notNull(),
+  unit: text("unit").notNull(),
+  location: text("location").notNull(),
+  distributionDate: date("distribution_date").notNull(),
+  notes: text("notes"),
+  createdById: uuid("created_by_id").notNull().references(() => staffUsers.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const tasks = pgTable("sync_tasks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  location: text("location").notNull(),
+  priority: taskPriority("priority").notNull().default("MEDIUM"),
+  status: taskStatus("status").notNull().default("PENDING"),
+  version: integer("version").notNull().default(1),
+  assignedToId: uuid("assigned_to_id").references(() => staffUsers.id),
+  dueAt: timestamp("due_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const complaints = pgTable("sync_complaints", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  complainantName: text("complainant_name").notNull(),
+  subject: text("subject").notNull(),
+  description: text("description").notNull(),
+  status: complaintStatus("status").notNull().default("OPEN"),
+  version: integer("version").notNull().default(1),
+  location: text("location"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const people = pgTable("sync_people", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  nationalId: text("national_id").notNull().unique(),
+  fullName: text("full_name").notNull(),
+  gender: gender("gender").notNull(),
+  birthDate: date("birth_date").notNull(),
+  phone: text("phone"),
+  tentNumber: text("tent_number").notNull(),
+  familySize: integer("family_size").notNull(),
+  notes: text("notes"),
+  createdById: uuid("created_by_id").notNull().references(() => staffUsers.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+

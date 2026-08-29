@@ -1,6 +1,6 @@
 import type {
-  Aid as ApiAid,
-  Complaint as ApiComplaint,
+  ManagedAid as ApiAid,
+  ManagedComplaint as ApiComplaint,
   ContentPost,
   DisplacedPerson,
   Notification as ApiNotification,

@@ -3,6 +3,9 @@ import { TASKS_TABS } from "../../common-types/index.type";
 
 export interface Task {
     id: number;
+    apiId?: string;
+    /** Present for records supplied by the synchronized operations API. */
+    version?: number;
     dateTime: Date;
     title: string;
     body: string;

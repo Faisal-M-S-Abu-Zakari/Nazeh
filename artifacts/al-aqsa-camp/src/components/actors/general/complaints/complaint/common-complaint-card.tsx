@@ -6,20 +6,16 @@ import { Complaint } from '@/@types/actors/general/Complaints/ComplaintsResponse
 import { Image } from '@/lib/nextjs-mocks';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { commonActionResponse } from '@/@types/common/action/commonActionResponse.type';
+import { useQueryClient } from '@tanstack/react-query';
 import { MAN } from '@/assets/actor';
 import { parseAsStringEnum, useQueryStates } from 'nuqs';
-import {
-  changeStatusCommonComplaint,
-  changeStatusCommonComplaintProps,
-} from '@/actions/actors/general/complaints/changeStatusCommonComplaint';
 import { USER_RANK, USER_RANK_LABELS, USER_TYPE, UserRank, UserType } from '@/constants/userTypes';
 import Common_Delete_Complaint from './common-delete-complaint';
 import Common_Complaint_Modal from './common-complaint-modal';
 import useAuth from '@/hooks/useAuth';
 import { COMPLAINTS_STATUS, COMPLAINTS_TABS } from '@/@types/actors/common-types/index.type';
 import { Calendar, User, FileText, MailWarning, CheckCircle2, Clock } from 'lucide-react';
+import { ComplaintStatus, getListComplaintsQueryKey, useUpdateComplaintStatus } from '@workspace/api-client-react';
 
 interface CommonComplaintCardProps {
   complaint: Complaint;
@@ -44,34 +40,33 @@ export default function Common_Complaint_Card({
   const [opened, { open, close }] = useDisclosure(false);
   const queryClient = useQueryClient();
 
-  const changeStatusMutation = useMutation<
-    commonActionResponse,
-    unknown,
-    changeStatusCommonComplaintProps
-  >({
-    mutationFn: changeStatusCommonComplaint,
-    onSuccess: (data) => {
-      if (data.status === 200) {
+  const changeStatusMutation = useUpdateComplaintStatus({
+    mutation: {
+      onSuccess: () => {
         notifications.show({
           title: 'تمت العملية بنجاح',
-          message: data.message,
+          message: 'تم تحديث حالة الشكوى',
           color: 'grape',
           position: 'top-left',
           withBorder: true,
         });
-        queryClient.invalidateQueries({ queryKey: ['common-complaints'] });
-      } else {
-        throw new Error(data.error || 'فشل في تغيير حالة الشكوى');
-      }
-    },
-    onError: (error: any) => {
-      notifications.show({
-        title: 'خطأ',
-        message: error?.message || 'فشل في تغيير حالة الشكوى',
-        color: 'red',
-        position: 'top-left',
-        withBorder: true,
-      });
+        queryClient.invalidateQueries({ queryKey: getListComplaintsQueryKey() });
+      },
+      onError: (error: any) => {
+        const conflict = error?.status === 409;
+        if (conflict) {
+          queryClient.invalidateQueries({ queryKey: getListComplaintsQueryKey() });
+        }
+        notifications.show({
+          title: conflict ? 'تم تحديث الشكوى من جهاز آخر' : 'خطأ',
+          message: conflict
+            ? 'قام أحد أفراد الطاقم بتغيير هذه الشكوى. تم تحديث القائمة، يرجى مراجعة الحالة ثم المحاولة.'
+            : error?.message || 'فشل في تغيير حالة الشكوى',
+          color: 'red',
+          position: 'top-left',
+          withBorder: true,
+        });
+      },
     },
   });
 
@@ -89,10 +84,9 @@ export default function Common_Complaint_Card({
         complaint.status === COMPLAINTS_STATUS.PENDING &&
         user?.role !== USER_TYPE.DISPLACED
       ) {
-        changeStatusMutation.mutate({
-          complaint_Id: complaint.id,
-          actor_Id,
-          role: role as Exclude<UserRank, typeof USER_RANK.SECURITY | typeof USER_RANK.DISPLACED>,
+        if (complaint.apiId && complaint.version !== undefined) changeStatusMutation.mutate({
+          complaintId: complaint.apiId,
+          data: { status: ComplaintStatus.IN_REVIEW, expectedVersion: complaint.version },
         });
       }
       open();
@@ -102,6 +96,7 @@ export default function Common_Complaint_Card({
   return (
     <>
       <Card
+        data-testid={`complaint-${complaint.apiId ?? complaint.id}`}
         key={complaint.id}
         p='md'
         radius='lg'
@@ -171,16 +166,6 @@ export default function Common_Complaint_Card({
             </Group>
           </Stack>
 
-          {isOwner &&
-            (role === USER_TYPE.DISPLACED ||
-              query['complaints-tab'] === COMPLAINTS_TABS.SENT_COMPLAINTS) &&
-            role !== USER_TYPE.MANAGER && (
-              <Common_Delete_Complaint
-                complaint_Id={complaint.id}
-                actor_Id={actor_Id}
-                role={role}
-              />
-            )}
         </Group>
       </Card>
 

@@ -4,6 +4,9 @@ import { COMPLAINTS_STATUS } from "../../common-types/index.type";
 
 export interface Complaint {
     id: number;
+    apiId?: string;
+    /** Present for records supplied by the synchronized operations API. */
+    version?: number;
     date: string;
     sender: { id: Number, name: string, image: string, role: UserType | UserRank };
     receiver: { id: Number, name: string, image: string, role: UserType | UserRank };

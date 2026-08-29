@@ -1,14 +1,14 @@
-import { LOCALSTORAGE_SESSION_KEY } from "@/constants/sessionKey"
 import { AUTH_ROUTES } from "@/constants/routes"
+import { clearAuthToken } from "./getSession"
+import { logout as logoutRequest } from "@workspace/api-client-react"
+import { queryClient } from "@/providers/react-query-provider"
 
 export const logout = async () => {
   try {
-    await fetch('/api/auth/logout', {
-      method: 'POST',
-      credentials: 'include',
-    });
+    await logoutRequest()
   } finally {
-    localStorage.removeItem(LOCALSTORAGE_SESSION_KEY);
-    window.location.href = AUTH_ROUTES.LOGIN;
+    clearAuthToken()
+    queryClient.clear()
+    window.location.href = AUTH_ROUTES.LOGIN
   }
 }

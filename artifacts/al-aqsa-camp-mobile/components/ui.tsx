@@ -4,6 +4,7 @@ import { ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
+import { useApp } from '@/context/AppContext';
 
 export const fonts = { regular: 'Tajawal_400Regular', medium: 'Tajawal_500Medium', bold: 'Tajawal_700Bold', extraBold: 'Tajawal_800ExtraBold' };
 
@@ -68,6 +69,23 @@ export function StatusPill({ text, tone = 'green' }: { text: string; tone?: 'gre
   return <View style={[styles.pill, { backgroundColor }]}><Text style={[styles.pillText, { color }]}>{text}</Text></View>;
 }
 
+export function SyncBanner() {
+  const colors = useColors();
+  const { syncState, syncMessage, retrySync } = useApp();
+  const bad = syncState === 'offline' || syncState === 'error';
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${syncMessage}. اضغط لإعادة المحاولة`}
+      onPress={() => void retrySync()}
+      style={[styles.sync, { backgroundColor: bad ? colors.errorSurface : colors.accent }]}
+    >
+      <Text style={[styles.syncText, { color: bad ? colors.destructive : colors.primary }]}>{syncMessage}</Text>
+      <Ionicons name={bad ? 'cloud-offline-outline' : syncState === 'syncing' ? 'sync-outline' : 'cloud-done-outline'} size={17} color={bad ? colors.destructive : colors.primary} />
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 18, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
   headerRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
@@ -83,4 +101,6 @@ const styles = StyleSheet.create({
   input: { minHeight: 50, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, fontFamily: fonts.regular, fontSize: 16 },
   pill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   pillText: { fontFamily: fonts.bold, fontSize: 12 },
+  sync: { minHeight: 38, borderRadius: 10, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  syncText: { fontFamily: fonts.bold, fontSize: 12, textAlign: 'center' },
 });

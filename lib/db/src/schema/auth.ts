@@ -13,7 +13,6 @@ import {
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-
 export const userRoleEnum = pgEnum("user_role", [
   "MANAGER",
   "DELEGATE",
@@ -93,3 +92,35 @@ export const insertSessionSchema = createInsertSchema(sessionsTable).omit({
 export type UserRecord = typeof usersTable.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type SessionRecord = typeof sessionsTable.$inferSelect;
+
+export const staffRole = pgEnum("staff_role", [
+  "ADMIN",
+  "MANAGER",
+  "DELEGATE",
+  "SECURITY_OFFICER",
+]);
+
+export type StaffRole = (typeof staffRole.enumValues)[number];
+
+export const staffUsers = pgTable("staff_users", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull().unique(),
+  name: text("name").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  role: staffRole("role").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const sessions = pgTable(
+  "staff_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => staffUsers.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("staff_sessions_token_hash_idx").on(table.tokenHash)],
+);

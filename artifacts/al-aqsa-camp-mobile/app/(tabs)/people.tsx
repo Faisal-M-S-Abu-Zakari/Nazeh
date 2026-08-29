@@ -2,19 +2,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Card, fonts, ScreenHeader, StatusPill } from '@/components/ui';
+import { Card, fonts, ScreenHeader, StatusPill, SyncBanner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 
 export default function PeopleScreen() {
   const colors = useColors();
-  const { people, signedIn } = useApp();
+  const { people, signedIn, canManagePeople } = useApp();
   const [query, setQuery] = useState('');
   const filtered = useMemo(() => people.filter((person) => person.name.includes(query) || person.role.includes(query)), [people, query]);
   return (
     <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
-      <ScreenHeader title="سجل المخيم" subtitle="النازحون والمندوبون والأمن" action={signedIn ? <Pressable testID="add-person" onPress={() => router.push('/add-person')}><Ionicons name="person-add" size={26} color={colors.gold} /></Pressable> : undefined} />
+      <ScreenHeader title="سجل المخيم" subtitle="سجل النازحين المشترك" action={canManagePeople ? <Pressable testID="add-person" onPress={() => router.push('/add-person')}><Ionicons name="person-add" size={26} color={colors.gold} /></Pressable> : undefined} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <SyncBanner />
         <View style={[styles.search, { backgroundColor: colors.background, borderColor: colors.border }]}>
           <TextInput value={query} onChangeText={setQuery} placeholder="ابحث بالاسم أو الدور" placeholderTextColor={colors.mutedForeground} style={[styles.searchInput, { color: colors.foreground }]} textAlign="right" />
           <Ionicons name="search" size={20} color={colors.primary} />
@@ -31,6 +32,7 @@ export default function PeopleScreen() {
             </View>
           </Card>
         ))}
+        {signedIn && !canManagePeople ? <Text style={[styles.empty, { color: colors.destructive }]}>دور حسابك يسمح بعرض السجل فقط.</Text> : null}
       </ScrollView>
     </View>
   );

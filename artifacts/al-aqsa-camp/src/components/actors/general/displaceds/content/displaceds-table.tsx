@@ -15,15 +15,13 @@ import {
   ThemeIcon,
 } from '@mantine/core';
 import { parseAsInteger, parseAsString, useQueryStates } from 'nuqs';
-import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { displacedsFilterValuesType } from '@/validation/actor/general/displaceds/displaceds-filter-form';
 import { DisplacedsResponse } from '@/@types/actors/general/displaceds/displacesResponse.type';
-import { getDisplaceds } from '@/actions/actors/general/displaceds/getDisplaceds';
 import Displaced_Table_Actions from '@/components/actors/general/displaceds/displaced-table-actions';
 import { ListChecks, ListX, Users } from 'lucide-react';
 import { cn } from '@/utils/cn';
-import { getDisplacedsIds } from '@/actions/actors/general/displaceds/getDisplaceds-Ids';
+import { getListPeopleQueryKey, useListPeople } from '@workspace/api-client-react';
 
 interface DisplacedsTableProps {
   localFilters: displacedsFilterValuesType;
@@ -46,36 +44,35 @@ export default function Displaceds_Table({ localFilters, setDisplacedNum }: Disp
   const limit = 7;
   const offset = (currentPage - 1) * limit;
 
-  const {
-    data: displacedData,
-    isLoading: isLoadingRegular,
-    error: queryError,
-  } = useQuery<DisplacedsResponse, Error>({
-    queryKey: ['displaceds', query, localFilters],
-    queryFn: () =>
-      getDisplaceds({
-        page: currentPage,
-        limit,
-        search: query.search,
-        filters: localFilters,
-      }),
-    retry: 1,
-  });
-
-  const {
-    data: allDisplacedIDs,
-    isLoading: isLoadingAll,
-    error: allQueryError,
-  } = useQuery<number[], Error>({
-    queryKey: ['displaced_all', query.search, localFilters],
-    queryFn: async () => (await getDisplacedsIds({ filters: localFilters })).displaceds_Ids,
-    enabled: selectAllAcrossPages,
-    retry: 1,
-    staleTime: 1000 * 60 * 5,
-  });
-
-  const isLoading = isLoadingAll || isLoadingRegular;
-  const error = allQueryError || queryError;
+  const peopleQuery = useListPeople({ query: { queryKey: getListPeopleQueryKey(), refetchInterval: 20_000 } });
+  const matching = (peopleQuery.data ?? []).filter((person) =>
+    !query.search || `${person.fullName} ${person.nationalId} ${person.tentNumber}`.includes(query.search)
+  );
+  const toNumericId = (id: string) =>
+    Array.from(id).reduce((value, character) => ((value * 31) + character.charCodeAt(0)) | 0, 7);
+  const allDisplacedIDs = matching.map((person) => toNumericId(person.id));
+  const displacedData: DisplacedsResponse = {
+    status: 200,
+    displaceds: matching.slice(offset, offset + limit).map((person) => ({
+      id: toNumericId(person.id),
+      name: person.fullName,
+      identity: person.nationalId,
+      tent: person.tentNumber,
+      family_number: person.familySize,
+      mobile_number: person.phone ?? '—',
+      delegate: { id: 0, name: 'إدارة المخيم' },
+    })),
+    pagination: {
+      page: currentPage, limit, total_items: matching.length,
+      total_pages: Math.ceil(matching.length / limit),
+    },
+  };
+  const isLoadingAll = false;
+  const isLoadingRegular = peopleQuery.isLoading;
+  const allQueryError = null;
+  const queryError = peopleQuery.error;
+  const isLoading = isLoadingRegular;
+  const error = queryError;
 
   useEffect(() => {
     setDisplacedNum(displacedData?.pagination?.total_items || 0);
@@ -85,7 +82,7 @@ export default function Displaceds_Table({ localFilters, setDisplacedNum }: Disp
     if (allDisplacedIDs && selectAllAcrossPages) {
       setSelectedDisplacedIds(allDisplacedIDs);
     }
-  }, [allDisplacedIDs, selectAllAcrossPages]);
+  }, [matching.length, selectAllAcrossPages]);
 
   const isRowSelected = (id: number) => selectedDisplacedIds.includes(id);
 
@@ -186,7 +183,7 @@ export default function Displaceds_Table({ localFilters, setDisplacedNum }: Disp
           {element.delegate.name}
         </Table.Td>
         <Table.Td px={5} ta='center'>
-          <Displaced_Table_Actions displaced_Id={element.id} />
+          <Text c='dimmed'>—</Text>
         </Table.Td>
       </Table.Tr>
     ));
@@ -222,7 +219,6 @@ export default function Displaceds_Table({ localFilters, setDisplacedNum }: Disp
             <Text size='md' fw={500} style={{ whiteSpace: 'nowrap' }}>
               تم تحديد جميع العناصر عبر جميع الصفحات
               {isLoadingAll && <Loader size='xs' ml={5} />}
-              {allQueryError && ` (خطأ: ${allQueryError.message})`}
             </Text>
           ) : (
             <Text size='md' fw={500}>
@@ -231,9 +227,6 @@ export default function Displaceds_Table({ localFilters, setDisplacedNum }: Disp
           )}
         </Group>
 
-        <Group justify='flex-end' flex={1}>
-          <Displaced_Table_Actions displaced_Ids={selectedDisplacedIds} />
-        </Group>
       </Group>
 
       <Table.ScrollContainer

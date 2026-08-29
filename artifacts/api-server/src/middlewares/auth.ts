@@ -1,7 +1,15 @@
 import { randomBytes } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 import { and, eq, gt, isNull } from "drizzle-orm";
-import { db, sessionsTable, usersTable, type UserRecord } from "@workspace/db";
+import {
+  db,
+  sessions,
+  sessionsTable,
+  staffUsers,
+  usersTable,
+  type StaffRole,
+  type UserRecord,
+} from "@workspace/db";
 import { hashSessionToken } from "../lib/security";
 
 export type ApiRole = "admin" | "manager" | "delegate" | "displaced" | "security";
@@ -31,12 +39,64 @@ export async function optionalAuth(req: Request, _res: Response, next: NextFunct
   if (row?.user.active) { req.authUser = row.user; req.sessionToken = token; }
   next();
 }
-export function requireAuth(req: Request, res: Response, next: NextFunction): void {
-  if (!req.authUser) { res.status(401).json({ error: "Authentication required" }); return; }
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (req.authUser) {
+    next();
+    return;
+  }
+  const authorization = req.get("authorization");
+  if (!authorization?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+
+  const token = authorization.slice(7).trim();
+  if (!token) {
+    res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+
+  const [result] = await db
+    .select({
+      sessionId: sessions.id,
+      id: staffUsers.id,
+      email: staffUsers.email,
+      name: staffUsers.name,
+      role: staffUsers.role,
+    })
+    .from(sessions)
+    .innerJoin(staffUsers, eq(sessions.userId, staffUsers.id))
+    .where(and(eq(sessions.tokenHash, hashToken(token)), gt(sessions.expiresAt, new Date())))
+    .limit(1);
+
+  if (!result) {
+    res.status(401).json({ error: "Invalid or expired session" });
+    return;
+  }
+
+  res.locals["staff"] = {
+    id: result.id,
+    email: result.email,
+    name: result.name,
+    role: result.role,
+  };
+  res.locals["sessionId"] = result.sessionId;
   next();
+}
+
+export function allowRoles(...roles: StaffRole[]) {
+  return (_req: Request, res: Response, next: NextFunction) => {
+    const staff = res.locals["staff"] as { role: StaffRole } | undefined;
+    if (!staff || !roles.includes(staff.role)) {
+      res.status(403).json({ error: "Insufficient permissions" });
+      return;
+    }
+    next();
+  };
 }
 export const requireRoles = (...roles: ApiRole[]) => (req: Request, res: Response, next: NextFunction): void => {
   if (!req.authUser) { res.status(401).json({ error: "Authentication required" }); return; }
   if (!roles.includes(apiRole(req.authUser))) { res.status(403).json({ error: "Insufficient permissions" }); return; }
   next();
 };
+

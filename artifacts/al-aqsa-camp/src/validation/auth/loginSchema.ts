@@ -1,10 +1,6 @@
-import { USER_TYPE } from "@/constants/userTypes";
 import { z } from "zod";
 
 export const loginSchema = z.object({
-    userType: z.nativeEnum(USER_TYPE, {
-        errorMap: () => ({ message: "الرجاء اختيار نوع المستخدم صحيح" }),
-    }),
     email: z
         .string({ required_error: "حقل البريد الإلكتروني مطلوب" })
         .email("صيغة البريد الإلكتروني غير صحيحة"),

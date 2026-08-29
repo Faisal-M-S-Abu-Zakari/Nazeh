@@ -1,37 +1,53 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Card, fonts, PrimaryButton, ScreenHeader, StatusPill } from '@/components/ui';
-import { useApp } from '@/context/AppContext';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Card, fonts, PrimaryButton, ScreenHeader, StatusPill, SyncBanner } from '@/components/ui';
+import { getRoleArabic, useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 
 export default function AccountScreen() {
   const colors = useColors();
-  const { signedIn, signOut } = useApp();
+  const { signedIn, authLoading, signOut, user, queuedCount, pendingWrites, retrySync, discardQueuedWrite } = useApp();
+  const pendingLabel = (item: typeof pendingWrites[number]) => {
+    if (item.kind === 'aid') return `إضافة حملة: ${item.data.title}`;
+    if (item.kind === 'person') return `إضافة سجل: ${item.data.fullName}`;
+    return item.kind === 'task' ? `تحديث مهمة: ${item.status}` : `تحديث شكوى: ${item.status}`;
+  };
   return (
     <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
       <ScreenHeader title="الحساب" subtitle="إعدادات فريق المخيم" />
       <ScrollView contentContainerStyle={styles.content}>
         {signedIn ? (
           <>
+            <SyncBanner />
             <Card>
               <View style={styles.profile}>
                 <View style={styles.profileText}>
-                  <Text style={[styles.name, { color: colors.foreground }]}>أحمد الخطيب</Text>
-                  <Text style={[styles.meta, { color: colors.mutedForeground }]}>مدير عمليات المخيم</Text>
-                  <StatusPill text="حساب تجريبي محلي" tone="gold" />
+                  <Text style={[styles.name, { color: colors.foreground }]}>{user?.name || 'حساب الفريق'}</Text>
+                  <Text style={[styles.meta, { color: colors.mutedForeground }]}>{user ? getRoleArabic(user.role) : 'جارٍ تحميل الحساب…'} · {user?.email}</Text>
+                  <StatusPill text={queuedCount ? `${queuedCount} إجراء معلّق` : 'حساب متزامن'} tone={queuedCount ? 'gold' : 'green'} />
                 </View>
                 <View style={[styles.avatar, { backgroundColor: colors.accent }]}><Ionicons name="person" size={32} color={colors.primary} /></View>
               </View>
             </Card>
-            <Card><Text style={[styles.heading, { color: colors.foreground }]}>عن هذه النسخة</Text><Text style={[styles.copy, { color: colors.mutedForeground }]}>البيانات والإجراءات محفوظة على هذا الجهاز فقط ولا تتم مزامنتها مع موقع الويب أو أجهزة الفريق.</Text></Card>
-            <PrimaryButton label="تسجيل الخروج" icon="log-out-outline" onPress={() => Alert.alert('تسجيل الخروج', 'هل تريد إنهاء الجلسة المحلية؟', [{ text: 'إلغاء' }, { text: 'خروج', style: 'destructive', onPress: signOut }])} />
+            <Card><Text style={[styles.heading, { color: colors.foreground }]}>المزامنة المشتركة</Text><Text style={[styles.copy, { color: colors.mutedForeground }]}>تتم مزامنة بيانات العمليات مع الخادم وأجهزة الفريق. تتوفر آخر نسخة ناجحة للقراءة عند انقطاع الاتصال.</Text></Card>
+            {pendingWrites.length ? <Card>
+              <Text style={[styles.heading, { color: colors.foreground }]}>إجراءات بانتظار المزامنة</Text>
+              {pendingWrites.map((item) => <View key={item.id} style={[styles.pending, { borderTopColor: colors.border }]}>
+                <View style={styles.pendingText}><Text style={[styles.meta, { color: colors.foreground }]}>{pendingLabel(item)}</Text><Text style={[styles.pendingState, { color: colors.warning }]}>بانتظار الإرسال إلى الخادم</Text></View>
+                <Pressable testID={`discard-pending-${item.id}`} onPress={() => void discardQueuedWrite(item.id)}><Text style={[styles.pendingAction, { color: colors.destructive }]}>حذف</Text></Pressable>
+                <Pressable testID={`retry-pending-${item.id}`} onPress={() => void retrySync()}><Text style={[styles.pendingAction, { color: colors.primary }]}>إعادة المحاولة</Text></Pressable>
+              </View>)}
+            </Card> : null}
+            <PrimaryButton label="تسجيل الخروج" icon="log-out-outline" onPress={() => Alert.alert('تسجيل الخروج', 'سيتم مسح بيانات الحساب ونسخة القراءة المحفوظة من هذا الهاتف.', [{ text: 'إلغاء' }, { text: 'خروج', style: 'destructive', onPress: () => void signOut() }])} />
           </>
+        ) : authLoading ? (
+          <Card><Text style={[styles.copy, { color: colors.mutedForeground }]}>جارٍ التحقق من جلسة الحساب ومزامنة بياناته…</Text></Card>
         ) : (
           <Card>
             <Ionicons name="lock-closed-outline" size={36} color={colors.primary} style={styles.lock} />
             <Text style={[styles.heading, { color: colors.foreground }]}>دخول فريق المخيم</Text>
-            <Text style={[styles.copy, { color: colors.mutedForeground }]}>ادخل للوصول إلى إجراءات الإدارة المحلية على هذا الهاتف.</Text>
+            <Text style={[styles.copy, { color: colors.mutedForeground }]}>ادخل للوصول إلى بيانات الفريق المشتركة ومزامنة الإجراءات.</Text>
             <View style={styles.gap}><PrimaryButton testID="account-login" label="تسجيل الدخول" icon="log-in-outline" onPress={() => router.push('/auth/login')} /></View>
           </Card>
         )}
@@ -46,4 +62,7 @@ const styles = StyleSheet.create({
   name: { fontFamily: fonts.extraBold, fontSize: 20 }, meta: { fontFamily: fonts.regular, fontSize: 14 },
   heading: { fontFamily: fonts.bold, fontSize: 18, textAlign: 'right' }, copy: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 22, textAlign: 'right', marginTop: 8 },
   lock: { alignSelf: 'center', marginBottom: 12 }, gap: { marginTop: 18 },
+  pending: { flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, marginTop: 10, paddingTop: 10 },
+  pendingText: { flex: 1, alignItems: 'flex-end' }, pendingState: { fontFamily: fonts.medium, fontSize: 11, marginTop: 3 },
+  pendingAction: { fontFamily: fonts.bold, fontSize: 12, padding: 4 },
 });

@@ -1,1 +1,2 @@
 - [Vercel copy dependency versions](vercel-copy-dependencies.md) — verify copied package versions against the import; latest releases can break runtime compatibility.
+- [Expo API host routing](expo-api-host-routing.md) — Expo web and native need different API base handling in Replit development.

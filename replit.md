@@ -1,4 +1,4 @@
-# [Project name]
+# AL-AQSA Camp
 
 _Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
 
@@ -10,6 +10,14 @@ _Replace the heading above with the project's name, and this line with one sente
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
+- `pnpm --filter @workspace/db run seed` — idempotently load development records
+
+### Development-only staff credentials
+
+These fixed demo accounts are for local/development use only. All use password
+`CampDemo2025!`: `admin@alaqsa.local`, `manager@alaqsa.local`,
+`delegate@alaqsa.local`, and `security@alaqsa.local`. Never deploy these
+credentials to production.
 
 ## Stack
 

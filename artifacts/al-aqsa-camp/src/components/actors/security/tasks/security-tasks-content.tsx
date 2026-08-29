@@ -1,15 +1,13 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
-import { Box, Button, Center, Group, Paper, Text, ThemeIcon } from '@mantine/core';
+import { Box, Center, Paper, Text, ThemeIcon } from '@mantine/core';
 import { parseAsInteger, parseAsStringEnum, useQueryStates } from 'nuqs';
-import { getSecurityTasks } from '@/actions/actors/security/tasks/getSecurityTasks';
 import { TasksResponse } from '@/@types/actors/security/tasks/TasksResponse.type';
 import Security_Tasks_List from './security-tasks-list';
-import { useDisclosure } from '@mantine/hooks';
-import Security_Task_Form_Modal from './security-task-form-modal';
 import { CalendarCheck, MessageCircleWarning } from 'lucide-react';
 import { TASKS_TABS } from '@/@types/actors/common-types/index.type';
+import { getListTasksQueryKey, TaskStatus, useListTasks } from '@workspace/api-client-react';
+import useAuth from '@/hooks/useAuth';
 
 interface SecurityTasksContentProps {
   security_Id: number;
@@ -23,44 +21,42 @@ export default function Security_Tasks_Content({ security_Id }: SecurityTasksCon
     'tasks-page': parseAsInteger.withDefault(1),
   });
 
-  const [opened, { open, close }] = useDisclosure(false);
 
   const limit = 7;
 
-  const {
-    data: tasksData,
-    isLoading,
-    error,
-  } = useQuery<TasksResponse>({
-    queryKey: ['security-tasks', query, security_Id],
-    queryFn: () =>
-      getSecurityTasks({
-        page: query['tasks-page'],
-        limit: limit,
-        task_type: query['tasks-tab'],
-        security_Id,
-      }),
+  const tasksQuery = useListTasks({
+    query: { queryKey: getListTasksQueryKey(), refetchInterval: 15_000 },
   });
+  const completed = query['tasks-tab'] === TASKS_TABS.COMPLETED_TASKS;
+  const filtered = (tasksQuery.data ?? []).filter((task) =>
+    completed ? task.status === TaskStatus.COMPLETED : task.status !== TaskStatus.COMPLETED
+  );
+  const start = (query['tasks-page'] - 1) * limit;
+  const tasksData: TasksResponse = {
+    status: 200,
+    tasks: filtered.slice(start, start + limit).map((task, index) => ({
+      id: index + 1,
+      apiId: task.id,
+      version: task.version,
+      dateTime: new Date(task.dueAt ?? task.createdAt),
+      title: task.title,
+      body: `${task.description}${task.location ? ` — ${task.location}` : ''}`,
+      security_men: [],
+      type: task.status === TaskStatus.COMPLETED ? TASKS_TABS.COMPLETED_TASKS : TASKS_TABS.UPCOMING_TASKS,
+    })),
+    pagination: { page: query['tasks-page'], limit, total_items: filtered.length, total_pages: Math.max(1, Math.ceil(filtered.length / limit)) },
+  };
+  const isLoading = tasksQuery.isLoading;
+  const error = tasksQuery.error;
 
   if (!security_Id) {
     return <Text c='red'>لا يمكن تحميل المهام، لم يتم تحديد هوية المستخدم.</Text>;
   }
 
-  const hasError = Boolean(error) || Boolean(tasksData?.error);
+  const hasError = Boolean(error);
 
   return (
     <Box dir='rtl' w='100%' p='sm'>
-      <Group justify='end'>
-        <Button
-          onClick={open}
-          size='sm'
-          rightSection={<CalendarCheck size={18} />}
-          className='!self-end !bg-primary shadow-md mb-4 font-semibold text-white'
-        >
-          إضافة مهمة
-        </Button>
-      </Group>
-
       {hasError ? (
         <Paper p='md' withBorder mt='md' className='!bg-red-100 rounded-md text-center'>
           <Box>
@@ -70,7 +66,7 @@ export default function Security_Tasks_Content({ security_Id }: SecurityTasksCon
               </ThemeIcon>
             </Center>
             <Text c='red' fw={600}>
-              {tasksData?.error || error?.message || 'حدث خطأ أثناء جلب المهام'}
+              {error?.message || 'حدث خطأ أثناء جلب المهام. تحقق من الاتصال ثم أعد المحاولة.'}
             </Text>
           </Box>
         </Paper>
@@ -84,12 +80,6 @@ export default function Security_Tasks_Content({ security_Id }: SecurityTasksCon
         />
       )}
 
-      <Security_Task_Form_Modal
-        opened={opened}
-        onClose={close}
-        security_Id={security_Id}
-        taskToEdit={undefined}
-      />
     </Box>
   );
 }

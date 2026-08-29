@@ -4,7 +4,7 @@ import { Aid, AidResponse } from '@/@types/actors/manager/aid-management/add-aid
 import { USER_RANK, USER_TYPE, UserRank } from '@/constants/userTypes';
 import { AqsaAPI } from '@/services';
 import { toLegacyAid } from '@/services/legacyAdapters';
-import type { Aid as ApiAid } from '@workspace/api-client-react';
+import type { ManagedAid as ApiAid } from '@workspace/api-client-react';
 
 export interface getAidProps {
     aid_Id: number;

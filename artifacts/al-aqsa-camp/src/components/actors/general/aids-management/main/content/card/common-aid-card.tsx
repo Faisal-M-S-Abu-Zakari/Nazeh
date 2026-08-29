@@ -100,14 +100,6 @@ export default function Common_Aid_Card({ aid, actor_Id, role }: CommonAidCardPr
               </Text>
             </Flex>
 
-            {query['aids-tab'] !== TYPE_GROUP_AIDS.PREVIOUS_AIDS && (
-              <Common_Aid_Action
-                aid_Id={aid.id}
-                actor_Id={actor_Id}
-                role={role}
-                aid_distribution_mechanism={aid.distribution_mechanism}
-              />
-            )}
           </Group>
 
           <Group gap={20}>
