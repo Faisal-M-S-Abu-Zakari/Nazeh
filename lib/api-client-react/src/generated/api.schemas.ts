@@ -495,6 +495,7 @@ export const Role = {
   MANAGER: 'MANAGER',
   DELEGATE: 'DELEGATE',
   SECURITY_OFFICER: 'SECURITY_OFFICER',
+  SECURITY_MEMBER: 'SECURITY_MEMBER',
 } as const;
 
 export interface StaffUser {
@@ -588,7 +589,10 @@ export interface Aid {
   location: string;
   distributionDate: string;
   notes?: string | null;
-  createdById: string;
+  /** @nullable */
+  createdById: string | null;
+  /** @nullable */
+  createdByLegacyUserId?: number | null;
   createdAt: string;
   updatedAt: string;
   archivedAt?: string | null;
@@ -638,7 +642,10 @@ export interface Person {
   tentNumber: string;
   familySize: number;
   notes?: string | null;
-  createdById: string;
+  /** @nullable */
+  createdById: string | null;
+  /** @nullable */
+  createdByLegacyUserId?: number | null;
   createdAt: string;
   updatedAt: string;
   archivedAt?: string | null;
@@ -786,6 +793,16 @@ export interface Task {
   location: string;
   priority: TaskPriority;
   status: TaskStatus;
+  /** @nullable */
+  result: string | null;
+  /** @nullable */
+  submittedAt: string | null;
+  /** @nullable */
+  completedById: string | null;
+  /** @nullable */
+  approvedById: string | null;
+  /** @nullable */
+  approvedAt: string | null;
   assignedToId?: string | null;
   dueAt?: string | null;
   createdById: string;
@@ -840,6 +857,331 @@ export interface TaskUpdate {
   /** @minimum 1 */
   expectedVersion: number;
 }
+
+export interface TaskSubmission {
+  /**
+     * @minLength 1
+     * @maxLength 5000
+     */
+  result: string;
+  /** @minimum 1 */
+  expectedVersion: number;
+}
+
+export interface TaskApproval {
+  /** @maxLength 2000 */
+  note?: string;
+  /** @minimum 1 */
+  expectedVersion: number;
+}
+
+export type FamilyStatus = typeof FamilyStatus[keyof typeof FamilyStatus];
+
+
+export const FamilyStatus = {
+  PENDING_APPROVAL: 'PENDING_APPROVAL',
+  ACTIVE: 'ACTIVE',
+  ARCHIVED: 'ARCHIVED',
+} as const;
+
+export type ShelterStatus = typeof ShelterStatus[keyof typeof ShelterStatus];
+
+
+export const ShelterStatus = {
+  AVAILABLE: 'AVAILABLE',
+  OCCUPIED: 'OCCUPIED',
+  MAINTENANCE: 'MAINTENANCE',
+} as const;
+
+export type NeedCategory = typeof NeedCategory[keyof typeof NeedCategory];
+
+
+export const NeedCategory = {
+  FOOD: 'FOOD',
+  WATER: 'WATER',
+  MEDICAL: 'MEDICAL',
+  SHELTER: 'SHELTER',
+  HYGIENE: 'HYGIENE',
+  OTHER: 'OTHER',
+} as const;
+
+export type NeedStatus = typeof NeedStatus[keyof typeof NeedStatus];
+
+
+export const NeedStatus = {
+  REQUIRED: 'REQUIRED',
+  IN_PROGRESS: 'IN_PROGRESS',
+  FULFILLED: 'FULFILLED',
+  CANCELLED: 'CANCELLED',
+} as const;
+
+export type NeedPriority = typeof NeedPriority[keyof typeof NeedPriority];
+
+
+export const NeedPriority = {
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+  CRITICAL: 'CRITICAL',
+} as const;
+
+export interface Camp {
+  id: string;
+  name: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface Sector {
+  id: string;
+  campId: string;
+  name: string;
+  createdAt: string;
+}
+
+export interface Shelter {
+  id: string;
+  sectorId: string;
+  code: string;
+  /** @minimum 1 */
+  capacity: number;
+  status: ShelterStatus;
+  /** @minimum 1 */
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  /** @nullable */
+  archivedAt: string | null;
+}
+
+export interface ShelterInput {
+  sectorId: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  code: string;
+  /** @minimum 1 */
+  capacity: number;
+  status?: ShelterStatus;
+}
+
+export interface ShelterUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  code?: string;
+  /** @minimum 1 */
+  capacity?: number;
+  status?: ShelterStatus;
+  /** @minimum 1 */
+  expectedVersion: number;
+}
+
+export type FamilyMemberGender = typeof FamilyMemberGender[keyof typeof FamilyMemberGender];
+
+
+export const FamilyMemberGender = {
+  MALE: 'MALE',
+  FEMALE: 'FEMALE',
+  OTHER: 'OTHER',
+} as const;
+
+export interface FamilyMember {
+  id: string;
+  familyId: string;
+  fullName: string;
+  /** @nullable */
+  nationalId?: string | null;
+  gender: FamilyMemberGender;
+  /** @nullable */
+  birthDate?: string | null;
+  relationship: string;
+  criticalCase: boolean;
+  /** @nullable */
+  criticalNotes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Family {
+  id: string;
+  campId: string;
+  sectorId: string;
+  /** @nullable */
+  shelterId?: string | null;
+  headName: string;
+  /** @nullable */
+  headPhone?: string | null;
+  /** @nullable */
+  delegateId?: string | null;
+  status: FamilyStatus;
+  /** @nullable */
+  criticalNotes?: string | null;
+  createdById: string;
+  /** @nullable */
+  approvedById?: string | null;
+  /** @nullable */
+  approvedAt?: string | null;
+  /** @nullable */
+  archivedAt?: string | null;
+  /** @minimum 1 */
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type FamilyDetail = Family & {
+  members: FamilyMember[];
+};
+
+export type FamilyMemberInputGender = typeof FamilyMemberInputGender[keyof typeof FamilyMemberInputGender];
+
+
+export const FamilyMemberInputGender = {
+  MALE: 'MALE',
+  FEMALE: 'FEMALE',
+  OTHER: 'OTHER',
+} as const;
+
+export interface FamilyMemberInput {
+  /**
+     * @minLength 2
+     * @maxLength 200
+     */
+  fullName: string;
+  /** @maxLength 80 */
+  nationalId?: string;
+  gender: FamilyMemberInputGender;
+  birthDate?: string;
+  /**
+     * @minLength 2
+     * @maxLength 80
+     */
+  relationship: string;
+  criticalCase?: boolean;
+  /** @maxLength 5000 */
+  criticalNotes?: string;
+}
+
+export interface FamilyInput {
+  campId: string;
+  sectorId: string;
+  /** @nullable */
+  shelterId?: string | null;
+  /**
+     * @minLength 2
+     * @maxLength 200
+     */
+  headName: string;
+  /** @maxLength 40 */
+  headPhone?: string;
+  /** @nullable */
+  delegateId?: string | null;
+  /** @maxLength 5000 */
+  criticalNotes?: string;
+  /** @minItems 1 */
+  members: FamilyMemberInput[];
+}
+
+export interface FamilyUpdate {
+  sectorId?: string;
+  /** @nullable */
+  shelterId?: string | null;
+  /** @nullable */
+  delegateId?: string | null;
+  /**
+     * @minLength 2
+     * @maxLength 200
+     */
+  headName?: string;
+  /** @maxLength 40 */
+  headPhone?: string | null;
+  /** @maxLength 5000 */
+  criticalNotes?: string | null;
+  /** @minimum 1 */
+  expectedVersion: number;
+}
+
+export interface FamilyApproval {
+  /** @maxLength 2000 */
+  note?: string;
+}
+
+export interface Need {
+  id: string;
+  familyId: string;
+  category: NeedCategory;
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  priority: NeedPriority;
+  status: NeedStatus;
+  createdById: string;
+  /** @nullable */
+  assignedToId?: string | null;
+  /** @nullable */
+  fulfilledAt?: string | null;
+  /** @nullable */
+  archivedAt?: string | null;
+  /** @minimum 1 */
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NeedInput {
+  familyId: string;
+  category: NeedCategory;
+  /**
+     * @minLength 2
+     * @maxLength 240
+     */
+  title: string;
+  /** @maxLength 5000 */
+  description?: string;
+  priority: NeedPriority;
+}
+
+export interface NeedUpdate {
+  status?: NeedStatus;
+  priority?: NeedPriority;
+  /** @nullable */
+  assignedToId?: string | null;
+  /** @maxLength 2000 */
+  note?: string;
+  /** @minimum 1 */
+  expectedVersion: number;
+}
+
+export type SecurityMemberRole = typeof SecurityMemberRole[keyof typeof SecurityMemberRole];
+
+
+export const SecurityMemberRole = {
+  SECURITY_OFFICER: 'SECURITY_OFFICER',
+  SECURITY_MEMBER: 'SECURITY_MEMBER',
+} as const;
+
+export interface SecurityMember {
+  id: string;
+  name: string;
+  email: string;
+  role: SecurityMemberRole;
+  active: boolean;
+}
+
+export type CampList = Camp[];
+
+export type SectorList = Sector[];
+
+export type ShelterList = Shelter[];
+
+export type FamilyList = Family[];
+
+export type NeedList = Need[];
+
+export type SecurityMemberList = SecurityMember[];
 
 export interface ArchiveRecord {
   /** @minimum 1 */
@@ -1043,3 +1385,4 @@ page?: PageParameter;
  */
 limit?: LimitParameter;
 };
+

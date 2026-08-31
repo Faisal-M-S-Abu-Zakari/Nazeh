@@ -52,6 +52,7 @@ import Page37 from '@/app/auth/forget-password/page';
 import Page38 from '@/app/auth/login/page';
 import Page39 from '@/app/auth/otp/page';
 import Page40 from '@/app/(pages)/actor/staff/page';
+import OperationsPage from '@/app/(pages)/actor/operations/page';
 
 function RoutedErrorBoundary({ children }: { children: ReactNode }) {
   const [location] = useLocation();
@@ -106,6 +107,7 @@ const ActorPages = () => (
       <Route path="/securities/:security/tasks" component={Page34} />
       <Route path="/securities/add" component={Page35} />
       <Route path="/staff" component={Page40} />
+      <Route path="/operations" component={OperationsPage} />
       <Route component={NotFound} />
     </Switch>
   </ActorLayout>

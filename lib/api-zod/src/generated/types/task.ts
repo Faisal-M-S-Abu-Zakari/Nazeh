@@ -15,6 +15,16 @@ export interface Task {
   location: string;
   priority: TaskPriority;
   status: TaskStatus;
+  /** @nullable */
+  result: string | null;
+  /** @nullable */
+  submittedAt: Date | null;
+  /** @nullable */
+  completedById: string | null;
+  /** @nullable */
+  approvedById: string | null;
+  /** @nullable */
+  approvedAt: Date | null;
   assignedToId?: string | null;
   dueAt?: Date | null;
   createdById: string;

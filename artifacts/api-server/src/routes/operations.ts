@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   ArchiveAidBody,
   ArchiveAidParams,
@@ -38,6 +38,47 @@ import {
   UpdateTaskStatusBody,
   UpdateTaskStatusParams,
   UpdateTaskStatusResponse,
+  ApproveFamilyBody,
+  ApproveFamilyParams,
+  ApproveFamilyResponse,
+  ArchiveFamilyBody,
+  ArchiveFamilyParams,
+  ArchiveFamilyResponse,
+  ArchiveNeedBody,
+  ArchiveNeedParams,
+  ArchiveNeedResponse,
+  ArchiveShelterBody,
+  ArchiveShelterParams,
+  ArchiveShelterResponse,
+  CreateFamilyBody,
+  CreateFamilyResponse,
+  CreateNeedBody,
+  CreateNeedResponse,
+  CreateShelterBody,
+  CreateShelterResponse,
+  GetFamilyParams,
+  GetFamilyResponse,
+  ListCampsResponse,
+  ListFamiliesResponse,
+  ListNeedsResponse,
+  ListSecurityMembersResponse,
+  ListSectorsResponse,
+  ListSheltersResponse,
+  UpdateFamilyBody,
+  UpdateFamilyParams,
+  UpdateFamilyResponse,
+  UpdateNeedBody,
+  UpdateNeedParams,
+  UpdateNeedResponse,
+  UpdateShelterBody,
+  UpdateShelterParams,
+  UpdateShelterResponse,
+  SubmitTaskBody,
+  SubmitTaskParams,
+  SubmitTaskResponse,
+  ApproveTaskBody,
+  ApproveTaskParams,
+  ApproveTaskResponse,
 } from "@workspace/api-zod";
 import {
   aids,
@@ -48,6 +89,14 @@ import {
   syncAuditEvents,
   tasks,
   type StaffRole,
+  campSectorsTable,
+  campsTable,
+  familyAssignmentHistoryTable,
+  familyMembersTable,
+  familyNeedsTable,
+  familiesTable,
+  needStatusHistoryTable,
+  shelterUnitsTable,
 } from "@workspace/db";
 import { allowRoles, requireAuth } from "../middlewares/auth";
 import { withIdempotency } from "../lib/idempotency";
@@ -56,6 +105,7 @@ import { parseRequest } from "../lib/validation";
 const router: IRouter = Router();
 const recordManagers: StaffRole[] = ["ADMIN", "MANAGER", "DELEGATE"];
 const taskManagers: StaffRole[] = ["ADMIN", "MANAGER", "SECURITY_OFFICER"];
+const taskReaders: StaffRole[] = [...taskManagers, "SECURITY_MEMBER"];
 
 router.use(requireAuth);
 
@@ -97,8 +147,8 @@ async function assigneeValidationError(
   if (!staff) {
     return { statusCode: 404, responseBody: { error: "Assigned staff member not found" } };
   }
-  if (staff.role !== "SECURITY_OFFICER") {
-    return { statusCode: 400, responseBody: { error: "Tasks may only be assigned to security officers" } };
+  if (staff.role !== "SECURITY_OFFICER" && staff.role !== "SECURITY_MEMBER") {
+    return { statusCode: 400, responseBody: { error: "Tasks may only be assigned to security staff" } };
   }
   return undefined;
 }
@@ -323,8 +373,10 @@ router.patch("/complaints/:complaintId/archive", allowRoles(...recordManagers), 
   if (result) res.status(result.statusCode).json(result.responseBody);
 });
 
-router.get("/tasks", allowRoles(...taskManagers), async (_req, res): Promise<void> => {
-  const rows = await db.select().from(tasks).where(isNull(tasks.archivedAt)).orderBy(desc(tasks.createdAt));
+router.get("/tasks", allowRoles(...taskReaders), async (_req, res): Promise<void> => {
+  const staff = res.locals["staff"] as { id: string; role: StaffRole };
+  const scope = staff.role === "SECURITY_MEMBER" ? eq(tasks.assignedToId, staff.id) : undefined;
+  const rows = await db.select().from(tasks).where(and(isNull(tasks.archivedAt), scope)).orderBy(desc(tasks.createdAt));
   res.json(ListTasksResponse.parse(rows));
 });
 
@@ -356,30 +408,89 @@ router.post("/tasks", allowRoles(...taskManagers), async (req, res): Promise<voi
   if (result) res.status(result.statusCode).json(result.responseBody);
 });
 
-router.patch("/tasks/:taskId", allowRoles(...taskManagers), async (req, res): Promise<void> => {
+router.patch("/tasks/:taskId", allowRoles(...taskReaders), async (req, res): Promise<void> => {
   const params = parseRequest(UpdateTaskStatusParams, req.params, res);
   const body = parseRequest(UpdateTaskStatusBody, req.body, res);
   if (!params || !body) return;
   const actorId = res.locals["staff"].id as string;
+  const staff = res.locals["staff"] as { id: string; role: StaffRole };
   const { expectedVersion, ...changes } = body;
+  if (staff.role === "SECURITY_MEMBER" && changes.status === "COMPLETED") {
+    res.status(403).json({ error: "Security members must submit results for officer approval" });
+    return;
+  }
   const changedFields = Object.keys(changes);
   const auditAction =
     changedFields.length === 1 && changedFields[0] === "status" ? "STATUS" : "UPDATE";
   const result = await withIdempotency<unknown>(req, res, `updateTaskStatus:${params.taskId}`, async (tx) => {
     const assigneeError = await assigneeValidationError(tx, changes.assignedToId);
     if (assigneeError) return assigneeError;
+    const taskScope = staff.role === "SECURITY_MEMBER" ? eq(tasks.assignedToId, staff.id) : undefined;
     const [updated] = await tx.update(tasks).set({
       ...changes, version: sql`${tasks.version} + 1`, updatedAt: new Date(),
-    }).where(and(eq(tasks.id, params.taskId), eq(tasks.version, expectedVersion), isNull(tasks.archivedAt))).returning();
+    }).where(and(eq(tasks.id, params.taskId), eq(tasks.version, expectedVersion), isNull(tasks.archivedAt), taskScope)).returning();
     if (updated) {
       await audit(tx, actorId, auditAction, "TASK", updated.id, {
         expectedVersion, changedFields,
       });
       return { statusCode: 200, responseBody: UpdateTaskStatusResponse.parse(updated) };
     }
-    const [current] = await tx.select().from(tasks).where(eq(tasks.id, params.taskId)).limit(1);
+    const [current] = await tx.select().from(tasks).where(and(eq(tasks.id, params.taskId), taskScope)).limit(1);
     if (!current) return { statusCode: 404, responseBody: { error: "Task not found" } };
     return conflict("Task", current);
+  }, { required: false });
+  if (result) res.status(result.statusCode).json(result.responseBody);
+});
+
+router.patch("/tasks/:taskId/submit", allowRoles("SECURITY_MEMBER"), async (req, res): Promise<void> => {
+  const params = parseRequest(SubmitTaskParams, req.params, res);
+  const body = parseRequest(SubmitTaskBody, req.body, res);
+  if (!params || !body) return;
+  const staff = res.locals["staff"] as { id: string; role: StaffRole };
+  const result = await withIdempotency<unknown>(req, res, `submitTask:${params.taskId}`, async (tx) => {
+    const [updated] = await tx.update(tasks).set({
+      status: "COMPLETED",
+      result: body.result,
+      completedById: staff.id,
+      submittedAt: new Date(),
+      approvedById: null,
+      approvedAt: null,
+      version: sql`${tasks.version} + 1`,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(tasks.id, params.taskId),
+      eq(tasks.assignedToId, staff.id),
+      eq(tasks.version, body.expectedVersion),
+      isNull(tasks.archivedAt),
+    )).returning();
+    if (!updated) return { statusCode: 404, responseBody: { error: "Assigned task not found" } };
+    await audit(tx, staff.id, "SUBMIT", "TASK", updated.id, { expectedVersion: body.expectedVersion });
+    return { statusCode: 200, responseBody: SubmitTaskResponse.parse(updated) };
+  }, { required: false });
+  if (result) res.status(result.statusCode).json(result.responseBody);
+});
+
+router.patch("/tasks/:taskId/approve", allowRoles(...taskManagers), async (req, res): Promise<void> => {
+  const params = parseRequest(ApproveTaskParams, req.params, res);
+  const body = parseRequest(ApproveTaskBody, req.body, res);
+  if (!params || !body) return;
+  const actorId = res.locals["staff"].id as string;
+  const result = await withIdempotency<unknown>(req, res, `approveTask:${params.taskId}`, async (tx) => {
+    const [updated] = await tx.update(tasks).set({
+      approvedById: actorId,
+      approvedAt: new Date(),
+      version: sql`${tasks.version} + 1`,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(tasks.id, params.taskId),
+      eq(tasks.status, "COMPLETED"),
+      isNull(tasks.approvedAt),
+      eq(tasks.version, body.expectedVersion),
+      isNull(tasks.archivedAt),
+    )).returning();
+    if (!updated) return { statusCode: 404, responseBody: { error: "Submitted task not found" } };
+    await audit(tx, actorId, "APPROVE", "TASK", updated.id, { note: body.note ?? null });
+    return { statusCode: 200, responseBody: ApproveTaskResponse.parse(updated) };
   }, { required: false });
   if (result) res.status(result.statusCode).json(result.responseBody);
 });
@@ -402,6 +513,383 @@ router.patch("/tasks/:taskId/archive", allowRoles(...taskManagers), async (req, 
     return conflict("Task", current);
   }, { required: false });
   if (result) res.status(result.statusCode).json(result.responseBody);
+});
+
+const familyManagers: StaffRole[] = ["ADMIN", "MANAGER", "DELEGATE"];
+const familyApprovers: StaffRole[] = ["ADMIN", "MANAGER"];
+const securityLeads: StaffRole[] = ["ADMIN", "MANAGER", "SECURITY_OFFICER"];
+
+const familyScope = (staff: { id: string; role: StaffRole }) =>
+  staff.role === "DELEGATE" ? eq(familiesTable.delegateId, staff.id) : undefined;
+
+async function getFamilyDetail(tx: any, familyId: string) {
+  const [family] = await tx.select().from(familiesTable).where(eq(familiesTable.id, familyId)).limit(1);
+  if (!family) return undefined;
+  const members = await tx
+    .select()
+    .from(familyMembersTable)
+    .where(eq(familyMembersTable.familyId, familyId))
+    .orderBy(familyMembersTable.createdAt);
+  return { ...family, members };
+}
+
+async function validatePlacement(tx: any, campId: string, sectorId: string, shelterId: string | null | undefined, familyId?: string) {
+  const [sector] = await tx
+    .select()
+    .from(campSectorsTable)
+    .where(and(eq(campSectorsTable.id, sectorId), eq(campSectorsTable.campId, campId)))
+    .limit(1);
+  if (!sector) return "Sector does not belong to the selected camp";
+  if (!shelterId) return undefined;
+  const [shelter] = await tx
+    .select()
+    .from(shelterUnitsTable)
+    .where(and(eq(shelterUnitsTable.id, shelterId), eq(shelterUnitsTable.sectorId, sectorId)))
+    .limit(1);
+  if (!shelter) return "Shelter does not belong to the selected sector";
+  const assigned = await tx
+    .select({ value: count() })
+    .from(familiesTable)
+    .where(and(eq(familiesTable.shelterId, shelterId), isNull(familiesTable.archivedAt), familyId ? sql`${familiesTable.id} <> ${familyId}` : undefined));
+  if (Number(assigned[0]?.value ?? 0) >= shelter.capacity) return "Shelter has reached its capacity";
+  return undefined;
+}
+
+router.get("/camps", allowRoles(...familyManagers, ...securityLeads), async (_req, res): Promise<void> => {
+  res.json(ListCampsResponse.parse(await db.select().from(campsTable).where(eq(campsTable.active, true))));
+});
+
+router.get("/sectors", allowRoles(...familyManagers, ...securityLeads), async (_req, res): Promise<void> => {
+  res.json(ListSectorsResponse.parse(await db.select().from(campSectorsTable).orderBy(campSectorsTable.name)));
+});
+
+router.get("/shelters", allowRoles(...familyManagers, ...securityLeads), async (_req, res): Promise<void> => {
+  res.json(ListSheltersResponse.parse(await db.select().from(shelterUnitsTable).where(isNull(shelterUnitsTable.archivedAt)).orderBy(shelterUnitsTable.code)));
+});
+
+router.post("/shelters", allowRoles(...familyApprovers), async (req, res): Promise<void> => {
+  const body = parseRequest(CreateShelterBody, req.body, res);
+  if (!body) return;
+  const actorId = res.locals["staff"].id as string;
+  const result = await withIdempotency<unknown>(req, res, "createShelter", async (tx) => {
+    const [sector] = await tx.select().from(campSectorsTable).where(eq(campSectorsTable.id, body.sectorId)).limit(1);
+    if (!sector) return { statusCode: 400, responseBody: { error: "Sector not found" } };
+    const [created] = await tx.insert(shelterUnitsTable).values({
+      sectorId: body.sectorId,
+      code: body.code,
+      capacity: body.capacity,
+      status: body.status ?? "AVAILABLE",
+    }).returning();
+    await audit(tx, actorId, "CREATE", "SHELTER", created.id, { version: created.version });
+    return { statusCode: 201, responseBody: CreateShelterResponse.parse(created) };
+  });
+  if (result) res.status(result.statusCode).json(result.responseBody);
+});
+
+router.patch("/shelters/:shelterId", allowRoles(...familyApprovers), async (req, res): Promise<void> => {
+  const params = parseRequest(UpdateShelterParams, req.params, res);
+  const body = parseRequest(UpdateShelterBody, req.body, res);
+  if (!params || !body) return;
+  const actorId = res.locals["staff"].id as string;
+  const { expectedVersion, ...changes } = body;
+  const result = await withIdempotency<unknown>(req, res, `updateShelter:${params.shelterId}`, async (tx) => {
+    const [updated] = await tx.update(shelterUnitsTable).set({
+      ...changes,
+      version: sql`${shelterUnitsTable.version} + 1`,
+      updatedAt: new Date(),
+    }).where(and(eq(shelterUnitsTable.id, params.shelterId), eq(shelterUnitsTable.version, expectedVersion), isNull(shelterUnitsTable.archivedAt))).returning();
+    if (!updated) {
+      const [current] = await tx.select().from(shelterUnitsTable).where(eq(shelterUnitsTable.id, params.shelterId)).limit(1);
+      return current ? conflict("Shelter", current) : { statusCode: 404, responseBody: { error: "Shelter not found" } };
+    }
+    await audit(tx, actorId, "UPDATE", "SHELTER", updated.id, { expectedVersion, changedFields: Object.keys(changes) });
+    return { statusCode: 200, responseBody: UpdateShelterResponse.parse(updated) };
+  }, { required: false });
+  if (result) res.status(result.statusCode).json(result.responseBody);
+});
+
+router.patch("/shelters/:shelterId/archive", allowRoles(...familyApprovers), async (req, res): Promise<void> => {
+  const params = parseRequest(ArchiveShelterParams, req.params, res);
+  const body = parseRequest(ArchiveShelterBody, req.body, res);
+  if (!params || !body) return;
+  const actorId = res.locals["staff"].id as string;
+  const result = await withIdempotency<unknown>(req, res, `archiveShelter:${params.shelterId}`, async (tx) => {
+    const [updated] = await tx.update(shelterUnitsTable).set({
+      archivedAt: new Date(), version: sql`${shelterUnitsTable.version} + 1`, updatedAt: new Date(),
+    }).where(and(eq(shelterUnitsTable.id, params.shelterId), eq(shelterUnitsTable.version, body.expectedVersion), isNull(shelterUnitsTable.archivedAt))).returning();
+    if (!updated) return { statusCode: 404, responseBody: { error: "Shelter not found" } };
+    await audit(tx, actorId, "ARCHIVE", "SHELTER", updated.id, { expectedVersion: body.expectedVersion });
+    return { statusCode: 200, responseBody: ArchiveShelterResponse.parse(updated) };
+  }, { required: false });
+  if (result) res.status(result.statusCode).json(result.responseBody);
+});
+
+router.get("/families", allowRoles(...familyManagers), async (req, res): Promise<void> => {
+  const staff = res.locals["staff"] as { id: string; role: StaffRole };
+  const rows = await db
+    .select()
+    .from(familiesTable)
+    .where(and(isNull(familiesTable.archivedAt), familyScope(staff)))
+    .orderBy(desc(familiesTable.createdAt));
+  res.json(ListFamiliesResponse.parse(rows));
+});
+
+router.post("/families", allowRoles(...familyManagers), async (req, res): Promise<void> => {
+  const body = parseRequest(CreateFamilyBody, req.body, res);
+  if (!body) return;
+  const actorId = res.locals["staff"].id as string;
+  const staff = res.locals["staff"] as { id: string; role: StaffRole };
+  if (staff.role === "DELEGATE" && body.delegateId !== undefined && body.delegateId !== actorId) {
+    res.status(403).json({ error: "Delegates may only create families assigned to themselves" });
+    return;
+  }
+  const result = await withIdempotency<unknown>(req, res, "createFamily", async (tx) => {
+    const placementError = await validatePlacement(tx, body.campId, body.sectorId, body.shelterId);
+    if (placementError) return { statusCode: 400, responseBody: { error: placementError } };
+    const delegateId = staff.role === "DELEGATE" ? actorId : body.delegateId ?? null;
+    const [created] = await tx.insert(familiesTable).values({
+      campId: body.campId,
+      sectorId: body.sectorId,
+      shelterId: body.shelterId ?? null,
+      headName: body.headName,
+      headPhone: body.headPhone ?? null,
+      delegateId,
+      criticalNotes: body.criticalNotes ?? null,
+      createdById: actorId,
+    }).returning();
+    await tx.insert(familyMembersTable).values(body.members.map((member) => ({
+      familyId: created.id,
+      ...member,
+      birthDate: member.birthDate ? member.birthDate.toISOString().slice(0, 10) : null,
+      nationalId: member.nationalId ?? null,
+      criticalCase: member.criticalCase ?? false,
+      criticalNotes: member.criticalNotes ?? null,
+    })));
+    await audit(tx, actorId, "CREATE", "FAMILY", created.id, { status: created.status, version: created.version });
+    const detail = await getFamilyDetail(tx, created.id);
+    return { statusCode: 201, responseBody: CreateFamilyResponse.parse(detail) };
+  });
+  if (result) res.status(result.statusCode).json(result.responseBody);
+});
+
+router.get("/families/:familyId", allowRoles(...familyManagers), async (req, res): Promise<void> => {
+  const params = parseRequest(GetFamilyParams, req.params, res);
+  if (!params) return;
+  const staff = res.locals["staff"] as { id: string; role: StaffRole };
+  const detail = await getFamilyDetail(db, params.familyId);
+  if (!detail || (staff.role === "DELEGATE" && detail.delegateId !== staff.id)) {
+    res.status(404).json({ error: "Family not found" });
+    return;
+  }
+  res.json(GetFamilyResponse.parse(detail));
+});
+
+router.patch("/families/:familyId", allowRoles(...familyManagers), async (req, res): Promise<void> => {
+  const params = parseRequest(UpdateFamilyParams, req.params, res);
+  const body = parseRequest(UpdateFamilyBody, req.body, res);
+  if (!params || !body) return;
+  const actorId = res.locals["staff"].id as string;
+  const staff = res.locals["staff"] as { id: string; role: StaffRole };
+  const result = await withIdempotency<unknown>(req, res, `updateFamily:${params.familyId}`, async (tx) => {
+    const [current] = await tx.select().from(familiesTable).where(eq(familiesTable.id, params.familyId)).limit(1);
+    if (!current || (staff.role === "DELEGATE" && current.delegateId !== actorId)) {
+      return { statusCode: 404, responseBody: { error: "Family not found" } };
+    }
+    if (staff.role === "DELEGATE" && (body.delegateId !== undefined || body.sectorId !== undefined || body.shelterId !== undefined)) {
+      return { statusCode: 403, responseBody: { error: "Delegates cannot reassign family responsibility or shelter" } };
+    }
+    const sectorId = body.sectorId ?? current.sectorId;
+    const placementError = await validatePlacement(tx, current.campId, sectorId, body.shelterId === undefined ? current.shelterId : body.shelterId, current.id);
+    if (placementError) return { statusCode: 400, responseBody: { error: placementError } };
+    const changes = {
+      ...(body.sectorId !== undefined ? { sectorId: body.sectorId } : {}),
+      ...(body.shelterId !== undefined ? { shelterId: body.shelterId } : {}),
+      ...(body.delegateId !== undefined ? { delegateId: body.delegateId } : {}),
+      ...(body.headName !== undefined ? { headName: body.headName } : {}),
+      ...(body.headPhone !== undefined ? { headPhone: body.headPhone } : {}),
+      ...(body.criticalNotes !== undefined ? { criticalNotes: body.criticalNotes } : {}),
+      version: sql`${familiesTable.version} + 1`,
+      updatedAt: new Date(),
+    };
+    const [updated] = await tx.update(familiesTable).set(changes).where(and(
+      eq(familiesTable.id, params.familyId),
+      eq(familiesTable.version, body.expectedVersion),
+      isNull(familiesTable.archivedAt),
+    )).returning();
+    if (!updated) {
+      const [latest] = await tx.select().from(familiesTable).where(eq(familiesTable.id, params.familyId)).limit(1);
+      return latest ? conflict("Family", latest) : { statusCode: 404, responseBody: { error: "Family not found" } };
+    }
+    if (body.delegateId !== undefined || body.shelterId !== undefined || body.sectorId !== undefined) {
+      await tx.insert(familyAssignmentHistoryTable).values({
+        familyId: updated.id,
+        fromDelegateId: current.delegateId,
+        toDelegateId: updated.delegateId,
+        fromShelterId: current.shelterId,
+        toShelterId: updated.shelterId,
+        changedById: actorId,
+        reason: "Operational reassignment",
+      });
+    }
+    await audit(tx, actorId, "UPDATE", "FAMILY", updated.id, {
+      expectedVersion: body.expectedVersion,
+      changedFields: Object.keys(body).filter((field) => field !== "expectedVersion"),
+    });
+    return { statusCode: 200, responseBody: UpdateFamilyResponse.parse(await getFamilyDetail(tx, updated.id)) };
+  }, { required: false });
+  if (result) res.status(result.statusCode).json(result.responseBody);
+});
+
+router.patch("/families/:familyId/approve", allowRoles(...familyApprovers), async (req, res): Promise<void> => {
+  const params = parseRequest(ApproveFamilyParams, req.params, res);
+  const body = parseRequest(ApproveFamilyBody, req.body, res);
+  if (!params || !body) return;
+  const actorId = res.locals["staff"].id as string;
+  const result = await withIdempotency<unknown>(req, res, `approveFamily:${params.familyId}`, async (tx) => {
+    const [updated] = await tx.update(familiesTable).set({
+      status: "ACTIVE",
+      approvedById: actorId,
+      approvedAt: new Date(),
+      updatedAt: new Date(),
+      version: sql`${familiesTable.version} + 1`,
+    }).where(and(eq(familiesTable.id, params.familyId), eq(familiesTable.status, "PENDING_APPROVAL"))).returning();
+    if (!updated) return { statusCode: 404, responseBody: { error: "Pending family not found" } };
+    await audit(tx, actorId, "APPROVE", "FAMILY", updated.id, { note: body.note ?? null });
+    return { statusCode: 200, responseBody: ApproveFamilyResponse.parse(await getFamilyDetail(tx, updated.id)) };
+  });
+  if (result) res.status(result.statusCode).json(result.responseBody);
+});
+
+router.patch("/families/:familyId/archive", allowRoles(...familyApprovers), async (req, res): Promise<void> => {
+  const params = parseRequest(ArchiveFamilyParams, req.params, res);
+  const body = parseRequest(ArchiveFamilyBody, req.body, res);
+  if (!params || !body) return;
+  const actorId = res.locals["staff"].id as string;
+  const result = await withIdempotency<unknown>(req, res, `archiveFamily:${params.familyId}`, async (tx) => {
+    const [updated] = await tx.update(familiesTable).set({
+      status: "ARCHIVED",
+      archivedAt: new Date(),
+      updatedAt: new Date(),
+      version: sql`${familiesTable.version} + 1`,
+    }).where(and(eq(familiesTable.id, params.familyId), eq(familiesTable.version, body.expectedVersion), isNull(familiesTable.archivedAt))).returning();
+    if (!updated) return { statusCode: 404, responseBody: { error: "Family not found" } };
+    await audit(tx, actorId, "ARCHIVE", "FAMILY", updated.id, { expectedVersion: body.expectedVersion });
+    return { statusCode: 200, responseBody: ArchiveFamilyResponse.parse(await getFamilyDetail(tx, updated.id)) };
+  }, { required: false });
+  if (result) res.status(result.statusCode).json(result.responseBody);
+});
+
+router.get("/needs", allowRoles(...familyManagers, ...securityLeads), async (req, res): Promise<void> => {
+  const staff = res.locals["staff"] as { id: string; role: StaffRole };
+  const familyIds = staff.role === "DELEGATE"
+    ? db.select({ id: familiesTable.id }).from(familiesTable).where(eq(familiesTable.delegateId, staff.id))
+    : undefined;
+  const rows = await db.select().from(familyNeedsTable).where(and(
+    isNull(familyNeedsTable.archivedAt),
+    familyIds ? inArray(familyNeedsTable.familyId, familyIds) : undefined,
+  )).orderBy(desc(familyNeedsTable.createdAt));
+  res.json(ListNeedsResponse.parse(rows));
+});
+
+router.post("/needs", allowRoles(...familyManagers), async (req, res): Promise<void> => {
+  const body = parseRequest(CreateNeedBody, req.body, res);
+  if (!body) return;
+  const actorId = res.locals["staff"].id as string;
+  const staff = res.locals["staff"] as { id: string; role: StaffRole };
+  const result = await withIdempotency<unknown>(req, res, "createNeed", async (tx) => {
+    const [family] = await tx.select().from(familiesTable).where(eq(familiesTable.id, body.familyId)).limit(1);
+    if (!family || (staff.role === "DELEGATE" && family.delegateId !== actorId)) {
+      return { statusCode: 404, responseBody: { error: "Family not found" } };
+    }
+    const [created] = await tx.insert(familyNeedsTable).values({
+      familyId: body.familyId,
+      category: body.category,
+      title: body.title,
+      description: body.description ?? null,
+      priority: body.priority,
+      createdById: actorId,
+    }).returning();
+    await tx.insert(needStatusHistoryTable).values({
+      needId: created.id,
+      fromStatus: null,
+      toStatus: "REQUIRED",
+      changedById: actorId,
+    });
+    await audit(tx, actorId, "CREATE", "FAMILY_NEED", created.id, { status: created.status });
+    return { statusCode: 201, responseBody: CreateNeedResponse.parse(created) };
+  });
+  if (result) res.status(result.statusCode).json(result.responseBody);
+});
+
+router.patch("/needs/:needId", allowRoles(...familyManagers, ...securityLeads), async (req, res): Promise<void> => {
+  const params = parseRequest(UpdateNeedParams, req.params, res);
+  const body = parseRequest(UpdateNeedBody, req.body, res);
+  if (!params || !body) return;
+  const actorId = res.locals["staff"].id as string;
+  const staff = res.locals["staff"] as { id: string; role: StaffRole };
+  const result = await withIdempotency<unknown>(req, res, `updateNeed:${params.needId}`, async (tx) => {
+    const [current] = await tx.select({
+      need: familyNeedsTable,
+      family: familiesTable,
+    }).from(familyNeedsTable).innerJoin(familiesTable, eq(familyNeedsTable.familyId, familiesTable.id))
+      .where(eq(familyNeedsTable.id, params.needId)).limit(1);
+    if (!current || (staff.role === "DELEGATE" && current.family.delegateId !== actorId)) {
+      return { statusCode: 404, responseBody: { error: "Need not found" } };
+    }
+    const [updated] = await tx.update(familyNeedsTable).set({
+      ...(body.status !== undefined ? { status: body.status, ...(body.status === "FULFILLED" ? { fulfilledAt: new Date() } : {}) } : {}),
+      ...(body.priority !== undefined ? { priority: body.priority } : {}),
+      ...(body.assignedToId !== undefined ? { assignedToId: body.assignedToId } : {}),
+      version: sql`${familyNeedsTable.version} + 1`,
+      updatedAt: new Date(),
+    }).where(and(eq(familyNeedsTable.id, params.needId), eq(familyNeedsTable.version, body.expectedVersion), isNull(familyNeedsTable.archivedAt))).returning();
+    if (!updated) {
+      const [latest] = await tx.select().from(familyNeedsTable).where(eq(familyNeedsTable.id, params.needId)).limit(1);
+      return latest ? conflict("Need", latest) : { statusCode: 404, responseBody: { error: "Need not found" } };
+    }
+    if (body.status && body.status !== current.need.status) {
+      await tx.insert(needStatusHistoryTable).values({
+        needId: updated.id,
+        fromStatus: current.need.status,
+        toStatus: body.status,
+        changedById: actorId,
+        note: body.note ?? null,
+      });
+    }
+    await audit(tx, actorId, body.status ? "STATUS" : "UPDATE", "FAMILY_NEED", updated.id, {
+      expectedVersion: body.expectedVersion,
+      changedFields: Object.keys(body),
+    });
+    return { statusCode: 200, responseBody: UpdateNeedResponse.parse(updated) };
+  }, { required: false });
+  if (result) res.status(result.statusCode).json(result.responseBody);
+});
+
+router.patch("/needs/:needId/archive", allowRoles(...familyApprovers), async (req, res): Promise<void> => {
+  const params = parseRequest(ArchiveNeedParams, req.params, res);
+  const body = parseRequest(ArchiveNeedBody, req.body, res);
+  if (!params || !body) return;
+  const actorId = res.locals["staff"].id as string;
+  const result = await withIdempotency<unknown>(req, res, `archiveNeed:${params.needId}`, async (tx) => {
+    const [updated] = await tx.update(familyNeedsTable).set({
+      archivedAt: new Date(), version: sql`${familyNeedsTable.version} + 1`, updatedAt: new Date(),
+    }).where(and(eq(familyNeedsTable.id, params.needId), eq(familyNeedsTable.version, body.expectedVersion), isNull(familyNeedsTable.archivedAt))).returning();
+    if (!updated) return { statusCode: 404, responseBody: { error: "Need not found" } };
+    await audit(tx, actorId, "ARCHIVE", "FAMILY_NEED", updated.id, { expectedVersion: body.expectedVersion });
+    return { statusCode: 200, responseBody: ArchiveNeedResponse.parse(updated) };
+  }, { required: false });
+  if (result) res.status(result.statusCode).json(result.responseBody);
+});
+
+router.get("/security-members", allowRoles(...securityLeads), async (_req, res): Promise<void> => {
+  const rows = await db.select({
+    id: staffUsers.id,
+    name: staffUsers.name,
+    email: staffUsers.email,
+    role: staffUsers.role,
+    active: staffUsers.active,
+  }).from(staffUsers).where(inArray(staffUsers.role, ["SECURITY_OFFICER", "SECURITY_MEMBER"])).orderBy(staffUsers.name);
+  res.json(ListSecurityMembersResponse.parse(rows));
 });
 
 export default router;

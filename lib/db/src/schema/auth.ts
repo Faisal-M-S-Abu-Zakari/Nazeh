@@ -98,6 +98,7 @@ export const staffRole = pgEnum("staff_role", [
   "MANAGER",
   "DELEGATE",
   "SECURITY_OFFICER",
+  "SECURITY_MEMBER",
 ]);
 
 export type StaffRole = (typeof staffRole.enumValues)[number];

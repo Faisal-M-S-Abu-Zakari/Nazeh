@@ -22,6 +22,7 @@ tags:
   - { name: contact, description: Contact requests }
   - { name: people, description: Synchronized camp registry }
   - { name: tasks, description: Synchronized security tasks }
+  - { name: camp-operations, description: "Family, shelter, and needs operations" }
 paths:
   /auth/session:
     get:
@@ -804,6 +805,34 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
+  /sync/tasks/{taskId}/submit:
+    patch:
+      operationId: submitTask
+      tags: [tasks]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/TaskId" }, { $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/TaskSubmission" } } } }
+      responses:
+        "200": { description: Task submitted for approval, content: { application/json: { schema: { $ref: "#/components/schemas/Task" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sync/tasks/{taskId}/approve:
+    patch:
+      operationId: approveTask
+      tags: [tasks]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/TaskId" }, { $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/TaskApproval" } } } }
+      responses:
+        "200": { description: Task completion approved, content: { application/json: { schema: { $ref: "#/components/schemas/Task" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
   /sync/tasks/{taskId}/archive:
     patch:
       operationId: archiveSyncTask
@@ -823,6 +852,204 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+  /sync/camps:
+    get:
+      operationId: listCamps
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Camps, content: { application/json: { schema: { $ref: "#/components/schemas/CampList" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /sync/sectors:
+    get:
+      operationId: listSectors
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Camp sectors, content: { application/json: { schema: { $ref: "#/components/schemas/SectorList" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /sync/shelters:
+    get:
+      operationId: listShelters
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Shelter units, content: { application/json: { schema: { $ref: "#/components/schemas/ShelterList" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      operationId: createShelter
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ShelterInput" } } } }
+      responses:
+        "201": { description: Shelter created, content: { application/json: { schema: { $ref: "#/components/schemas/Shelter" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /sync/shelters/{shelterId}:
+    patch:
+      operationId: updateShelter
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: shelterId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: "#/components/parameters/OptionalIdempotencyKey" }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ShelterUpdate" } } } }
+      responses:
+        "200": { description: Shelter updated, content: { application/json: { schema: { $ref: "#/components/schemas/Shelter" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sync/shelters/{shelterId}/archive:
+    patch:
+      operationId: archiveShelter
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: shelterId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: "#/components/parameters/OptionalIdempotencyKey" }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ArchiveRecord" } } } }
+      responses:
+        "200": { description: Shelter archived, content: { application/json: { schema: { $ref: "#/components/schemas/Shelter" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sync/families:
+    get:
+      operationId: listFamilies
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/OptionalIdempotencyKey" }
+      responses:
+        "200": { description: Families, content: { application/json: { schema: { $ref: "#/components/schemas/FamilyList" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      operationId: createFamily
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/FamilyInput" } } } }
+      responses:
+        "201": { description: Family created pending manager approval, content: { application/json: { schema: { $ref: "#/components/schemas/FamilyDetail" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /sync/families/{familyId}:
+    get:
+      operationId: getFamily
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/FamilyId" }]
+      responses:
+        "200": { description: Family, content: { application/json: { schema: { $ref: "#/components/schemas/FamilyDetail" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      operationId: updateFamily
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/FamilyId" }, { $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/FamilyUpdate" } } } }
+      responses:
+        "200": { description: Family updated, content: { application/json: { schema: { $ref: "#/components/schemas/FamilyDetail" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sync/families/{familyId}/archive:
+    patch:
+      operationId: archiveFamily
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/FamilyId" }, { $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ArchiveRecord" } } } }
+      responses:
+        "200": { description: Family archived, content: { application/json: { schema: { $ref: "#/components/schemas/FamilyDetail" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sync/families/{familyId}/approve:
+    patch:
+      operationId: approveFamily
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/FamilyId" }, { $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/FamilyApproval" } } } }
+      responses:
+        "200": { description: Family approved, content: { application/json: { schema: { $ref: "#/components/schemas/FamilyDetail" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /sync/needs:
+    get:
+      operationId: listNeeds
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Family needs, content: { application/json: { schema: { $ref: "#/components/schemas/NeedList" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      operationId: createNeed
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/NeedInput" } } } }
+      responses:
+        "201": { description: Need created, content: { application/json: { schema: { $ref: "#/components/schemas/Need" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /sync/needs/{needId}:
+    patch:
+      operationId: updateNeed
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/NeedId" }, { $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/NeedUpdate" } } } }
+      responses:
+        "200": { description: Need updated, content: { application/json: { schema: { $ref: "#/components/schemas/Need" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sync/needs/{needId}/archive:
+    patch:
+      operationId: archiveNeed
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/NeedId" }, { $ref: "#/components/parameters/OptionalIdempotencyKey" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ArchiveRecord" } } } }
+      responses:
+        "200": { description: Need archived, content: { application/json: { schema: { $ref: "#/components/schemas/Need" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sync/security-members:
+    get:
+      operationId: listSecurityMembers
+      tags: [security, camp-operations]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Security members, content: { application/json: { schema: { $ref: "#/components/schemas/SecurityMemberList" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "409": { $ref: "#/components/responses/Conflict" }
 
 x-persistence-components: &persistenceComponents
@@ -1382,6 +1609,21 @@ components:
         type: string
         minLength: 1
         maxLength: 200
+    FamilyId:
+      name: familyId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    NeedId:
+      name: needId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
   responses:
     <<: *persistenceResponses
     BadRequest:
@@ -1423,7 +1665,7 @@ components:
       required: [status]
     Role:
       type: string
-      enum: [ADMIN, MANAGER, DELEGATE, SECURITY_OFFICER]
+      enum: [ADMIN, MANAGER, DELEGATE, SECURITY_OFFICER, SECURITY_MEMBER]
     StaffUser:
       type: object
       properties:
@@ -1521,7 +1763,8 @@ components:
         location: { type: string }
         distributionDate: { type: string, format: date }
         notes: { type: string, nullable: true }
-        createdById: { type: string, format: uuid }
+        createdById: { type: ["string", "null"], format: uuid }
+        createdByLegacyUserId: { type: ["integer", "null"] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
         archivedAt: { type: string, format: date-time, nullable: true }
@@ -1567,7 +1810,8 @@ components:
         tentNumber: { type: string }
         familySize: { type: integer }
         notes: { type: string, nullable: true }
-        createdById: { type: string, format: uuid }
+        createdById: { type: ["string", "null"], format: uuid }
+        createdByLegacyUserId: { type: ["integer", "null"] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
         archivedAt: { type: string, format: date-time, nullable: true }
@@ -1657,6 +1901,11 @@ components:
         location: { type: string }
         priority: { $ref: "#/components/schemas/TaskPriority" }
         status: { $ref: "#/components/schemas/TaskStatus" }
+        result: { type: ["string", "null"] }
+        submittedAt: { type: ["string", "null"], format: date-time }
+        completedById: { type: ["string", "null"], format: uuid }
+        approvedById: { type: ["string", "null"], format: uuid }
+        approvedAt: { type: ["string", "null"], format: date-time }
         assignedToId: { type: string, format: uuid, nullable: true }
         dueAt: { type: string, format: date-time, nullable: true }
         createdById: { type: string, format: uuid }
@@ -1664,7 +1913,7 @@ components:
         updatedAt: { type: string, format: date-time }
         archivedAt: { type: string, format: date-time, nullable: true }
         version: { type: integer, minimum: 1 }
-      required: [id, title, description, location, priority, status, createdById, createdAt, updatedAt, version]
+      required: [id, title, description, location, priority, status, result, submittedAt, completedById, approvedById, approvedAt, createdById, createdAt, updatedAt, version]
     TaskInput:
       type: object
       additionalProperties: false
@@ -1689,6 +1938,219 @@ components:
         dueAt: { type: string, format: date-time, nullable: true }
         expectedVersion: { type: integer, minimum: 1 }
       required: [expectedVersion]
+    TaskSubmission:
+      type: object
+      additionalProperties: false
+      required: [result, expectedVersion]
+      properties:
+        result: { type: string, minLength: 1, maxLength: 5000 }
+        expectedVersion: { type: integer, minimum: 1 }
+    TaskApproval:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        note: { type: string, maxLength: 2000 }
+        expectedVersion: { type: integer, minimum: 1 }
+    FamilyStatus:
+      type: string
+      enum: [PENDING_APPROVAL, ACTIVE, ARCHIVED]
+    ShelterStatus:
+      type: string
+      enum: [AVAILABLE, OCCUPIED, MAINTENANCE]
+    NeedCategory:
+      type: string
+      enum: [FOOD, WATER, MEDICAL, SHELTER, HYGIENE, OTHER]
+    NeedStatus:
+      type: string
+      enum: [REQUIRED, IN_PROGRESS, FULFILLED, CANCELLED]
+    NeedPriority:
+      type: string
+      enum: [LOW, MEDIUM, HIGH, CRITICAL]
+    Camp:
+      type: object
+      required: [id, name, active, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    Sector:
+      type: object
+      required: [id, campId, name, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        campId: { type: string, format: uuid }
+        name: { type: string }
+        createdAt: { type: string, format: date-time }
+    Shelter:
+      type: object
+      required: [id, sectorId, code, capacity, status, version, createdAt, updatedAt, archivedAt]
+      properties:
+        id: { type: string, format: uuid }
+        sectorId: { type: string, format: uuid }
+        code: { type: string }
+        capacity: { type: integer, minimum: 1 }
+        status: { $ref: "#/components/schemas/ShelterStatus" }
+        version: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        archivedAt: { type: ["string", "null"], format: date-time }
+    ShelterInput:
+      type: object
+      additionalProperties: false
+      required: [sectorId, code, capacity]
+      properties:
+        sectorId: { type: string, format: uuid }
+        code: { type: string, minLength: 1, maxLength: 80 }
+        capacity: { type: integer, minimum: 1 }
+        status: { $ref: "#/components/schemas/ShelterStatus" }
+    ShelterUpdate:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        code: { type: string, minLength: 1, maxLength: 80 }
+        capacity: { type: integer, minimum: 1 }
+        status: { $ref: "#/components/schemas/ShelterStatus" }
+        expectedVersion: { type: integer, minimum: 1 }
+    FamilyMember:
+      type: object
+      required: [id, familyId, fullName, gender, relationship, criticalCase, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        familyId: { type: string, format: uuid }
+        fullName: { type: string }
+        nationalId: { type: ["string", "null"] }
+        gender: { type: string, enum: [MALE, FEMALE, OTHER] }
+        birthDate: { type: ["string", "null"], format: date }
+        relationship: { type: string }
+        criticalCase: { type: boolean }
+        criticalNotes: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Family:
+      type: object
+      required: [id, campId, sectorId, headName, status, createdById, version, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        campId: { type: string, format: uuid }
+        sectorId: { type: string, format: uuid }
+        shelterId: { type: ["string", "null"], format: uuid }
+        headName: { type: string }
+        headPhone: { type: ["string", "null"] }
+        delegateId: { type: ["string", "null"], format: uuid }
+        status: { $ref: "#/components/schemas/FamilyStatus" }
+        criticalNotes: { type: ["string", "null"] }
+        createdById: { type: string, format: uuid }
+        approvedById: { type: ["string", "null"], format: uuid }
+        approvedAt: { type: ["string", "null"], format: date-time }
+        archivedAt: { type: ["string", "null"], format: date-time }
+        version: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    FamilyDetail:
+      allOf:
+        - $ref: "#/components/schemas/Family"
+        - type: object
+          required: [members]
+          properties:
+            members: { type: array, items: { $ref: "#/components/schemas/FamilyMember" } }
+    FamilyInput:
+      type: object
+      additionalProperties: false
+      required: [campId, sectorId, headName, members]
+      properties:
+        campId: { type: string, format: uuid }
+        sectorId: { type: string, format: uuid }
+        shelterId: { type: ["string", "null"], format: uuid }
+        headName: { type: string, minLength: 2, maxLength: 200 }
+        headPhone: { type: string, maxLength: 40 }
+        delegateId: { type: ["string", "null"], format: uuid }
+        criticalNotes: { type: string, maxLength: 5000 }
+        members: { type: array, minItems: 1, items: { $ref: "#/components/schemas/FamilyMemberInput" } }
+    FamilyMemberInput:
+      type: object
+      additionalProperties: false
+      required: [fullName, gender, relationship]
+      properties:
+        fullName: { type: string, minLength: 2, maxLength: 200 }
+        nationalId: { type: string, maxLength: 80 }
+        gender: { type: string, enum: [MALE, FEMALE, OTHER] }
+        birthDate: { type: string, format: date }
+        relationship: { type: string, minLength: 2, maxLength: 80 }
+        criticalCase: { type: boolean }
+        criticalNotes: { type: string, maxLength: 5000 }
+    FamilyUpdate:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        sectorId: { type: string, format: uuid }
+        shelterId: { type: ["string", "null"], format: uuid }
+        delegateId: { type: ["string", "null"], format: uuid }
+        headName: { type: string, minLength: 2, maxLength: 200 }
+        headPhone: { type: string, maxLength: 40, nullable: true }
+        criticalNotes: { type: string, maxLength: 5000, nullable: true }
+        expectedVersion: { type: integer, minimum: 1 }
+    FamilyApproval:
+      type: object
+      additionalProperties: false
+      properties:
+        note: { type: string, maxLength: 2000 }
+    Need:
+      type: object
+      required: [id, familyId, category, title, priority, status, createdById, version, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        familyId: { type: string, format: uuid }
+        category: { $ref: "#/components/schemas/NeedCategory" }
+        title: { type: string }
+        description: { type: ["string", "null"] }
+        priority: { $ref: "#/components/schemas/NeedPriority" }
+        status: { $ref: "#/components/schemas/NeedStatus" }
+        createdById: { type: string, format: uuid }
+        assignedToId: { type: ["string", "null"], format: uuid }
+        fulfilledAt: { type: ["string", "null"], format: date-time }
+        archivedAt: { type: ["string", "null"], format: date-time }
+        version: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    NeedInput:
+      type: object
+      additionalProperties: false
+      required: [familyId, category, title, priority]
+      properties:
+        familyId: { type: string, format: uuid }
+        category: { $ref: "#/components/schemas/NeedCategory" }
+        title: { type: string, minLength: 2, maxLength: 240 }
+        description: { type: string, maxLength: 5000 }
+        priority: { $ref: "#/components/schemas/NeedPriority" }
+    NeedUpdate:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        status: { $ref: "#/components/schemas/NeedStatus" }
+        priority: { $ref: "#/components/schemas/NeedPriority" }
+        assignedToId: { type: ["string", "null"], format: uuid }
+        note: { type: string, maxLength: 2000 }
+        expectedVersion: { type: integer, minimum: 1 }
+    SecurityMember:
+      type: object
+      required: [id, name, email, role, active]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
+        role: { type: string, enum: [SECURITY_OFFICER, SECURITY_MEMBER] }
+        active: { type: boolean }
+    CampList: { type: array, items: { $ref: "#/components/schemas/Camp" } }
+    SectorList: { type: array, items: { $ref: "#/components/schemas/Sector" } }
+    ShelterList: { type: array, items: { $ref: "#/components/schemas/Shelter" } }
+    FamilyList: { type: array, items: { $ref: "#/components/schemas/Family" } }
+    NeedList: { type: array, items: { $ref: "#/components/schemas/Need" } }
+    SecurityMemberList: { type: array, items: { $ref: "#/components/schemas/SecurityMember" } }
     ArchiveRecord:
       type: object
       additionalProperties: false

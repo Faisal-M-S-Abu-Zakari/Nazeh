@@ -839,7 +839,7 @@ export const LoginResponse = zod.object({
   "id": zod.uuid(),
   "email": zod.email(),
   "name": zod.string(),
-  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER']),
+  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER', 'SECURITY_MEMBER']),
   "active": zod.boolean(),
   "passwordSet": zod.boolean(),
   "createdAt": zod.coerce.date(),
@@ -855,7 +855,7 @@ export const GetCurrentUserResponse = zod.object({
   "id": zod.uuid(),
   "email": zod.email(),
   "name": zod.string(),
-  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER']),
+  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER', 'SECURITY_MEMBER']),
   "active": zod.boolean(),
   "passwordSet": zod.boolean(),
   "createdAt": zod.coerce.date(),
@@ -896,7 +896,7 @@ export const ListStaffResponse = zod.object({
   "id": zod.uuid(),
   "email": zod.email(),
   "name": zod.string(),
-  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER']),
+  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER', 'SECURITY_MEMBER']),
   "active": zod.boolean(),
   "passwordSet": zod.boolean(),
   "createdAt": zod.coerce.date(),
@@ -918,7 +918,7 @@ export const createStaffBodyNameMax = 200;
 export const CreateStaffBody = zod.object({
   "email": zod.email().max(createStaffBodyEmailMax),
   "name": zod.string().min(createStaffBodyNameMin).max(createStaffBodyNameMax),
-  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER'])
+  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER', 'SECURITY_MEMBER'])
 })
 
 export const CreateStaffResponse = zod.object({
@@ -929,7 +929,7 @@ export const CreateStaffResponse = zod.object({
   "id": zod.uuid(),
   "email": zod.email(),
   "name": zod.string(),
-  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER']),
+  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER', 'SECURITY_MEMBER']),
   "active": zod.boolean(),
   "passwordSet": zod.boolean(),
   "createdAt": zod.coerce.date(),
@@ -952,7 +952,7 @@ export const updateStaffBodyNameMax = 200;
 
 export const UpdateStaffBody = zod.object({
   "name": zod.string().min(updateStaffBodyNameMin).max(updateStaffBodyNameMax).optional(),
-  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER']).optional(),
+  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER', 'SECURITY_MEMBER']).optional(),
   "active": zod.boolean().optional()
 })
 
@@ -960,7 +960,7 @@ export const UpdateStaffResponse = zod.object({
   "id": zod.uuid(),
   "email": zod.email(),
   "name": zod.string(),
-  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER']),
+  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER', 'SECURITY_MEMBER']),
   "active": zod.boolean(),
   "passwordSet": zod.boolean(),
   "createdAt": zod.coerce.date(),
@@ -1007,7 +1007,8 @@ export const ListAidsResponseItem = zod.object({
   "location": zod.string(),
   "distributionDate": zod.coerce.date(),
   "notes": zod.string().nullish(),
-  "createdById": zod.uuid(),
+  "createdById": zod.uuid().nullable(),
+  "createdByLegacyUserId": zod.int().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "archivedAt": zod.coerce.date().nullish(),
@@ -1060,7 +1061,8 @@ export const CreateAidResponse = zod.object({
   "location": zod.string(),
   "distributionDate": zod.coerce.date(),
   "notes": zod.string().nullish(),
-  "createdById": zod.uuid(),
+  "createdById": zod.uuid().nullable(),
+  "createdByLegacyUserId": zod.int().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "archivedAt": zod.coerce.date().nullish(),
@@ -1118,7 +1120,8 @@ export const UpdateSyncAidResponse = zod.object({
   "location": zod.string(),
   "distributionDate": zod.coerce.date(),
   "notes": zod.string().nullish(),
-  "createdById": zod.uuid(),
+  "createdById": zod.uuid().nullable(),
+  "createdByLegacyUserId": zod.int().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "archivedAt": zod.coerce.date().nullish(),
@@ -1158,7 +1161,8 @@ export const ArchiveAidResponse = zod.object({
   "location": zod.string(),
   "distributionDate": zod.coerce.date(),
   "notes": zod.string().nullish(),
-  "createdById": zod.uuid(),
+  "createdById": zod.uuid().nullable(),
+  "createdByLegacyUserId": zod.int().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "archivedAt": zod.coerce.date().nullish(),
@@ -1179,7 +1183,8 @@ export const ListPeopleResponseItem = zod.object({
   "tentNumber": zod.string(),
   "familySize": zod.int(),
   "notes": zod.string().nullish(),
-  "createdById": zod.uuid(),
+  "createdById": zod.uuid().nullable(),
+  "createdByLegacyUserId": zod.int().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "archivedAt": zod.coerce.date().nullish(),
@@ -1236,7 +1241,8 @@ export const CreatePersonResponse = zod.object({
   "tentNumber": zod.string(),
   "familySize": zod.int(),
   "notes": zod.string().nullish(),
-  "createdById": zod.uuid(),
+  "createdById": zod.uuid().nullable(),
+  "createdByLegacyUserId": zod.int().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "archivedAt": zod.coerce.date().nullish(),
@@ -1298,7 +1304,8 @@ export const UpdatePersonResponse = zod.object({
   "tentNumber": zod.string(),
   "familySize": zod.int(),
   "notes": zod.string().nullish(),
-  "createdById": zod.uuid(),
+  "createdById": zod.uuid().nullable(),
+  "createdByLegacyUserId": zod.int().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "archivedAt": zod.coerce.date().nullish(),
@@ -1338,7 +1345,8 @@ export const ArchivePersonResponse = zod.object({
   "tentNumber": zod.string(),
   "familySize": zod.int(),
   "notes": zod.string().nullish(),
-  "createdById": zod.uuid(),
+  "createdById": zod.uuid().nullable(),
+  "createdByLegacyUserId": zod.int().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "archivedAt": zod.coerce.date().nullish(),
@@ -1524,6 +1532,11 @@ export const ListTasksResponseItem = zod.object({
   "location": zod.string(),
   "priority": zod.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']),
   "status": zod.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
+  "result": zod.string().nullable(),
+  "submittedAt": zod.coerce.date().nullable(),
+  "completedById": zod.uuid().nullable(),
+  "approvedById": zod.uuid().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
   "assignedToId": zod.uuid().nullish(),
   "dueAt": zod.coerce.date().nullish(),
   "createdById": zod.uuid(),
@@ -1572,6 +1585,11 @@ export const CreateSyncTaskResponse = zod.object({
   "location": zod.string(),
   "priority": zod.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']),
   "status": zod.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
+  "result": zod.string().nullable(),
+  "submittedAt": zod.coerce.date().nullable(),
+  "completedById": zod.uuid().nullable(),
+  "approvedById": zod.uuid().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
   "assignedToId": zod.uuid().nullish(),
   "dueAt": zod.coerce.date().nullish(),
   "createdById": zod.uuid(),
@@ -1586,7 +1604,7 @@ export const ListSecurityOfficersResponseItem = zod.object({
   "id": zod.uuid(),
   "email": zod.email(),
   "name": zod.string(),
-  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER']),
+  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER', 'SECURITY_MEMBER']),
   "active": zod.boolean(),
   "passwordSet": zod.boolean(),
   "createdAt": zod.coerce.date(),
@@ -1639,6 +1657,105 @@ export const UpdateTaskStatusResponse = zod.object({
   "location": zod.string(),
   "priority": zod.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']),
   "status": zod.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
+  "result": zod.string().nullable(),
+  "submittedAt": zod.coerce.date().nullable(),
+  "completedById": zod.uuid().nullable(),
+  "approvedById": zod.uuid().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "assignedToId": zod.uuid().nullish(),
+  "dueAt": zod.coerce.date().nullish(),
+  "createdById": zod.uuid(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1)
+})
+
+
+export const SubmitTaskParams = zod.object({
+  "taskId": zod.uuid()
+})
+
+export const submitTaskHeaderIdempotencyKeyMax = 200;
+
+
+
+export const SubmitTaskHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(submitTaskHeaderIdempotencyKeyMax).describe('A caller-generated, non-empty key (maximum 200 characters) used to safely retry this mutation.')
+})
+
+export const submitTaskBodyResultMax = 5000;
+
+
+
+
+export const SubmitTaskBody = zod.object({
+  "result": zod.string().min(1).max(submitTaskBodyResultMax),
+  "expectedVersion": zod.int().min(1)
+})
+
+
+
+
+export const SubmitTaskResponse = zod.object({
+  "id": zod.uuid(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "location": zod.string(),
+  "priority": zod.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']),
+  "status": zod.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
+  "result": zod.string().nullable(),
+  "submittedAt": zod.coerce.date().nullable(),
+  "completedById": zod.uuid().nullable(),
+  "approvedById": zod.uuid().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "assignedToId": zod.uuid().nullish(),
+  "dueAt": zod.coerce.date().nullish(),
+  "createdById": zod.uuid(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1)
+})
+
+
+export const ApproveTaskParams = zod.object({
+  "taskId": zod.uuid()
+})
+
+export const approveTaskHeaderIdempotencyKeyMax = 200;
+
+
+
+export const ApproveTaskHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(approveTaskHeaderIdempotencyKeyMax).describe('A caller-generated, non-empty key (maximum 200 characters) used to safely retry this mutation.')
+})
+
+export const approveTaskBodyNoteMax = 2000;
+
+
+
+
+export const ApproveTaskBody = zod.object({
+  "note": zod.string().max(approveTaskBodyNoteMax).optional(),
+  "expectedVersion": zod.int().min(1)
+})
+
+
+
+
+export const ApproveTaskResponse = zod.object({
+  "id": zod.uuid(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "location": zod.string(),
+  "priority": zod.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']),
+  "status": zod.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
+  "result": zod.string().nullable(),
+  "submittedAt": zod.coerce.date().nullable(),
+  "completedById": zod.uuid().nullable(),
+  "approvedById": zod.uuid().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
   "assignedToId": zod.uuid().nullish(),
   "dueAt": zod.coerce.date().nullish(),
   "createdById": zod.uuid(),
@@ -1678,6 +1795,11 @@ export const ArchiveSyncTaskResponse = zod.object({
   "location": zod.string(),
   "priority": zod.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']),
   "status": zod.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
+  "result": zod.string().nullable(),
+  "submittedAt": zod.coerce.date().nullable(),
+  "completedById": zod.uuid().nullable(),
+  "approvedById": zod.uuid().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
   "assignedToId": zod.uuid().nullish(),
   "dueAt": zod.coerce.date().nullish(),
   "createdById": zod.uuid(),
@@ -1686,5 +1808,657 @@ export const ArchiveSyncTaskResponse = zod.object({
   "archivedAt": zod.coerce.date().nullish(),
   "version": zod.int().min(1)
 })
+
+
+export const ListCampsResponseItem = zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "active": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+export const ListCampsResponse = zod.array(ListCampsResponseItem)
+
+
+export const ListSectorsResponseItem = zod.object({
+  "id": zod.uuid(),
+  "campId": zod.uuid(),
+  "name": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+export const ListSectorsResponse = zod.array(ListSectorsResponseItem)
+
+
+
+
+
+
+export const ListSheltersResponseItem = zod.object({
+  "id": zod.uuid(),
+  "sectorId": zod.uuid(),
+  "code": zod.string(),
+  "capacity": zod.int().min(1),
+  "status": zod.enum(['AVAILABLE', 'OCCUPIED', 'MAINTENANCE']),
+  "version": zod.int().min(1),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullable()
+})
+export const ListSheltersResponse = zod.array(ListSheltersResponseItem)
+
+
+export const createShelterHeaderIdempotencyKeyMax = 200;
+
+
+
+export const CreateShelterHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(createShelterHeaderIdempotencyKeyMax).describe('A caller-generated, non-empty key (maximum 200 characters) used to safely retry this mutation.')
+})
+
+export const createShelterBodyCodeMax = 80;
+
+
+
+
+export const CreateShelterBody = zod.object({
+  "sectorId": zod.uuid(),
+  "code": zod.string().min(1).max(createShelterBodyCodeMax),
+  "capacity": zod.int().min(1),
+  "status": zod.enum(['AVAILABLE', 'OCCUPIED', 'MAINTENANCE']).optional()
+})
+
+
+
+
+
+export const CreateShelterResponse = zod.object({
+  "id": zod.uuid(),
+  "sectorId": zod.uuid(),
+  "code": zod.string(),
+  "capacity": zod.int().min(1),
+  "status": zod.enum(['AVAILABLE', 'OCCUPIED', 'MAINTENANCE']),
+  "version": zod.int().min(1),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullable()
+})
+
+
+export const UpdateShelterParams = zod.object({
+  "shelterId": zod.uuid()
+})
+
+export const updateShelterHeaderIdempotencyKeyMax = 200;
+
+
+
+export const UpdateShelterHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(updateShelterHeaderIdempotencyKeyMax).optional().describe('Optional caller-generated retry key (1–200 characters). Replays the original completed mutation response.')
+})
+
+export const updateShelterBodyCodeMax = 80;
+
+
+
+
+
+export const UpdateShelterBody = zod.object({
+  "code": zod.string().min(1).max(updateShelterBodyCodeMax).optional(),
+  "capacity": zod.int().min(1).optional(),
+  "status": zod.enum(['AVAILABLE', 'OCCUPIED', 'MAINTENANCE']).optional(),
+  "expectedVersion": zod.int().min(1)
+})
+
+
+
+
+
+export const UpdateShelterResponse = zod.object({
+  "id": zod.uuid(),
+  "sectorId": zod.uuid(),
+  "code": zod.string(),
+  "capacity": zod.int().min(1),
+  "status": zod.enum(['AVAILABLE', 'OCCUPIED', 'MAINTENANCE']),
+  "version": zod.int().min(1),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullable()
+})
+
+
+export const ArchiveShelterParams = zod.object({
+  "shelterId": zod.uuid()
+})
+
+export const archiveShelterHeaderIdempotencyKeyMax = 200;
+
+
+
+export const ArchiveShelterHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(archiveShelterHeaderIdempotencyKeyMax).optional().describe('Optional caller-generated retry key (1–200 characters). Replays the original completed mutation response.')
+})
+
+
+
+
+export const ArchiveShelterBody = zod.object({
+  "expectedVersion": zod.int().min(1)
+})
+
+
+
+
+
+export const ArchiveShelterResponse = zod.object({
+  "id": zod.uuid(),
+  "sectorId": zod.uuid(),
+  "code": zod.string(),
+  "capacity": zod.int().min(1),
+  "status": zod.enum(['AVAILABLE', 'OCCUPIED', 'MAINTENANCE']),
+  "version": zod.int().min(1),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullable()
+})
+
+
+export const listFamiliesHeaderIdempotencyKeyMax = 200;
+
+
+
+export const ListFamiliesHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(listFamiliesHeaderIdempotencyKeyMax).optional().describe('Optional caller-generated retry key (1–200 characters). Replays the original completed mutation response.')
+})
+
+
+
+
+export const ListFamiliesResponseItem = zod.object({
+  "id": zod.uuid(),
+  "campId": zod.uuid(),
+  "sectorId": zod.uuid(),
+  "shelterId": zod.uuid().nullish(),
+  "headName": zod.string(),
+  "headPhone": zod.string().nullish(),
+  "delegateId": zod.uuid().nullish(),
+  "status": zod.enum(['PENDING_APPROVAL', 'ACTIVE', 'ARCHIVED']),
+  "criticalNotes": zod.string().nullish(),
+  "createdById": zod.uuid(),
+  "approvedById": zod.uuid().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListFamiliesResponse = zod.array(ListFamiliesResponseItem)
+
+
+export const createFamilyHeaderIdempotencyKeyMax = 200;
+
+
+
+export const CreateFamilyHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(createFamilyHeaderIdempotencyKeyMax).describe('A caller-generated, non-empty key (maximum 200 characters) used to safely retry this mutation.')
+})
+
+export const createFamilyBodyHeadNameMin = 2;
+export const createFamilyBodyHeadNameMax = 200;
+
+export const createFamilyBodyHeadPhoneMax = 40;
+
+export const createFamilyBodyCriticalNotesMax = 5000;
+
+export const createFamilyBodyMembersItemFullNameMin = 2;
+export const createFamilyBodyMembersItemFullNameMax = 200;
+
+export const createFamilyBodyMembersItemNationalIdMax = 80;
+
+export const createFamilyBodyMembersItemRelationshipMin = 2;
+export const createFamilyBodyMembersItemRelationshipMax = 80;
+
+export const createFamilyBodyMembersItemCriticalNotesMax = 5000;
+
+
+
+
+export const CreateFamilyBody = zod.object({
+  "campId": zod.uuid(),
+  "sectorId": zod.uuid(),
+  "shelterId": zod.uuid().nullish(),
+  "headName": zod.string().min(createFamilyBodyHeadNameMin).max(createFamilyBodyHeadNameMax),
+  "headPhone": zod.string().max(createFamilyBodyHeadPhoneMax).optional(),
+  "delegateId": zod.uuid().nullish(),
+  "criticalNotes": zod.string().max(createFamilyBodyCriticalNotesMax).optional(),
+  "members": zod.array(zod.object({
+  "fullName": zod.string().min(createFamilyBodyMembersItemFullNameMin).max(createFamilyBodyMembersItemFullNameMax),
+  "nationalId": zod.string().max(createFamilyBodyMembersItemNationalIdMax).optional(),
+  "gender": zod.enum(['MALE', 'FEMALE', 'OTHER']),
+  "birthDate": zod.coerce.date().optional(),
+  "relationship": zod.string().min(createFamilyBodyMembersItemRelationshipMin).max(createFamilyBodyMembersItemRelationshipMax),
+  "criticalCase": zod.boolean().optional(),
+  "criticalNotes": zod.string().max(createFamilyBodyMembersItemCriticalNotesMax).optional()
+})).min(1)
+})
+
+
+
+
+export const CreateFamilyResponse = zod.object({
+  "id": zod.uuid(),
+  "campId": zod.uuid(),
+  "sectorId": zod.uuid(),
+  "shelterId": zod.uuid().nullish(),
+  "headName": zod.string(),
+  "headPhone": zod.string().nullish(),
+  "delegateId": zod.uuid().nullish(),
+  "status": zod.enum(['PENDING_APPROVAL', 'ACTIVE', 'ARCHIVED']),
+  "criticalNotes": zod.string().nullish(),
+  "createdById": zod.uuid(),
+  "approvedById": zod.uuid().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).and(zod.object({
+  "members": zod.array(zod.object({
+  "id": zod.uuid(),
+  "familyId": zod.uuid(),
+  "fullName": zod.string(),
+  "nationalId": zod.string().nullish(),
+  "gender": zod.enum(['MALE', 'FEMALE', 'OTHER']),
+  "birthDate": zod.coerce.date().nullish(),
+  "relationship": zod.string(),
+  "criticalCase": zod.boolean(),
+  "criticalNotes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+}))
+
+
+export const GetFamilyParams = zod.object({
+  "familyId": zod.uuid()
+})
+
+
+
+
+export const GetFamilyResponse = zod.object({
+  "id": zod.uuid(),
+  "campId": zod.uuid(),
+  "sectorId": zod.uuid(),
+  "shelterId": zod.uuid().nullish(),
+  "headName": zod.string(),
+  "headPhone": zod.string().nullish(),
+  "delegateId": zod.uuid().nullish(),
+  "status": zod.enum(['PENDING_APPROVAL', 'ACTIVE', 'ARCHIVED']),
+  "criticalNotes": zod.string().nullish(),
+  "createdById": zod.uuid(),
+  "approvedById": zod.uuid().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).and(zod.object({
+  "members": zod.array(zod.object({
+  "id": zod.uuid(),
+  "familyId": zod.uuid(),
+  "fullName": zod.string(),
+  "nationalId": zod.string().nullish(),
+  "gender": zod.enum(['MALE', 'FEMALE', 'OTHER']),
+  "birthDate": zod.coerce.date().nullish(),
+  "relationship": zod.string(),
+  "criticalCase": zod.boolean(),
+  "criticalNotes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+}))
+
+
+export const UpdateFamilyParams = zod.object({
+  "familyId": zod.uuid()
+})
+
+export const updateFamilyHeaderIdempotencyKeyMax = 200;
+
+
+
+export const UpdateFamilyHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(updateFamilyHeaderIdempotencyKeyMax).describe('A caller-generated, non-empty key (maximum 200 characters) used to safely retry this mutation.')
+})
+
+export const updateFamilyBodyHeadNameMin = 2;
+export const updateFamilyBodyHeadNameMax = 200;
+
+export const updateFamilyBodyHeadPhoneMax = 40;
+
+export const updateFamilyBodyCriticalNotesMax = 5000;
+
+
+
+
+export const UpdateFamilyBody = zod.object({
+  "sectorId": zod.uuid().optional(),
+  "shelterId": zod.uuid().nullish(),
+  "delegateId": zod.uuid().nullish(),
+  "headName": zod.string().min(updateFamilyBodyHeadNameMin).max(updateFamilyBodyHeadNameMax).optional(),
+  "headPhone": zod.string().max(updateFamilyBodyHeadPhoneMax).nullish(),
+  "criticalNotes": zod.string().max(updateFamilyBodyCriticalNotesMax).nullish(),
+  "expectedVersion": zod.int().min(1)
+})
+
+
+
+
+export const UpdateFamilyResponse = zod.object({
+  "id": zod.uuid(),
+  "campId": zod.uuid(),
+  "sectorId": zod.uuid(),
+  "shelterId": zod.uuid().nullish(),
+  "headName": zod.string(),
+  "headPhone": zod.string().nullish(),
+  "delegateId": zod.uuid().nullish(),
+  "status": zod.enum(['PENDING_APPROVAL', 'ACTIVE', 'ARCHIVED']),
+  "criticalNotes": zod.string().nullish(),
+  "createdById": zod.uuid(),
+  "approvedById": zod.uuid().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).and(zod.object({
+  "members": zod.array(zod.object({
+  "id": zod.uuid(),
+  "familyId": zod.uuid(),
+  "fullName": zod.string(),
+  "nationalId": zod.string().nullish(),
+  "gender": zod.enum(['MALE', 'FEMALE', 'OTHER']),
+  "birthDate": zod.coerce.date().nullish(),
+  "relationship": zod.string(),
+  "criticalCase": zod.boolean(),
+  "criticalNotes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+}))
+
+
+export const ArchiveFamilyParams = zod.object({
+  "familyId": zod.uuid()
+})
+
+export const archiveFamilyHeaderIdempotencyKeyMax = 200;
+
+
+
+export const ArchiveFamilyHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(archiveFamilyHeaderIdempotencyKeyMax).describe('A caller-generated, non-empty key (maximum 200 characters) used to safely retry this mutation.')
+})
+
+
+
+
+export const ArchiveFamilyBody = zod.object({
+  "expectedVersion": zod.int().min(1)
+})
+
+
+
+
+export const ArchiveFamilyResponse = zod.object({
+  "id": zod.uuid(),
+  "campId": zod.uuid(),
+  "sectorId": zod.uuid(),
+  "shelterId": zod.uuid().nullish(),
+  "headName": zod.string(),
+  "headPhone": zod.string().nullish(),
+  "delegateId": zod.uuid().nullish(),
+  "status": zod.enum(['PENDING_APPROVAL', 'ACTIVE', 'ARCHIVED']),
+  "criticalNotes": zod.string().nullish(),
+  "createdById": zod.uuid(),
+  "approvedById": zod.uuid().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).and(zod.object({
+  "members": zod.array(zod.object({
+  "id": zod.uuid(),
+  "familyId": zod.uuid(),
+  "fullName": zod.string(),
+  "nationalId": zod.string().nullish(),
+  "gender": zod.enum(['MALE', 'FEMALE', 'OTHER']),
+  "birthDate": zod.coerce.date().nullish(),
+  "relationship": zod.string(),
+  "criticalCase": zod.boolean(),
+  "criticalNotes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+}))
+
+
+export const ApproveFamilyParams = zod.object({
+  "familyId": zod.uuid()
+})
+
+export const approveFamilyHeaderIdempotencyKeyMax = 200;
+
+
+
+export const ApproveFamilyHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(approveFamilyHeaderIdempotencyKeyMax).describe('A caller-generated, non-empty key (maximum 200 characters) used to safely retry this mutation.')
+})
+
+export const approveFamilyBodyNoteMax = 2000;
+
+
+
+export const ApproveFamilyBody = zod.object({
+  "note": zod.string().max(approveFamilyBodyNoteMax).optional()
+})
+
+
+
+
+export const ApproveFamilyResponse = zod.object({
+  "id": zod.uuid(),
+  "campId": zod.uuid(),
+  "sectorId": zod.uuid(),
+  "shelterId": zod.uuid().nullish(),
+  "headName": zod.string(),
+  "headPhone": zod.string().nullish(),
+  "delegateId": zod.uuid().nullish(),
+  "status": zod.enum(['PENDING_APPROVAL', 'ACTIVE', 'ARCHIVED']),
+  "criticalNotes": zod.string().nullish(),
+  "createdById": zod.uuid(),
+  "approvedById": zod.uuid().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).and(zod.object({
+  "members": zod.array(zod.object({
+  "id": zod.uuid(),
+  "familyId": zod.uuid(),
+  "fullName": zod.string(),
+  "nationalId": zod.string().nullish(),
+  "gender": zod.enum(['MALE', 'FEMALE', 'OTHER']),
+  "birthDate": zod.coerce.date().nullish(),
+  "relationship": zod.string(),
+  "criticalCase": zod.boolean(),
+  "criticalNotes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+}))
+
+
+
+
+
+export const ListNeedsResponseItem = zod.object({
+  "id": zod.uuid(),
+  "familyId": zod.uuid(),
+  "category": zod.enum(['FOOD', 'WATER', 'MEDICAL', 'SHELTER', 'HYGIENE', 'OTHER']),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "priority": zod.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
+  "status": zod.enum(['REQUIRED', 'IN_PROGRESS', 'FULFILLED', 'CANCELLED']),
+  "createdById": zod.uuid(),
+  "assignedToId": zod.uuid().nullish(),
+  "fulfilledAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListNeedsResponse = zod.array(ListNeedsResponseItem)
+
+
+export const createNeedHeaderIdempotencyKeyMax = 200;
+
+
+
+export const CreateNeedHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(createNeedHeaderIdempotencyKeyMax).describe('A caller-generated, non-empty key (maximum 200 characters) used to safely retry this mutation.')
+})
+
+export const createNeedBodyTitleMin = 2;
+export const createNeedBodyTitleMax = 240;
+
+export const createNeedBodyDescriptionMax = 5000;
+
+
+
+export const CreateNeedBody = zod.object({
+  "familyId": zod.uuid(),
+  "category": zod.enum(['FOOD', 'WATER', 'MEDICAL', 'SHELTER', 'HYGIENE', 'OTHER']),
+  "title": zod.string().min(createNeedBodyTitleMin).max(createNeedBodyTitleMax),
+  "description": zod.string().max(createNeedBodyDescriptionMax).optional(),
+  "priority": zod.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'])
+})
+
+
+
+
+export const CreateNeedResponse = zod.object({
+  "id": zod.uuid(),
+  "familyId": zod.uuid(),
+  "category": zod.enum(['FOOD', 'WATER', 'MEDICAL', 'SHELTER', 'HYGIENE', 'OTHER']),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "priority": zod.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
+  "status": zod.enum(['REQUIRED', 'IN_PROGRESS', 'FULFILLED', 'CANCELLED']),
+  "createdById": zod.uuid(),
+  "assignedToId": zod.uuid().nullish(),
+  "fulfilledAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+export const UpdateNeedParams = zod.object({
+  "needId": zod.uuid()
+})
+
+export const updateNeedHeaderIdempotencyKeyMax = 200;
+
+
+
+export const UpdateNeedHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(updateNeedHeaderIdempotencyKeyMax).describe('A caller-generated, non-empty key (maximum 200 characters) used to safely retry this mutation.')
+})
+
+export const updateNeedBodyNoteMax = 2000;
+
+
+
+
+export const UpdateNeedBody = zod.object({
+  "status": zod.enum(['REQUIRED', 'IN_PROGRESS', 'FULFILLED', 'CANCELLED']).optional(),
+  "priority": zod.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
+  "assignedToId": zod.uuid().nullish(),
+  "note": zod.string().max(updateNeedBodyNoteMax).optional(),
+  "expectedVersion": zod.int().min(1)
+})
+
+
+
+
+export const UpdateNeedResponse = zod.object({
+  "id": zod.uuid(),
+  "familyId": zod.uuid(),
+  "category": zod.enum(['FOOD', 'WATER', 'MEDICAL', 'SHELTER', 'HYGIENE', 'OTHER']),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "priority": zod.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
+  "status": zod.enum(['REQUIRED', 'IN_PROGRESS', 'FULFILLED', 'CANCELLED']),
+  "createdById": zod.uuid(),
+  "assignedToId": zod.uuid().nullish(),
+  "fulfilledAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+export const ArchiveNeedParams = zod.object({
+  "needId": zod.uuid()
+})
+
+export const archiveNeedHeaderIdempotencyKeyMax = 200;
+
+
+
+export const ArchiveNeedHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(archiveNeedHeaderIdempotencyKeyMax).optional().describe('Optional caller-generated retry key (1–200 characters). Replays the original completed mutation response.')
+})
+
+
+
+
+export const ArchiveNeedBody = zod.object({
+  "expectedVersion": zod.int().min(1)
+})
+
+
+
+
+export const ArchiveNeedResponse = zod.object({
+  "id": zod.uuid(),
+  "familyId": zod.uuid(),
+  "category": zod.enum(['FOOD', 'WATER', 'MEDICAL', 'SHELTER', 'HYGIENE', 'OTHER']),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "priority": zod.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
+  "status": zod.enum(['REQUIRED', 'IN_PROGRESS', 'FULFILLED', 'CANCELLED']),
+  "createdById": zod.uuid(),
+  "assignedToId": zod.uuid().nullish(),
+  "fulfilledAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "version": zod.int().min(1),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+export const ListSecurityMembersResponseItem = zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "email": zod.email(),
+  "role": zod.enum(['SECURITY_OFFICER', 'SECURITY_MEMBER']),
+  "active": zod.boolean()
+})
+export const ListSecurityMembersResponse = zod.array(ListSecurityMembersResponseItem)
 
 

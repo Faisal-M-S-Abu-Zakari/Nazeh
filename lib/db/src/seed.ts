@@ -1,6 +1,19 @@
 import bcrypt from "bcrypt";
 import { db, pool } from "./index";
-import { aids, complaints, people, staffUsers, syncAuditEvents, tasks } from "./schema";
+import {
+  aids,
+  campSectorsTable,
+  campsTable,
+  complaints,
+  familyMembersTable,
+  familiesTable,
+  familyNeedsTable,
+  people,
+  shelterUnitsTable,
+  staffUsers,
+  syncAuditEvents,
+  tasks,
+} from "./schema";
 
 const ids = {
   admin: "10000000-0000-4000-8000-000000000001",
@@ -9,6 +22,14 @@ const ids = {
   security: "10000000-0000-4000-8000-000000000004",
   delegateTwo: "10000000-0000-4000-8000-000000000005",
   securityTwo: "10000000-0000-4000-8000-000000000006",
+  securityMember: "10000000-0000-4000-8000-000000000007",
+  camp: "70000000-0000-4000-8000-000000000001",
+  north: "71000000-0000-4000-8000-000000000001",
+  south: "71000000-0000-4000-8000-000000000002",
+  tentNorth: "72000000-0000-4000-8000-000000000001",
+  tentSouth: "72000000-0000-4000-8000-000000000002",
+  familyOne: "73000000-0000-4000-8000-000000000001",
+  familyTwo: "73000000-0000-4000-8000-000000000002",
 };
 
 async function seed() {
@@ -23,6 +44,58 @@ async function seed() {
     { id: ids.security, email: "security@alaqsa.local", name: "محمود سالم", role: "SECURITY_OFFICER", passwordHash, active: true, passwordSetAt: new Date(), isDevelopmentDemo: true },
     { id: ids.delegateTwo, email: "delegate2@alaqsa.local", name: "ليان أبو عودة", role: "DELEGATE", passwordHash, active: true, passwordSetAt: new Date(), isDevelopmentDemo: true },
     { id: ids.securityTwo, email: "security2@alaqsa.local", name: "عمر حمدان", role: "SECURITY_OFFICER", passwordHash, active: true, passwordSetAt: new Date(), isDevelopmentDemo: true },
+    { id: ids.securityMember, email: "security-member@alaqsa.local", name: "فارس شحادة", role: "SECURITY_MEMBER", passwordHash, active: true, passwordSetAt: new Date(), isDevelopmentDemo: true },
+  ]).onConflictDoNothing();
+
+  await db.insert(campsTable).values({
+    id: ids.camp,
+    name: "مخيم الأقصى",
+    active: true,
+  }).onConflictDoNothing();
+  await db.insert(campSectorsTable).values([
+    { id: ids.north, campId: ids.camp, name: "القطاع الشمالي" },
+    { id: ids.south, campId: ids.camp, name: "القطاع الجنوبي" },
+  ]).onConflictDoNothing();
+  await db.insert(shelterUnitsTable).values([
+    { id: ids.tentNorth, sectorId: ids.north, code: "ش-17", capacity: 2, status: "OCCUPIED" },
+    { id: ids.tentSouth, sectorId: ids.south, code: "ج-08", capacity: 2, status: "OCCUPIED" },
+  ]).onConflictDoNothing();
+  await db.insert(familiesTable).values([
+    {
+      id: ids.familyOne,
+      campId: ids.camp,
+      sectorId: ids.north,
+      shelterId: ids.tentNorth,
+      headName: "أمينة يوسف العطار",
+      headPhone: "0590000121",
+      delegateId: ids.delegate,
+      status: "ACTIVE",
+      criticalNotes: "طفل يحتاج إلى متابعة طبية دورية.",
+      createdById: ids.delegate,
+      approvedById: ids.manager,
+      approvedAt: new Date("2026-08-25T09:00:00Z"),
+    },
+    {
+      id: ids.familyTwo,
+      campId: ids.camp,
+      sectorId: ids.south,
+      shelterId: ids.tentSouth,
+      headName: "خالد محمد أبو عودة",
+      headPhone: "0590000122",
+      delegateId: ids.delegateTwo,
+      status: "PENDING_APPROVAL",
+      criticalNotes: "أحد أفراد الأسرة مصاب بمرض مزمن.",
+      createdById: ids.delegateTwo,
+    },
+  ]).onConflictDoNothing();
+  await db.insert(familyMembersTable).values([
+    { id: "74000000-0000-4000-8000-000000000001", familyId: ids.familyOne, fullName: "أمينة يوسف العطار", gender: "FEMALE", relationship: "رب الأسرة", criticalCase: false },
+    { id: "74000000-0000-4000-8000-000000000002", familyId: ids.familyOne, fullName: "يوسف أمينة العطار", gender: "MALE", birthDate: "2018-03-11", relationship: "ابن", criticalCase: true, criticalNotes: "يحتاج إلى متابعة طبية" },
+    { id: "74000000-0000-4000-8000-000000000003", familyId: ids.familyTwo, fullName: "خالد محمد أبو عودة", gender: "MALE", relationship: "رب الأسرة", criticalCase: true, criticalNotes: "مرض مزمن" },
+  ]).onConflictDoNothing();
+  await db.insert(familyNeedsTable).values([
+    { id: "75000000-0000-4000-8000-000000000001", familyId: ids.familyOne, category: "MEDICAL", title: "دواء للطفل", description: "دواء متابعة أسبوعية", priority: "CRITICAL", status: "REQUIRED", createdById: ids.delegate },
+    { id: "75000000-0000-4000-8000-000000000002", familyId: ids.familyTwo, category: "FOOD", title: "طرد غذائي", description: "احتياج عاجل للأسرة", priority: "HIGH", status: "IN_PROGRESS", createdById: ids.delegateTwo },
   ]).onConflictDoNothing();
 
   await db.insert(aids).values([
@@ -58,6 +131,7 @@ async function seed() {
     { id: "50000000-0000-4000-8000-000000000004", title: "فحص طفايات الحريق", description: "التأكد من وجود الطفايات وصلاحيتها في المطابخ الجماعية ومخزن المواد.", location: "المطابخ الجماعية", priority: "HIGH", status: "COMPLETED", assignedToId: ids.securityTwo, dueAt: new Date("2026-08-27T16:00:00Z"), createdById: ids.manager },
     { id: "50000000-0000-4000-8000-000000000005", title: "مرافقة قافلة المياه", description: "مرافقة شاحنة المياه من البوابة إلى الخزانات والتنسيق مع مسؤول التوزيع.", location: "الطريق الداخلي", priority: "MEDIUM", status: "COMPLETED", assignedToId: ids.security, dueAt: new Date("2026-08-26T11:00:00Z"), createdById: ids.delegate },
     { id: "50000000-0000-4000-8000-000000000006", title: "مراقبة الهدوء المسائي", description: "تنفيذ جولة قصيرة حول أماكن التجمع والتأكد من بقاء الممرات مفتوحة.", location: "الساحة المركزية", priority: "LOW", status: "IN_PROGRESS", assignedToId: ids.securityTwo, createdById: ids.manager },
+    { id: "50000000-0000-4000-8000-000000000007", title: "تفقد ممر القطاع الشمالي", description: "التأكد من خلو الممرات من العوائق ورفع النتيجة لمسؤول الأمن.", location: "القطاع الشمالي", priority: "MEDIUM", status: "PENDING", assignedToId: ids.securityMember, createdById: ids.manager },
   ]).onConflictDoNothing();
 
   await db.insert(syncAuditEvents).values([

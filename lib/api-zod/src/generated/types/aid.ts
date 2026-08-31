@@ -17,7 +17,10 @@ export interface Aid {
   location: string;
   distributionDate: Date;
   notes?: string | null;
-  createdById: string;
+  /** @nullable */
+  createdById: string | null;
+  /** @nullable */
+  createdByLegacyUserId?: number | null;
   createdAt: Date;
   updatedAt: Date;
   archivedAt?: Date | null;

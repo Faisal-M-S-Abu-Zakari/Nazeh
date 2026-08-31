@@ -32,7 +32,7 @@ export default function useAuth() {
   }, [me.error, queryClient]);
 
   const role = me.data?.role;
-  const uiRole = role === Role.SECURITY_OFFICER ? USER_TYPE.SECURITY
+  const uiRole = (role === Role.SECURITY_OFFICER || role === Role.SECURITY_MEMBER) ? USER_TYPE.SECURITY
     : role === Role.DELEGATE ? USER_TYPE.DELEGATE
     : USER_TYPE.MANAGER;
   const user: User | null = me.data ? {
@@ -44,7 +44,7 @@ export default function useAuth() {
     created_at: new Date(),
     profile_image: '',
     role: uiRole,
-    rank: role === Role.SECURITY_OFFICER ? USER_RANK.SECURITY_OFFICER : uiRole,
+     rank: (role === Role.SECURITY_OFFICER || role === Role.SECURITY_MEMBER) ? USER_RANK.SECURITY_OFFICER : uiRole,
   } : null;
 
   return {
@@ -55,7 +55,7 @@ export default function useAuth() {
     isAdmin: role === Role.ADMIN,
     isDelegate: role === Role.DELEGATE,
     isDisplaced: false,
-    isSecurity: role === Role.SECURITY_OFFICER,
+    isSecurity: role === Role.SECURITY_OFFICER || role === Role.SECURITY_MEMBER,
     isSecurityOfficer: role === Role.SECURITY_OFFICER,
     user,
   };

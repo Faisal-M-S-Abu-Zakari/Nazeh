@@ -5,7 +5,15 @@ const requiredColumns: Record<string, readonly string[]> = {
   sync_aids: ["id", "created_by_id", "version", "archived_at"],
   sync_complaints: ["id", "created_by_id", "version", "archived_at"],
   sync_people: ["id", "created_by_id", "version", "archived_at"],
-  sync_tasks: ["id", "created_by_id", "version", "archived_at"],
+  sync_tasks: ["id", "created_by_id", "version", "archived_at", "result", "submitted_at", "approved_by_id", "approved_at"],
+  camps: ["id", "name", "active"],
+  camp_sectors: ["id", "camp_id", "name"],
+  shelter_units: ["id", "sector_id", "code", "capacity", "status", "version", "archived_at"],
+  families: ["id", "camp_id", "sector_id", "shelter_id", "delegate_id", "status", "version"],
+  family_members: ["id", "family_id", "full_name", "critical_case"],
+  family_assignment_history: ["id", "family_id", "changed_by_id"],
+  family_needs: ["id", "family_id", "category", "status", "priority", "version"],
+  need_status_history: ["id", "need_id", "to_status", "changed_by_id"],
 };
 
 async function verifySchema() {

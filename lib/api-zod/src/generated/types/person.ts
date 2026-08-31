@@ -17,7 +17,10 @@ export interface Person {
   tentNumber: string;
   familySize: number;
   notes?: string | null;
-  createdById: string;
+  /** @nullable */
+  createdById: string | null;
+  /** @nullable */
+  createdByLegacyUserId?: number | null;
   createdAt: Date;
   updatedAt: Date;
   archivedAt?: Date | null;

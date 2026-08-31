@@ -58,6 +58,7 @@ export default function Login() {
           [Role.MANAGER]: () => navigateToApp(GENERAL_ACTOR_ROUTES.ADS),
           [Role.DELEGATE]: () => navigateToApp(GENERAL_ACTOR_ROUTES.ADS),
           [Role.SECURITY_OFFICER]: () => navigateToApp(GENERAL_ACTOR_ROUTES.ADS),
+          [Role.SECURITY_MEMBER]: () => navigateToApp(GENERAL_ACTOR_ROUTES.ADS),
         };
 
         roleRedirects[data.user.role]?.();

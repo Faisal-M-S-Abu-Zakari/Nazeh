@@ -20,6 +20,7 @@ import {
 } from '@/content/actor/security/navLinks';
 import { displaced_NavLinks, guest_Displaced_NavLinks } from '@/content/actor/displaced/navLinks';
 import { GENERAL_ACTOR_ROUTES } from '@/constants/routes';
+import { Home } from 'lucide-react';
 
 interface NavLink {
   label: string;
@@ -98,6 +99,18 @@ export default function Navigation_Links() {
   return (
     <Box w='100%' className='bg-white shadow-lg border border-gray-200 rounded-2xl overflow-hidden'>
       <Stack gap={0}>
+        {(isManager || isDelegate || isSecurity || isSecurityOfficer) && (
+          <Link
+            href="/actor/operations"
+            className={cn(
+              'flex items-center gap-3 px-5 py-4 transition-colors duration-200 border-b border-gray-100',
+              pathname.includes('/operations') ? 'bg-primary text-white font-semibold' : 'text-gray-700 hover:bg-gray-50 hover:text-dark'
+            )}
+          >
+            <Home size={20} className={pathname.includes('/operations') ? 'text-white' : 'text-gray-500'} />
+            <Text fz={15} fw={pathname.includes('/operations') ? 600 : 400} className='truncate'>العمليات الإنسانية</Text>
+          </Link>
+        )}
         {navLinks.map((link, index) => {
           const isActive = isLinkActive(link.href);
 

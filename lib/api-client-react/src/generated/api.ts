@@ -31,6 +31,7 @@ import type {
   ArchiveRecord,
   AuthSessionResponse,
   BadRequestResponse,
+  CampList,
   Complaint,
   ComplaintInput,
   ComplaintPage,
@@ -59,6 +60,11 @@ import type {
   DisplacedPersonInput,
   DisplacedPersonPage,
   DisplacedPersonUpdate,
+  FamilyApproval,
+  FamilyDetail,
+  FamilyInput,
+  FamilyList,
+  FamilyUpdate,
   ForbiddenResponse,
   GetDisplacedPersonAidHistoryParams,
   HealthStatus,
@@ -73,6 +79,10 @@ import type {
   LoginRequest,
   ManagedAid,
   ManagedComplaint,
+  Need,
+  NeedInput,
+  NeedList,
+  NeedUpdate,
   NotFoundResponse,
   Notification,
   NotificationPage,
@@ -80,16 +90,24 @@ import type {
   PasswordResetTokenResponse,
   Person,
   PersonUpdate,
+  SectorList,
+  SecurityMemberList,
   SecurityTask,
   SecurityTaskInput,
   SecurityTaskPage,
   SecurityTaskUpdate,
   SessionResponse,
+  Shelter,
+  ShelterInput,
+  ShelterList,
+  ShelterUpdate,
   SimpleConflictResponse,
   StaffListResponse,
   StaffUser,
   Task,
+  TaskApproval,
   TaskInput,
+  TaskSubmission,
   TaskUpdate,
   UnauthorizedResponse,
   UpdateStaffRequest
@@ -4164,6 +4182,138 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getUpdateTaskStatusMutationOptions(options));
     }
 
+export const getSubmitTaskUrl = (taskId: string,) => {
+
+
+
+
+  return `/api/sync/tasks/${taskId}/submit`
+}
+
+export const submitTask = async (taskId: string,
+    taskSubmission: TaskSubmission, options?: Parameters<typeof customFetch>[1]): Promise<Task> => {
+
+  return customFetch<Task>(getSubmitTaskUrl(taskId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(taskSubmission)
+  }
+);}
+
+
+
+
+
+export const getSubmitTaskMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitTask>>, TError,{taskId: string;data: BodyType<TaskSubmission>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitTask>>, TError,{taskId: string;data: BodyType<TaskSubmission>}, TContext> => {
+
+const mutationKey = ['submitTask'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitTask>>, {taskId: string;data: BodyType<TaskSubmission>}> = (props) => {
+          const {taskId,data} = props ?? {};
+
+          return  submitTask(taskId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitTaskMutationResult = NonNullable<Awaited<ReturnType<typeof submitTask>>>
+    export type SubmitTaskMutationBody = BodyType<TaskSubmission>
+    export type SubmitTaskMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>
+
+    export const useSubmitTask = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitTask>>, TError,{taskId: string;data: BodyType<TaskSubmission>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitTask>>,
+        TError,
+        {taskId: string;data: BodyType<TaskSubmission>},
+        TContext
+      > => {
+      return useMutation(getSubmitTaskMutationOptions(options));
+    }
+
+export const getApproveTaskUrl = (taskId: string,) => {
+
+
+
+
+  return `/api/sync/tasks/${taskId}/approve`
+}
+
+export const approveTask = async (taskId: string,
+    taskApproval: TaskApproval, options?: Parameters<typeof customFetch>[1]): Promise<Task> => {
+
+  return customFetch<Task>(getApproveTaskUrl(taskId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(taskApproval)
+  }
+);}
+
+
+
+
+
+export const getApproveTaskMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveTask>>, TError,{taskId: string;data: BodyType<TaskApproval>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveTask>>, TError,{taskId: string;data: BodyType<TaskApproval>}, TContext> => {
+
+const mutationKey = ['approveTask'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveTask>>, {taskId: string;data: BodyType<TaskApproval>}> = (props) => {
+          const {taskId,data} = props ?? {};
+
+          return  approveTask(taskId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveTaskMutationResult = NonNullable<Awaited<ReturnType<typeof approveTask>>>
+    export type ApproveTaskMutationBody = BodyType<TaskApproval>
+    export type ApproveTaskMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>
+
+    export const useApproveTask = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveTask>>, TError,{taskId: string;data: BodyType<TaskApproval>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveTask>>,
+        TError,
+        {taskId: string;data: BodyType<TaskApproval>},
+        TContext
+      > => {
+      return useMutation(getApproveTaskMutationOptions(options));
+    }
+
 export const getArchiveSyncTaskUrl = (taskId: string,) => {
 
 
@@ -4188,7 +4338,7 @@ export const archiveSyncTask = async (taskId: string,
 
 
 
-export const getArchiveSyncTaskMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+export const getArchiveSyncTaskMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveSyncTask>>, TError,{taskId: string;data: BodyType<ArchiveRecord>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof archiveSyncTask>>, TError,{taskId: string;data: BodyType<ArchiveRecord>}, TContext> => {
 
@@ -4217,9 +4367,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type ArchiveSyncTaskMutationResult = NonNullable<Awaited<ReturnType<typeof archiveSyncTask>>>
     export type ArchiveSyncTaskMutationBody = BodyType<ArchiveRecord>
-    export type ArchiveSyncTaskMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>
+    export type ArchiveSyncTaskMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
 
-    export const useArchiveSyncTask = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    export const useArchiveSyncTask = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveSyncTask>>, TError,{taskId: string;data: BodyType<ArchiveRecord>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof archiveSyncTask>>,
@@ -4229,4 +4379,1158 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getArchiveSyncTaskMutationOptions(options));
     }
+
+export const getListCampsUrl = () => {
+
+
+
+
+  return `/api/sync/camps`
+}
+
+export const listCamps = async ( options?: Parameters<typeof customFetch>[1]): Promise<CampList> => {
+
+  return customFetch<CampList>(getListCampsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCampsQueryKey = () => {
+    return [
+    `/api/sync/camps`
+    ] as const;
+    }
+
+
+export const getListCampsQueryOptions = <TData = Awaited<ReturnType<typeof listCamps>>, TError = ErrorType<UnauthorizedResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCamps>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCampsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCamps>>> = ({ signal }) => listCamps({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCamps>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCampsQueryResult = NonNullable<Awaited<ReturnType<typeof listCamps>>>
+export type ListCampsQueryError = ErrorType<UnauthorizedResponse>
+
+
+
+export function useListCamps<TData = Awaited<ReturnType<typeof listCamps>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCamps>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCampsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListSectorsUrl = () => {
+
+
+
+
+  return `/api/sync/sectors`
+}
+
+export const listSectors = async ( options?: Parameters<typeof customFetch>[1]): Promise<SectorList> => {
+
+  return customFetch<SectorList>(getListSectorsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSectorsQueryKey = () => {
+    return [
+    `/api/sync/sectors`
+    ] as const;
+    }
+
+
+export const getListSectorsQueryOptions = <TData = Awaited<ReturnType<typeof listSectors>>, TError = ErrorType<UnauthorizedResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSectors>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSectorsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSectors>>> = ({ signal }) => listSectors({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSectors>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSectorsQueryResult = NonNullable<Awaited<ReturnType<typeof listSectors>>>
+export type ListSectorsQueryError = ErrorType<UnauthorizedResponse>
+
+
+
+export function useListSectors<TData = Awaited<ReturnType<typeof listSectors>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSectors>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSectorsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListSheltersUrl = () => {
+
+
+
+
+  return `/api/sync/shelters`
+}
+
+export const listShelters = async ( options?: Parameters<typeof customFetch>[1]): Promise<ShelterList> => {
+
+  return customFetch<ShelterList>(getListSheltersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSheltersQueryKey = () => {
+    return [
+    `/api/sync/shelters`
+    ] as const;
+    }
+
+
+export const getListSheltersQueryOptions = <TData = Awaited<ReturnType<typeof listShelters>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listShelters>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSheltersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listShelters>>> = ({ signal }) => listShelters({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listShelters>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSheltersQueryResult = NonNullable<Awaited<ReturnType<typeof listShelters>>>
+export type ListSheltersQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse>
+
+
+
+export function useListShelters<TData = Awaited<ReturnType<typeof listShelters>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listShelters>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSheltersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateShelterUrl = () => {
+
+
+
+
+  return `/api/sync/shelters`
+}
+
+export const createShelter = async (shelterInput: ShelterInput, options?: Parameters<typeof customFetch>[1]): Promise<Shelter> => {
+
+  return customFetch<Shelter>(getCreateShelterUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shelterInput)
+  }
+);}
+
+
+
+
+
+export const getCreateShelterMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createShelter>>, TError,{data: BodyType<ShelterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createShelter>>, TError,{data: BodyType<ShelterInput>}, TContext> => {
+
+const mutationKey = ['createShelter'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createShelter>>, {data: BodyType<ShelterInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createShelter(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateShelterMutationResult = NonNullable<Awaited<ReturnType<typeof createShelter>>>
+    export type CreateShelterMutationBody = BodyType<ShelterInput>
+    export type CreateShelterMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>
+
+    export const useCreateShelter = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createShelter>>, TError,{data: BodyType<ShelterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createShelter>>,
+        TError,
+        {data: BodyType<ShelterInput>},
+        TContext
+      > => {
+      return useMutation(getCreateShelterMutationOptions(options));
+    }
+
+export const getUpdateShelterUrl = (shelterId: string,) => {
+
+
+
+
+  return `/api/sync/shelters/${shelterId}`
+}
+
+export const updateShelter = async (shelterId: string,
+    shelterUpdate: ShelterUpdate, options?: Parameters<typeof customFetch>[1]): Promise<Shelter> => {
+
+  return customFetch<Shelter>(getUpdateShelterUrl(shelterId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shelterUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateShelterMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateShelter>>, TError,{shelterId: string;data: BodyType<ShelterUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateShelter>>, TError,{shelterId: string;data: BodyType<ShelterUpdate>}, TContext> => {
+
+const mutationKey = ['updateShelter'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateShelter>>, {shelterId: string;data: BodyType<ShelterUpdate>}> = (props) => {
+          const {shelterId,data} = props ?? {};
+
+          return  updateShelter(shelterId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateShelterMutationResult = NonNullable<Awaited<ReturnType<typeof updateShelter>>>
+    export type UpdateShelterMutationBody = BodyType<ShelterUpdate>
+    export type UpdateShelterMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>
+
+    export const useUpdateShelter = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateShelter>>, TError,{shelterId: string;data: BodyType<ShelterUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateShelter>>,
+        TError,
+        {shelterId: string;data: BodyType<ShelterUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateShelterMutationOptions(options));
+    }
+
+export const getArchiveShelterUrl = (shelterId: string,) => {
+
+
+
+
+  return `/api/sync/shelters/${shelterId}/archive`
+}
+
+export const archiveShelter = async (shelterId: string,
+    archiveRecord: ArchiveRecord, options?: Parameters<typeof customFetch>[1]): Promise<Shelter> => {
+
+  return customFetch<Shelter>(getArchiveShelterUrl(shelterId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(archiveRecord)
+  }
+);}
+
+
+
+
+
+export const getArchiveShelterMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveShelter>>, TError,{shelterId: string;data: BodyType<ArchiveRecord>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof archiveShelter>>, TError,{shelterId: string;data: BodyType<ArchiveRecord>}, TContext> => {
+
+const mutationKey = ['archiveShelter'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof archiveShelter>>, {shelterId: string;data: BodyType<ArchiveRecord>}> = (props) => {
+          const {shelterId,data} = props ?? {};
+
+          return  archiveShelter(shelterId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ArchiveShelterMutationResult = NonNullable<Awaited<ReturnType<typeof archiveShelter>>>
+    export type ArchiveShelterMutationBody = BodyType<ArchiveRecord>
+    export type ArchiveShelterMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>
+
+    export const useArchiveShelter = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveShelter>>, TError,{shelterId: string;data: BodyType<ArchiveRecord>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof archiveShelter>>,
+        TError,
+        {shelterId: string;data: BodyType<ArchiveRecord>},
+        TContext
+      > => {
+      return useMutation(getArchiveShelterMutationOptions(options));
+    }
+
+export const getListFamiliesUrl = () => {
+
+
+
+
+  return `/api/sync/families`
+}
+
+export const listFamilies = async ( options?: Parameters<typeof customFetch>[1]): Promise<FamilyList> => {
+
+  return customFetch<FamilyList>(getListFamiliesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListFamiliesQueryKey = () => {
+    return [
+    `/api/sync/families`
+    ] as const;
+    }
+
+
+export const getListFamiliesQueryOptions = <TData = Awaited<ReturnType<typeof listFamilies>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFamilies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListFamiliesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listFamilies>>> = ({ signal }) => listFamilies({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listFamilies>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListFamiliesQueryResult = NonNullable<Awaited<ReturnType<typeof listFamilies>>>
+export type ListFamiliesQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse>
+
+
+
+export function useListFamilies<TData = Awaited<ReturnType<typeof listFamilies>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFamilies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListFamiliesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateFamilyUrl = () => {
+
+
+
+
+  return `/api/sync/families`
+}
+
+export const createFamily = async (familyInput: FamilyInput, options?: Parameters<typeof customFetch>[1]): Promise<FamilyDetail> => {
+
+  return customFetch<FamilyDetail>(getCreateFamilyUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(familyInput)
+  }
+);}
+
+
+
+
+
+export const getCreateFamilyMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createFamily>>, TError,{data: BodyType<FamilyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createFamily>>, TError,{data: BodyType<FamilyInput>}, TContext> => {
+
+const mutationKey = ['createFamily'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createFamily>>, {data: BodyType<FamilyInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createFamily(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateFamilyMutationResult = NonNullable<Awaited<ReturnType<typeof createFamily>>>
+    export type CreateFamilyMutationBody = BodyType<FamilyInput>
+    export type CreateFamilyMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>
+
+    export const useCreateFamily = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createFamily>>, TError,{data: BodyType<FamilyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createFamily>>,
+        TError,
+        {data: BodyType<FamilyInput>},
+        TContext
+      > => {
+      return useMutation(getCreateFamilyMutationOptions(options));
+    }
+
+export const getGetFamilyUrl = (familyId: string,) => {
+
+
+
+
+  return `/api/sync/families/${familyId}`
+}
+
+export const getFamily = async (familyId: string, options?: Parameters<typeof customFetch>[1]): Promise<FamilyDetail> => {
+
+  return customFetch<FamilyDetail>(getGetFamilyUrl(familyId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFamilyQueryKey = (familyId: string,) => {
+    return [
+    `/api/sync/families/${familyId}`
+    ] as const;
+    }
+
+
+export const getGetFamilyQueryOptions = <TData = Awaited<ReturnType<typeof getFamily>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(familyId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFamily>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFamilyQueryKey(familyId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFamily>>> = ({ signal }) => getFamily(familyId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: familyId !== null && familyId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFamily>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFamilyQueryResult = NonNullable<Awaited<ReturnType<typeof getFamily>>>
+export type GetFamilyQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
+
+
+
+export function useGetFamily<TData = Awaited<ReturnType<typeof getFamily>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(
+ familyId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFamily>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFamilyQueryOptions(familyId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateFamilyUrl = (familyId: string,) => {
+
+
+
+
+  return `/api/sync/families/${familyId}`
+}
+
+export const updateFamily = async (familyId: string,
+    familyUpdate: FamilyUpdate, options?: Parameters<typeof customFetch>[1]): Promise<FamilyDetail> => {
+
+  return customFetch<FamilyDetail>(getUpdateFamilyUrl(familyId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(familyUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateFamilyMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateFamily>>, TError,{familyId: string;data: BodyType<FamilyUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateFamily>>, TError,{familyId: string;data: BodyType<FamilyUpdate>}, TContext> => {
+
+const mutationKey = ['updateFamily'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateFamily>>, {familyId: string;data: BodyType<FamilyUpdate>}> = (props) => {
+          const {familyId,data} = props ?? {};
+
+          return  updateFamily(familyId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateFamilyMutationResult = NonNullable<Awaited<ReturnType<typeof updateFamily>>>
+    export type UpdateFamilyMutationBody = BodyType<FamilyUpdate>
+    export type UpdateFamilyMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>
+
+    export const useUpdateFamily = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateFamily>>, TError,{familyId: string;data: BodyType<FamilyUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateFamily>>,
+        TError,
+        {familyId: string;data: BodyType<FamilyUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateFamilyMutationOptions(options));
+    }
+
+export const getArchiveFamilyUrl = (familyId: string,) => {
+
+
+
+
+  return `/api/sync/families/${familyId}/archive`
+}
+
+export const archiveFamily = async (familyId: string,
+    archiveRecord: ArchiveRecord, options?: Parameters<typeof customFetch>[1]): Promise<FamilyDetail> => {
+
+  return customFetch<FamilyDetail>(getArchiveFamilyUrl(familyId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(archiveRecord)
+  }
+);}
+
+
+
+
+
+export const getArchiveFamilyMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveFamily>>, TError,{familyId: string;data: BodyType<ArchiveRecord>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof archiveFamily>>, TError,{familyId: string;data: BodyType<ArchiveRecord>}, TContext> => {
+
+const mutationKey = ['archiveFamily'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof archiveFamily>>, {familyId: string;data: BodyType<ArchiveRecord>}> = (props) => {
+          const {familyId,data} = props ?? {};
+
+          return  archiveFamily(familyId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ArchiveFamilyMutationResult = NonNullable<Awaited<ReturnType<typeof archiveFamily>>>
+    export type ArchiveFamilyMutationBody = BodyType<ArchiveRecord>
+    export type ArchiveFamilyMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>
+
+    export const useArchiveFamily = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveFamily>>, TError,{familyId: string;data: BodyType<ArchiveRecord>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof archiveFamily>>,
+        TError,
+        {familyId: string;data: BodyType<ArchiveRecord>},
+        TContext
+      > => {
+      return useMutation(getArchiveFamilyMutationOptions(options));
+    }
+
+export const getApproveFamilyUrl = (familyId: string,) => {
+
+
+
+
+  return `/api/sync/families/${familyId}/approve`
+}
+
+export const approveFamily = async (familyId: string,
+    familyApproval: FamilyApproval, options?: Parameters<typeof customFetch>[1]): Promise<FamilyDetail> => {
+
+  return customFetch<FamilyDetail>(getApproveFamilyUrl(familyId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(familyApproval)
+  }
+);}
+
+
+
+
+
+export const getApproveFamilyMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveFamily>>, TError,{familyId: string;data: BodyType<FamilyApproval>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveFamily>>, TError,{familyId: string;data: BodyType<FamilyApproval>}, TContext> => {
+
+const mutationKey = ['approveFamily'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveFamily>>, {familyId: string;data: BodyType<FamilyApproval>}> = (props) => {
+          const {familyId,data} = props ?? {};
+
+          return  approveFamily(familyId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveFamilyMutationResult = NonNullable<Awaited<ReturnType<typeof approveFamily>>>
+    export type ApproveFamilyMutationBody = BodyType<FamilyApproval>
+    export type ApproveFamilyMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
+
+    export const useApproveFamily = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveFamily>>, TError,{familyId: string;data: BodyType<FamilyApproval>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveFamily>>,
+        TError,
+        {familyId: string;data: BodyType<FamilyApproval>},
+        TContext
+      > => {
+      return useMutation(getApproveFamilyMutationOptions(options));
+    }
+
+export const getListNeedsUrl = () => {
+
+
+
+
+  return `/api/sync/needs`
+}
+
+export const listNeeds = async ( options?: Parameters<typeof customFetch>[1]): Promise<NeedList> => {
+
+  return customFetch<NeedList>(getListNeedsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListNeedsQueryKey = () => {
+    return [
+    `/api/sync/needs`
+    ] as const;
+    }
+
+
+export const getListNeedsQueryOptions = <TData = Awaited<ReturnType<typeof listNeeds>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNeeds>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListNeedsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listNeeds>>> = ({ signal }) => listNeeds({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listNeeds>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListNeedsQueryResult = NonNullable<Awaited<ReturnType<typeof listNeeds>>>
+export type ListNeedsQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse>
+
+
+
+export function useListNeeds<TData = Awaited<ReturnType<typeof listNeeds>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNeeds>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListNeedsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateNeedUrl = () => {
+
+
+
+
+  return `/api/sync/needs`
+}
+
+export const createNeed = async (needInput: NeedInput, options?: Parameters<typeof customFetch>[1]): Promise<Need> => {
+
+  return customFetch<Need>(getCreateNeedUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(needInput)
+  }
+);}
+
+
+
+
+
+export const getCreateNeedMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNeed>>, TError,{data: BodyType<NeedInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createNeed>>, TError,{data: BodyType<NeedInput>}, TContext> => {
+
+const mutationKey = ['createNeed'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createNeed>>, {data: BodyType<NeedInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createNeed(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateNeedMutationResult = NonNullable<Awaited<ReturnType<typeof createNeed>>>
+    export type CreateNeedMutationBody = BodyType<NeedInput>
+    export type CreateNeedMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>
+
+    export const useCreateNeed = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNeed>>, TError,{data: BodyType<NeedInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createNeed>>,
+        TError,
+        {data: BodyType<NeedInput>},
+        TContext
+      > => {
+      return useMutation(getCreateNeedMutationOptions(options));
+    }
+
+export const getUpdateNeedUrl = (needId: string,) => {
+
+
+
+
+  return `/api/sync/needs/${needId}`
+}
+
+export const updateNeed = async (needId: string,
+    needUpdate: NeedUpdate, options?: Parameters<typeof customFetch>[1]): Promise<Need> => {
+
+  return customFetch<Need>(getUpdateNeedUrl(needId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(needUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateNeedMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateNeed>>, TError,{needId: string;data: BodyType<NeedUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateNeed>>, TError,{needId: string;data: BodyType<NeedUpdate>}, TContext> => {
+
+const mutationKey = ['updateNeed'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateNeed>>, {needId: string;data: BodyType<NeedUpdate>}> = (props) => {
+          const {needId,data} = props ?? {};
+
+          return  updateNeed(needId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateNeedMutationResult = NonNullable<Awaited<ReturnType<typeof updateNeed>>>
+    export type UpdateNeedMutationBody = BodyType<NeedUpdate>
+    export type UpdateNeedMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>
+
+    export const useUpdateNeed = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateNeed>>, TError,{needId: string;data: BodyType<NeedUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateNeed>>,
+        TError,
+        {needId: string;data: BodyType<NeedUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateNeedMutationOptions(options));
+    }
+
+export const getArchiveNeedUrl = (needId: string,) => {
+
+
+
+
+  return `/api/sync/needs/${needId}/archive`
+}
+
+export const archiveNeed = async (needId: string,
+    archiveRecord: ArchiveRecord, options?: Parameters<typeof customFetch>[1]): Promise<Need> => {
+
+  return customFetch<Need>(getArchiveNeedUrl(needId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(archiveRecord)
+  }
+);}
+
+
+
+
+
+export const getArchiveNeedMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveNeed>>, TError,{needId: string;data: BodyType<ArchiveRecord>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof archiveNeed>>, TError,{needId: string;data: BodyType<ArchiveRecord>}, TContext> => {
+
+const mutationKey = ['archiveNeed'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof archiveNeed>>, {needId: string;data: BodyType<ArchiveRecord>}> = (props) => {
+          const {needId,data} = props ?? {};
+
+          return  archiveNeed(needId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ArchiveNeedMutationResult = NonNullable<Awaited<ReturnType<typeof archiveNeed>>>
+    export type ArchiveNeedMutationBody = BodyType<ArchiveRecord>
+    export type ArchiveNeedMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>
+
+    export const useArchiveNeed = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveNeed>>, TError,{needId: string;data: BodyType<ArchiveRecord>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof archiveNeed>>,
+        TError,
+        {needId: string;data: BodyType<ArchiveRecord>},
+        TContext
+      > => {
+      return useMutation(getArchiveNeedMutationOptions(options));
+    }
+
+export const getListSecurityMembersUrl = () => {
+
+
+
+
+  return `/api/sync/security-members`
+}
+
+export const listSecurityMembers = async ( options?: Parameters<typeof customFetch>[1]): Promise<SecurityMemberList> => {
+
+  return customFetch<SecurityMemberList>(getListSecurityMembersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSecurityMembersQueryKey = () => {
+    return [
+    `/api/sync/security-members`
+    ] as const;
+    }
+
+
+export const getListSecurityMembersQueryOptions = <TData = Awaited<ReturnType<typeof listSecurityMembers>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSecurityMembers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSecurityMembersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSecurityMembers>>> = ({ signal }) => listSecurityMembers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSecurityMembers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSecurityMembersQueryResult = NonNullable<Awaited<ReturnType<typeof listSecurityMembers>>>
+export type ListSecurityMembersQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>
+
+
+
+export function useListSecurityMembers<TData = Awaited<ReturnType<typeof listSecurityMembers>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSecurityMembers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSecurityMembersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

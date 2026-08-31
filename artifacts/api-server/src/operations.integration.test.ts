@@ -4,13 +4,21 @@ import test from "node:test";
 import { and, eq } from "drizzle-orm";
 import {
   aids,
+  campSectorsTable,
   complaints,
   db,
+  familyMembersTable,
+  familyNeedsTable,
+  familiesTable,
+  familyAssignmentHistoryTable,
   idempotencyKeys,
   sessions,
   staffUsers,
   syncAuditEvents,
   tasks,
+  needStatusHistoryTable,
+  campsTable,
+  shelterUnitsTable,
 } from "@workspace/db";
 import app from "./app";
 import { hashToken } from "./middlewares/auth";
@@ -130,6 +138,134 @@ test("idempotent response-loss retries and optimistic status conflicts", async (
     await db.delete(sessions).where(eq(sessions.userId, userId));
     await db.delete(syncAuditEvents).where(eq(syncAuditEvents.actorStaffId, userId));
     await db.delete(staffUsers).where(eq(staffUsers.id, userId));
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("family workflow stays isolated and security completion requires approval", async () => {
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise<void>((resolve, reject) => { server.once("listening", resolve); server.once("error", reject); });
+  const address = server.address();
+  assert(address && typeof address === "object");
+  const baseUrl = `http://127.0.0.1:${address.port}/api`;
+  const ids = {
+    manager: randomUUID(), delegateOne: randomUUID(), delegateTwo: randomUUID(),
+    securityOfficer: randomUUID(), securityMember: randomUUID(), family: randomUUID(), task: randomUUID(),
+  };
+  const tokens = Object.fromEntries(Object.entries(ids).map(([key]) => [key, `${key}-${randomUUID()}`]));
+  const campId = "70000000-0000-4000-8000-000000000001";
+  const sectorId = "71000000-0000-4000-8000-000000000001";
+  const headers = (key: keyof typeof tokens) => ({
+    authorization: `Bearer ${tokens[key]}`,
+    "content-type": "application/json",
+  });
+  const staff = [
+    [ids.manager, "manager", "MANAGER"],
+    [ids.delegateOne, "delegate-one", "DELEGATE"],
+    [ids.delegateTwo, "delegate-two", "DELEGATE"],
+    [ids.securityOfficer, "security-officer", "SECURITY_OFFICER"],
+    [ids.securityMember, "security-member", "SECURITY_MEMBER"],
+  ] as const;
+  let familyId: string | undefined;
+  let needId: string | undefined;
+  let shelterId: string | undefined;
+  try {
+    for (const [id, label, role] of staff) {
+      await db.insert(staffUsers).values({ id, email: `${label}-${id}@example.invalid`, name: label, passwordHash: "not-used", role });
+    }
+    for (const [key, id] of [["manager", ids.manager], ["delegateOne", ids.delegateOne], ["delegateTwo", ids.delegateTwo], ["securityOfficer", ids.securityOfficer], ["securityMember", ids.securityMember]] as const) {
+      await db.insert(sessions).values({ userId: id, tokenHash: hashToken(tokens[key]), expiresAt: new Date(Date.now() + 60_000) });
+    }
+    const created = await fetch(`${baseUrl}/sync/families`, {
+      method: "POST",
+      headers: { ...headers("delegateOne"), "Idempotency-Key": randomUUID() },
+      body: JSON.stringify({
+        campId, sectorId, headName: "أسرة اختبار العزل", delegateId: ids.delegateOne,
+        members: [{ fullName: "عضو اختبار", gender: "OTHER", relationship: "رب الأسرة", criticalCase: true }],
+      }),
+    });
+    assert.equal(created.status, 201);
+    const family = await created.json() as { id: string; version: number; status: string };
+    familyId = family.id;
+    assert.equal(family.status, "PENDING_APPROVAL");
+    const hidden = await fetch(`${baseUrl}/sync/families`, { headers: headers("delegateTwo") });
+    assert.equal(hidden.status, 200);
+    assert(!(await hidden.text()).includes(family.id), "delegate must not see another delegate's family");
+    const approved = await fetch(`${baseUrl}/sync/families/${family.id}/approve`, {
+      method: "PATCH", headers: { ...headers("manager"), "Idempotency-Key": randomUUID() }, body: "{}",
+    });
+    assert.equal(approved.status, 200);
+    const need = await fetch(`${baseUrl}/sync/needs`, {
+      method: "POST", headers: { ...headers("delegateOne"), "Idempotency-Key": randomUUID() },
+      body: JSON.stringify({ familyId: family.id, category: "MEDICAL", title: "احتياج اختبار", priority: "CRITICAL" }),
+    });
+    assert.equal(need.status, 201);
+    const needRecord = await need.json() as { id: string; version: number };
+    needId = needRecord.id;
+    const archivedNeed = await fetch(`${baseUrl}/sync/needs/${needRecord.id}/archive`, {
+      method: "PATCH", headers: { ...headers("manager"), "Idempotency-Key": randomUUID() },
+      body: JSON.stringify({ expectedVersion: needRecord.version }),
+    });
+    assert.equal(archivedNeed.status, 200);
+    const deniedNeed = await fetch(`${baseUrl}/sync/needs`, {
+      method: "POST", headers: { ...headers("delegateTwo"), "Idempotency-Key": randomUUID() },
+      body: JSON.stringify({ familyId: family.id, category: "FOOD", title: "تسريب اختبار", priority: "LOW" }),
+    });
+    assert.equal(deniedNeed.status, 404);
+    const hiddenFamiliesForSecurity = await fetch(`${baseUrl}/sync/families`, { headers: headers("securityMember") });
+    assert.equal(hiddenFamiliesForSecurity.status, 403);
+    const shelterCode = `IT-${randomUUID().slice(0, 8)}`;
+    const createdShelter = await fetch(`${baseUrl}/sync/shelters`, {
+      method: "POST", headers: { ...headers("manager"), "Idempotency-Key": randomUUID() },
+      body: JSON.stringify({ sectorId, code: shelterCode, capacity: 2 }),
+    });
+    assert.equal(createdShelter.status, 201);
+    const shelter = await createdShelter.json() as { id: string; version: number };
+    shelterId = shelter.id;
+    const updatedShelter = await fetch(`${baseUrl}/sync/shelters/${shelter.id}`, {
+      method: "PATCH", headers: headers("manager"),
+      body: JSON.stringify({ capacity: 3, expectedVersion: shelter.version }),
+    });
+    assert.equal(updatedShelter.status, 200);
+    const archivedShelter = await fetch(`${baseUrl}/sync/shelters/${shelter.id}/archive`, {
+      method: "PATCH", headers: headers("manager"),
+      body: JSON.stringify({ expectedVersion: shelter.version + 1 }),
+    });
+    assert.equal(archivedShelter.status, 200);
+    await db.insert(tasks).values({
+      id: ids.task, title: "مهمة اختبار", description: "نتيجة اختبار", location: "القطاع الشمالي",
+      assignedToId: ids.securityMember, createdById: ids.manager,
+    });
+    const memberTasks = await fetch(`${baseUrl}/sync/tasks`, { headers: headers("securityMember") });
+    assert.equal(memberTasks.status, 200);
+    assert((await memberTasks.text()).includes(ids.task));
+    const submitted = await fetch(`${baseUrl}/sync/tasks/${ids.task}/submit`, {
+      method: "PATCH", headers: { ...headers("securityMember"), "Idempotency-Key": randomUUID() },
+      body: JSON.stringify({ result: "تم التنفيذ", expectedVersion: 1 }),
+    });
+    assert.equal(submitted.status, 200);
+    const completion = await fetch(`${baseUrl}/sync/tasks/${ids.task}/approve`, {
+      method: "PATCH", headers: { ...headers("securityOfficer"), "Idempotency-Key": randomUUID() },
+      body: JSON.stringify({ expectedVersion: 2 }),
+    });
+    assert.equal(completion.status, 200);
+  } finally {
+    if (familyId) {
+      if (needId) await db.delete(needStatusHistoryTable).where(eq(needStatusHistoryTable.needId, needId));
+      await db.delete(familyAssignmentHistoryTable).where(eq(familyAssignmentHistoryTable.familyId, familyId));
+      await db.delete(familyNeedsTable).where(eq(familyNeedsTable.familyId, familyId));
+      await db.delete(familyMembersTable).where(eq(familyMembersTable.familyId, familyId));
+      await db.delete(familiesTable).where(eq(familiesTable.id, familyId));
+    }
+    if (shelterId) await db.delete(shelterUnitsTable).where(eq(shelterUnitsTable.id, shelterId));
+    await db.delete(tasks).where(eq(tasks.id, ids.task));
+    for (const id of Object.values(ids)) {
+      if (id === ids.family || id === ids.task) continue;
+      await db.delete(idempotencyKeys).where(eq(idempotencyKeys.userId, id));
+      await db.delete(sessions).where(eq(sessions.userId, id));
+      await db.delete(syncAuditEvents).where(eq(syncAuditEvents.actorStaffId, id));
+      await db.delete(staffUsers).where(eq(staffUsers.id, id));
+    }
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
 });

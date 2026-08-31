@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { aidRecipientsTable, aidsTable, complaintsTable, contentPostsTable, db, displacedPersonsTable, notificationsTable, securityTaskAssigneesTable, securityTasksTable, usersTable } from "@workspace/db";
+import { aidRecipientsTable, aidsTable, complaintsTable, contentPostsTable, db, displacedPersonsTable, familiesTable, notificationsTable, securityTaskAssigneesTable, securityTasksTable, usersTable } from "@workspace/db";
 import { hashPassword } from "./security";
 import { logger } from "./logger";
 
@@ -158,6 +158,12 @@ export function seedDevelopmentData(): Promise<void> {
       familyNumber: 3, tentName: "د-21", previousResidence: "بلدة بيت حانون",
       healthNotes: "يحتاج إلى أدوية منتظمة للضغط.",
     });
+    await db.update(familiesTable)
+      .set({ headLegacyUserId: residentOne.id })
+      .where(eq(familiesTable.headName, "أمينة يوسف العطار"));
+    await db.update(familiesTable)
+      .set({ headLegacyUserId: residentTwo.id })
+      .where(eq(familiesTable.headName, "خالد محمد أبو عودة"));
 
     const aidOne = await addAid(manager.id, {
       title: "طرود غذائية عائلية",

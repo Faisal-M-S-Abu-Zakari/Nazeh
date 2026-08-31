@@ -26,7 +26,7 @@ import { z } from "zod"
 
 import 
 {
- aidRecipientsTable, aidsTable, auditEventsTable, complaintsTable, contactRequestsTable, contentPostsTable, db, displacedPersonsTable, mediaReferencesTable, notificationsTable, securityTaskAssigneesTable, securityTasksTable, sessionsTable, usersTable 
+ aidRecipientsTable, aidsTable, auditEventsTable, complaintsTable, contactRequestsTable, contentPostsTable, db, displacedPersonsTable, familyMembersTable, familyNeedsTable, familiesTable, mediaReferencesTable, needStatusHistoryTable, notificationsTable, securityTaskAssigneesTable, securityTasksTable, sessionsTable, usersTable
 }
  from "@workspace/db"
 ;
@@ -194,8 +194,59 @@ const id = (req: Request, res: Response, schema: any) => parse<any>(schema, req.
 const manager = requireRoles("manager")
 ;
 
+const FamilyHeadNeedBody = z.object({
+  category: z.enum(["FOOD", "WATER", "MEDICAL", "SHELTER", "HYGIENE", "OTHER"]),
+  title: z.string().min(2).max(240),
+  description: z.string().max(5000).optional(),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).default("MEDIUM"),
+});
+
 const displacedScope = (req: Request) => req.authUser!.role === "MANAGER" ? undefined : req.authUser!.role === "DELEGATE" ? eq(displacedPersonsTable.delegateUserId, req.authUser!.id) : req.authUser!.role === "DISPLACED" ? eq(displacedPersonsTable.userId, req.authUser!.id) : sql`false`
 ;
+
+const familyHeadScope = (req: Request) => and(
+  eq(familiesTable.headLegacyUserId, req.authUser!.id),
+  eq(familiesTable.status, "ACTIVE"),
+  isNull(familiesTable.archivedAt),
+);
+
+router.get("/family/me", requireRoles("displaced"), async (req, res): Promise<void> => {
+  const [family] = await db.select().from(familiesTable).where(familyHeadScope(req)).limit(1);
+  if (!family) { res.status(404).json({ error: "Active family record not found" }); return; }
+  const members = await db.select().from(familyMembersTable).where(eq(familyMembersTable.familyId, family.id));
+  res.json({ ...family, members });
+});
+
+router.get("/family/me/needs", requireRoles("displaced"), async (req, res): Promise<void> => {
+  const [family] = await db.select({ id: familiesTable.id }).from(familiesTable).where(familyHeadScope(req)).limit(1);
+  if (!family) { res.status(404).json({ error: "Active family record not found" }); return; }
+  const needs = await db.select().from(familyNeedsTable).where(and(eq(familyNeedsTable.familyId, family.id), isNull(familyNeedsTable.archivedAt))).orderBy(desc(familyNeedsTable.createdAt));
+  res.json(needs);
+});
+
+router.post("/family/me/needs", requireRoles("displaced"), async (req, res): Promise<void> => {
+  const body = parse<any>(FamilyHeadNeedBody, req.body, res);
+  if (!body) return;
+  const result = await db.transaction(async (tx) => {
+    const [family] = await tx.select({ id: familiesTable.id }).from(familiesTable).where(familyHeadScope(req)).limit(1);
+    if (!family) return { status: 404, body: { error: "Active family record not found" } };
+    const [need] = await tx.insert(familyNeedsTable).values({
+      familyId: family.id,
+      category: body.category,
+      title: body.title,
+      description: body.description ?? null,
+      priority: body.priority,
+      createdByLegacyUserId: req.authUser!.id,
+    }).returning();
+    await tx.insert(needStatusHistoryTable).values({
+      needId: need.id,
+      toStatus: "REQUIRED",
+      changedByLegacyUserId: req.authUser!.id,
+    });
+    return { status: 201, body: need };
+  });
+  res.status(result.status).json(result.body);
+});
 
 
 router.post("/auth/login", async (req, res): Promise<void> => 
