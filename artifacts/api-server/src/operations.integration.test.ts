@@ -13,15 +13,18 @@ import {
   familyAssignmentHistoryTable,
   idempotencyKeys,
   sessions,
+  sessionsTable,
   staffUsers,
   syncAuditEvents,
   tasks,
   needStatusHistoryTable,
   campsTable,
   shelterUnitsTable,
+  usersTable,
 } from "@workspace/db";
 import app from "./app";
 import { hashToken } from "./middlewares/auth";
+import { hashPassword } from "./lib/security";
 
 test("idempotent response-loss retries and optimistic status conflicts", async () => {
   const server = app.listen(0, "127.0.0.1");
@@ -266,6 +269,205 @@ test("family workflow stays isolated and security completion requires approval",
       await db.delete(syncAuditEvents).where(eq(syncAuditEvents.actorStaffId, id));
       await db.delete(staffUsers).where(eq(staffUsers.id, id));
     }
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("displaced family-head access stays linked to the authenticated active family", async () => {
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise<void>((resolve, reject) => { server.once("listening", resolve); server.once("error", reject); });
+  const address = server.address();
+  assert(address && typeof address === "object");
+  const baseUrl = `http://127.0.0.1:${address.port}/api`;
+  const password = "FamilyHeadTest2026!";
+  const userEmail = `family-head-${randomUUID()}@example.invalid`;
+  const otherUserEmail = `other-family-head-${randomUUID()}@example.invalid`;
+  const campId = randomUUID();
+  const sectorId = randomUUID();
+  const familyId = randomUUID();
+  const otherFamilyId = randomUUID();
+  const archivedFamilyId = randomUUID();
+  const existingNeedId = randomUUID();
+  let userId: number | undefined;
+  let otherUserId: number | undefined;
+  let token: string | undefined;
+
+  try {
+    const passwordHash = await hashPassword(password);
+    const [user] = await db.insert(usersTable).values({
+      email: userEmail,
+      passwordHash,
+      role: "DISPLACED",
+      rank: "DISPLACED",
+      name: "Family head integration",
+      identity: `family-head-${randomUUID()}`,
+    }).returning({ id: usersTable.id });
+    userId = user.id;
+    const [otherUser] = await db.insert(usersTable).values({
+      email: otherUserEmail,
+      passwordHash,
+      role: "DISPLACED",
+      rank: "DISPLACED",
+      name: "Other family head integration",
+      identity: `other-family-head-${randomUUID()}`,
+    }).returning({ id: usersTable.id });
+    otherUserId = otherUser.id;
+
+    await db.insert(campsTable).values({ id: campId, name: "Family-head integration camp" });
+    await db.insert(campSectorsTable).values({ id: sectorId, campId, name: "Family-head integration sector" });
+    await db.insert(familiesTable).values([
+      {
+        id: familyId,
+        campId,
+        sectorId,
+        headName: "Family head integration",
+        headLegacyUserId: userId,
+        status: "ACTIVE",
+      },
+      {
+        id: otherFamilyId,
+        campId,
+        sectorId,
+        headName: "Other family head integration",
+        headLegacyUserId: otherUserId,
+        status: "ACTIVE",
+      },
+      {
+        id: archivedFamilyId,
+        campId,
+        sectorId,
+        headName: "Archived family head integration",
+        headLegacyUserId: userId,
+        status: "ARCHIVED",
+        archivedAt: new Date(),
+      },
+    ]);
+    await db.insert(familyMembersTable).values([
+      {
+        familyId,
+        fullName: "Visible linked member",
+        gender: "OTHER",
+        relationship: "Child",
+      },
+      {
+        familyId: otherFamilyId,
+        fullName: "Private other-family member",
+        gender: "OTHER",
+        relationship: "Child",
+      },
+    ]);
+    await db.insert(familyNeedsTable).values({
+      id: existingNeedId,
+      familyId,
+      category: "MEDICAL",
+      title: "Existing linked need",
+      priority: "HIGH",
+      status: "REQUIRED",
+      createdByLegacyUserId: userId,
+    });
+    await db.insert(familyNeedsTable).values({
+      familyId: otherFamilyId,
+      category: "FOOD",
+      title: "Private other-family need",
+      priority: "CRITICAL",
+      status: "REQUIRED",
+      createdByLegacyUserId: otherUserId,
+    });
+
+    const login = await fetch(`${baseUrl}/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: userEmail, password, role: "displaced" }),
+    });
+    assert.equal(login.status, 200);
+    const loginBody = await login.json() as { token: string; user: { id: number; role: string } };
+    token = loginBody.token;
+    assert.equal(loginBody.user.id, userId);
+    assert.equal(loginBody.user.role, "displaced");
+    const headers = {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+    };
+
+    const familyResponse = await fetch(`${baseUrl}/family/me`, { headers });
+    assert.equal(familyResponse.status, 200);
+    const familyBody = await familyResponse.json() as {
+      id: string;
+      status: string;
+      members: Array<{ fullName: string }>;
+    };
+    assert.equal(familyBody.id, familyId);
+    assert.equal(familyBody.status, "ACTIVE");
+    assert.deepEqual(familyBody.members.map((member) => member.fullName), ["Visible linked member"]);
+    assert(!JSON.stringify(familyBody).includes(otherFamilyId));
+    assert(!JSON.stringify(familyBody).includes("Private other-family member"));
+
+    const needsResponse = await fetch(`${baseUrl}/family/me/needs`, { headers });
+    assert.equal(needsResponse.status, 200);
+    const needsBody = await needsResponse.json() as Array<{ id: string; familyId: string; title: string }>;
+    assert.deepEqual(needsBody.map((need) => need.familyId), [familyId]);
+    assert(needsBody.some((need) => need.id === existingNeedId && need.title === "Existing linked need"));
+    assert(!needsBody.some((need) => need.familyId === otherFamilyId));
+
+    const injectedNeedTitle = `Should stay linked ${randomUUID()}`;
+    const createdNeedResponse = await fetch(`${baseUrl}/family/me/needs`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        familyId: otherFamilyId,
+        category: "WATER",
+        title: injectedNeedTitle,
+        priority: "CRITICAL",
+      }),
+    });
+    assert.equal(createdNeedResponse.status, 201);
+    const createdNeed = await createdNeedResponse.json() as {
+      id: string;
+      familyId: string;
+      category: string;
+      status: string;
+      createdByLegacyUserId: number;
+    };
+    assert.equal(createdNeed.familyId, familyId);
+    assert.equal(createdNeed.category, "WATER");
+    assert.equal(createdNeed.status, "REQUIRED");
+    assert.equal(createdNeed.createdByLegacyUserId, userId);
+
+    const [storedNeed] = await db.select().from(familyNeedsTable).where(eq(familyNeedsTable.id, createdNeed.id));
+    assert.equal(storedNeed.familyId, familyId);
+    const history = await db.select().from(needStatusHistoryTable).where(eq(needStatusHistoryTable.needId, createdNeed.id));
+    assert.deepEqual(history.map((entry) => ({
+      needId: entry.needId,
+      toStatus: entry.toStatus,
+      changedByLegacyUserId: entry.changedByLegacyUserId,
+    })), [{
+      needId: createdNeed.id,
+      toStatus: "REQUIRED",
+      changedByLegacyUserId: userId,
+    }]);
+  } finally {
+    if (token) {
+      await db.delete(sessionsTable).where(eq(sessionsTable.tokenHash, hashToken(token)));
+    }
+    if (userId) {
+      await db.delete(needStatusHistoryTable).where(eq(needStatusHistoryTable.changedByLegacyUserId, userId));
+      await db.delete(familyNeedsTable).where(eq(familyNeedsTable.createdByLegacyUserId, userId));
+    }
+    if (otherUserId) {
+      await db.delete(familyNeedsTable).where(eq(familyNeedsTable.createdByLegacyUserId, otherUserId));
+    }
+    await db.delete(familyNeedsTable).where(eq(familyNeedsTable.familyId, familyId));
+    await db.delete(familyNeedsTable).where(eq(familyNeedsTable.familyId, otherFamilyId));
+    await db.delete(needStatusHistoryTable).where(eq(needStatusHistoryTable.needId, existingNeedId));
+    await db.delete(familyMembersTable).where(eq(familyMembersTable.familyId, familyId));
+    await db.delete(familyMembersTable).where(eq(familyMembersTable.familyId, otherFamilyId));
+    await db.delete(familiesTable).where(eq(familiesTable.id, familyId));
+    await db.delete(familiesTable).where(eq(familiesTable.id, otherFamilyId));
+    await db.delete(familiesTable).where(eq(familiesTable.id, archivedFamilyId));
+    if (userId) await db.delete(usersTable).where(eq(usersTable.id, userId));
+    if (otherUserId) await db.delete(usersTable).where(eq(usersTable.id, otherUserId));
+    await db.delete(campSectorsTable).where(eq(campSectorsTable.id, sectorId));
+    await db.delete(campsTable).where(eq(campsTable.id, campId));
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
 });
