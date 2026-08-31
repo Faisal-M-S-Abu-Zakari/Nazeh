@@ -282,6 +282,7 @@ test("displaced family-head access stays linked to the authenticated active fami
   const password = "FamilyHeadTest2026!";
   const userEmail = `family-head-${randomUUID()}@example.invalid`;
   const otherUserEmail = `other-family-head-${randomUUID()}@example.invalid`;
+  const unlinkedUserEmail = `unlinked-family-head-${randomUUID()}@example.invalid`;
   const campId = randomUUID();
   const sectorId = randomUUID();
   const familyId = randomUUID();
@@ -290,7 +291,9 @@ test("displaced family-head access stays linked to the authenticated active fami
   const existingNeedId = randomUUID();
   let userId: number | undefined;
   let otherUserId: number | undefined;
+  let unlinkedUserId: number | undefined;
   let token: string | undefined;
+  let unlinkedToken: string | undefined;
 
   try {
     const passwordHash = await hashPassword(password);
@@ -312,6 +315,15 @@ test("displaced family-head access stays linked to the authenticated active fami
       identity: `other-family-head-${randomUUID()}`,
     }).returning({ id: usersTable.id });
     otherUserId = otherUser.id;
+    const [unlinkedUser] = await db.insert(usersTable).values({
+      email: unlinkedUserEmail,
+      passwordHash,
+      role: "DISPLACED",
+      rank: "DISPLACED",
+      name: "Unlinked family head integration",
+      identity: `unlinked-family-head-${randomUUID()}`,
+    }).returning({ id: usersTable.id });
+    unlinkedUserId = unlinkedUser.id;
 
     await db.insert(campsTable).values({ id: campId, name: "Family-head integration camp" });
     await db.insert(campSectorsTable).values({ id: sectorId, campId, name: "Family-head integration sector" });
@@ -337,7 +349,7 @@ test("displaced family-head access stays linked to the authenticated active fami
         campId,
         sectorId,
         headName: "Archived family head integration",
-        headLegacyUserId: userId,
+        headLegacyUserId: unlinkedUserId,
         status: "ARCHIVED",
         archivedAt: new Date(),
       },
@@ -352,6 +364,12 @@ test("displaced family-head access stays linked to the authenticated active fami
       {
         familyId: otherFamilyId,
         fullName: "Private other-family member",
+        gender: "OTHER",
+        relationship: "Child",
+      },
+      {
+        familyId: archivedFamilyId,
+        fullName: "Archived-only family member",
         gender: "OTHER",
         relationship: "Child",
       },
@@ -372,6 +390,14 @@ test("displaced family-head access stays linked to the authenticated active fami
       priority: "CRITICAL",
       status: "REQUIRED",
       createdByLegacyUserId: otherUserId,
+    });
+    await db.insert(familyNeedsTable).values({
+      familyId: archivedFamilyId,
+      category: "SHELTER",
+      title: "Archived-only family need",
+      priority: "HIGH",
+      status: "REQUIRED",
+      createdByLegacyUserId: unlinkedUserId,
     });
 
     const login = await fetch(`${baseUrl}/auth/login`, {
@@ -445,9 +471,74 @@ test("displaced family-head access stays linked to the authenticated active fami
       toStatus: "REQUIRED",
       changedByLegacyUserId: userId,
     }]);
+
+    await db.update(usersTable).set({ active: false }).where(eq(usersTable.id, userId));
+    const inactiveFamilyResponse = await fetch(`${baseUrl}/family/me`, { headers });
+    assert.equal(inactiveFamilyResponse.status, 401);
+    const inactiveFamilyBody = await inactiveFamilyResponse.text();
+    assert(!inactiveFamilyBody.includes("Visible linked member"));
+    assert(!inactiveFamilyBody.includes("Existing linked need"));
+
+    const inactiveNeedsResponse = await fetch(`${baseUrl}/family/me/needs`, { headers });
+    assert.equal(inactiveNeedsResponse.status, 401);
+    const inactiveNeedsBody = await inactiveNeedsResponse.text();
+    assert(!inactiveNeedsBody.includes("Existing linked need"));
+
+    const inactiveCreateResponse = await fetch(`${baseUrl}/family/me/needs`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        category: "WATER",
+        title: `Must not be created ${randomUUID()}`,
+        priority: "CRITICAL",
+      }),
+    });
+    assert.equal(inactiveCreateResponse.status, 401);
+    const inactiveCreateBody = await inactiveCreateResponse.text();
+    assert(!inactiveCreateBody.includes("Must not be created"));
+
+    const unlinkedLogin = await fetch(`${baseUrl}/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: unlinkedUserEmail, password, role: "displaced" }),
+    });
+    assert.equal(unlinkedLogin.status, 200);
+    const unlinkedLoginBody = await unlinkedLogin.json() as { token: string };
+    unlinkedToken = unlinkedLoginBody.token;
+    const unlinkedHeaders = {
+      authorization: `Bearer ${unlinkedToken}`,
+      "content-type": "application/json",
+    };
+
+    const unlinkedFamilyResponse = await fetch(`${baseUrl}/family/me`, { headers: unlinkedHeaders });
+    assert.equal(unlinkedFamilyResponse.status, 404);
+    const unlinkedFamilyBody = await unlinkedFamilyResponse.text();
+    assert(!unlinkedFamilyBody.includes("Archived-only family member"));
+    assert(!unlinkedFamilyBody.includes("Archived-only family need"));
+
+    const unlinkedNeedsResponse = await fetch(`${baseUrl}/family/me/needs`, { headers: unlinkedHeaders });
+    assert.equal(unlinkedNeedsResponse.status, 404);
+    const unlinkedNeedsBody = await unlinkedNeedsResponse.text();
+    assert(!unlinkedNeedsBody.includes("Archived-only family need"));
+
+    const unlinkedCreateResponse = await fetch(`${baseUrl}/family/me/needs`, {
+      method: "POST",
+      headers: unlinkedHeaders,
+      body: JSON.stringify({
+        category: "FOOD",
+        title: `Must not be created without family ${randomUUID()}`,
+        priority: "HIGH",
+      }),
+    });
+    assert.equal(unlinkedCreateResponse.status, 404);
+    const unlinkedCreateBody = await unlinkedCreateResponse.text();
+    assert(!unlinkedCreateBody.includes("Must not be created without family"));
   } finally {
     if (token) {
       await db.delete(sessionsTable).where(eq(sessionsTable.tokenHash, hashToken(token)));
+    }
+    if (unlinkedToken) {
+      await db.delete(sessionsTable).where(eq(sessionsTable.tokenHash, hashToken(unlinkedToken)));
     }
     if (userId) {
       await db.delete(needStatusHistoryTable).where(eq(needStatusHistoryTable.changedByLegacyUserId, userId));
@@ -456,8 +547,12 @@ test("displaced family-head access stays linked to the authenticated active fami
     if (otherUserId) {
       await db.delete(familyNeedsTable).where(eq(familyNeedsTable.createdByLegacyUserId, otherUserId));
     }
+    if (unlinkedUserId) {
+      await db.delete(familyNeedsTable).where(eq(familyNeedsTable.createdByLegacyUserId, unlinkedUserId));
+    }
     await db.delete(familyNeedsTable).where(eq(familyNeedsTable.familyId, familyId));
     await db.delete(familyNeedsTable).where(eq(familyNeedsTable.familyId, otherFamilyId));
+    await db.delete(familyNeedsTable).where(eq(familyNeedsTable.familyId, archivedFamilyId));
     await db.delete(needStatusHistoryTable).where(eq(needStatusHistoryTable.needId, existingNeedId));
     await db.delete(familyMembersTable).where(eq(familyMembersTable.familyId, familyId));
     await db.delete(familyMembersTable).where(eq(familyMembersTable.familyId, otherFamilyId));
@@ -466,6 +561,7 @@ test("displaced family-head access stays linked to the authenticated active fami
     await db.delete(familiesTable).where(eq(familiesTable.id, archivedFamilyId));
     if (userId) await db.delete(usersTable).where(eq(usersTable.id, userId));
     if (otherUserId) await db.delete(usersTable).where(eq(usersTable.id, otherUserId));
+    if (unlinkedUserId) await db.delete(usersTable).where(eq(usersTable.id, unlinkedUserId));
     await db.delete(campSectorsTable).where(eq(campSectorsTable.id, sectorId));
     await db.delete(campsTable).where(eq(campsTable.id, campId));
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
