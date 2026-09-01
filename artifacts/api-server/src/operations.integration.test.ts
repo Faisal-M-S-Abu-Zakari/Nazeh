@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import {
   aids,
+  aidDistributionsTable,
   campSectorsTable,
   complaints,
   db,
@@ -269,6 +270,118 @@ test("family workflow stays isolated and security completion requires approval",
       await db.delete(syncAuditEvents).where(eq(syncAuditEvents.actorStaffId, id));
       await db.delete(staffUsers).where(eq(staffUsers.id, id));
     }
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("aid distributions link approved needs, prevent duplicate delivery, and record receipt", async () => {
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise<void>((resolve, reject) => { server.once("listening", resolve); server.once("error", reject); });
+  const address = server.address();
+  assert(address && typeof address === "object");
+  const baseUrl = `http://127.0.0.1:${address.port}/api`;
+  const managerId = randomUUID();
+  const delegateId = randomUUID();
+  const familyId = randomUUID();
+  const approvedNeedId = randomUUID();
+  const requiredNeedId = randomUUID();
+  const aidId = randomUUID();
+  const campId = randomUUID();
+  const sectorId = randomUUID();
+  const managerToken = `distribution-manager-${randomUUID()}`;
+  const delegateToken = `distribution-delegate-${randomUUID()}`;
+  const headers = (token: string) => ({
+    authorization: `Bearer ${token}`,
+    "content-type": "application/json",
+  });
+  try {
+    await db.insert(staffUsers).values([
+      { id: managerId, email: `${managerId}@example.invalid`, name: "Distribution manager", passwordHash: "not-used", role: "MANAGER" },
+      { id: delegateId, email: `${delegateId}@example.invalid`, name: "Distribution delegate", passwordHash: "not-used", role: "DELEGATE" },
+    ]);
+    await db.insert(sessions).values([
+      { userId: managerId, tokenHash: hashToken(managerToken), expiresAt: new Date(Date.now() + 60_000) },
+      { userId: delegateId, tokenHash: hashToken(delegateToken), expiresAt: new Date(Date.now() + 60_000) },
+    ]);
+    await db.insert(campsTable).values({ id: campId, name: "Distribution test camp" });
+    await db.insert(campSectorsTable).values({ id: sectorId, campId, name: "Distribution test sector" });
+    await db.insert(familiesTable).values({
+      id: familyId, campId, sectorId, headName: "Distribution test family",
+      delegateId, status: "ACTIVE",
+    });
+    await db.insert(familyNeedsTable).values([
+      { id: approvedNeedId, familyId, category: "FOOD", title: "Approved food", priority: "HIGH", status: "APPROVED", createdById: managerId },
+      { id: requiredNeedId, familyId, category: "WATER", title: "Unapproved water", priority: "HIGH", status: "REQUIRED", createdById: managerId },
+    ]);
+    await db.insert(aids).values({
+      id: aidId, title: "Distribution test aid", type: "FOOD", quantity: 10, unit: "parcel",
+      location: "Distribution test", distributionDate: "2030-01-01", createdById: managerId,
+    });
+
+    const assigned = await fetch(`${baseUrl}/sync/aids/${aidId}/distributions`, {
+      method: "POST",
+      headers: { ...headers(managerToken), "Idempotency-Key": randomUUID() },
+      body: JSON.stringify({ familyId, needId: approvedNeedId, quantity: 3 }),
+    });
+    assert.equal(assigned.status, 201);
+    const distribution = await assigned.json() as { id: string; status: string; executedById: string };
+    assert.equal(distribution.status, "ASSIGNED");
+    assert.equal(distribution.executedById, managerId);
+
+    const duplicate = await fetch(`${baseUrl}/sync/aids/${aidId}/distributions`, {
+      method: "POST",
+      headers: { ...headers(managerToken), "Idempotency-Key": randomUUID() },
+      body: JSON.stringify({ familyId, needId: approvedNeedId, quantity: 3 }),
+    });
+    assert.equal(duplicate.status, 409);
+
+    const unapproved = await fetch(`${baseUrl}/sync/aids/${aidId}/distributions`, {
+      method: "POST",
+      headers: { ...headers(managerToken), "Idempotency-Key": randomUUID() },
+      body: JSON.stringify({ familyId, needId: requiredNeedId, quantity: 1 }),
+    });
+    assert.equal(unapproved.status, 400);
+
+    const visibleToDelegate = await fetch(`${baseUrl}/sync/aids/${aidId}/distributions`, {
+      headers: headers(delegateToken),
+    });
+    assert.equal(visibleToDelegate.status, 200);
+    assert.equal((await visibleToDelegate.json() as unknown[]).length, 1);
+
+    const received = await fetch(`${baseUrl}/sync/distributions/${distribution.id}/receive`, {
+      method: "POST",
+      headers: { ...headers(delegateToken), "Idempotency-Key": randomUUID() },
+      body: "{}",
+    });
+    assert.equal(received.status, 200);
+    const receivedBody = await received.json() as { status: string; deliveredById: string; deliveredAt: string | null };
+    assert.equal(receivedBody.status, "RECEIVED");
+    assert.equal(receivedBody.deliveredById, delegateId);
+    assert(receivedBody.deliveredAt);
+
+    const repeatedReceipt = await fetch(`${baseUrl}/sync/distributions/${distribution.id}/receive`, {
+      method: "POST",
+      headers: { ...headers(delegateToken), "Idempotency-Key": randomUUID() },
+      body: "{}",
+    });
+    assert.equal(repeatedReceipt.status, 409);
+    const [need] = await db.select().from(familyNeedsTable).where(eq(familyNeedsTable.id, approvedNeedId));
+    assert.equal(need.status, "FULFILLED");
+    const auditRows = await db.select().from(syncAuditEvents).where(eq(syncAuditEvents.entityId, distribution.id));
+    assert(auditRows.some((row) => row.action === "DUPLICATE_ATTEMPT"));
+    assert(auditRows.some((row) => row.action === "DUPLICATE_RECEIVE_ATTEMPT"));
+  } finally {
+    await db.delete(aidDistributionsTable).where(eq(aidDistributionsTable.aidId, aidId));
+    await db.delete(needStatusHistoryTable).where(inArray(needStatusHistoryTable.needId, [approvedNeedId, requiredNeedId]));
+    await db.delete(familyNeedsTable).where(eq(familyNeedsTable.familyId, familyId));
+    await db.delete(aids).where(eq(aids.id, aidId));
+    await db.delete(syncAuditEvents).where(inArray(syncAuditEvents.actorStaffId, [managerId, delegateId]));
+    await db.delete(idempotencyKeys).where(inArray(idempotencyKeys.userId, [managerId, delegateId]));
+    await db.delete(sessions).where(inArray(sessions.userId, [managerId, delegateId]));
+    await db.delete(familiesTable).where(eq(familiesTable.id, familyId));
+    await db.delete(campSectorsTable).where(eq(campSectorsTable.id, sectorId));
+    await db.delete(campsTable).where(eq(campsTable.id, campId));
+    await db.delete(staffUsers).where(inArray(staffUsers.id, [managerId, delegateId]));
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
 });

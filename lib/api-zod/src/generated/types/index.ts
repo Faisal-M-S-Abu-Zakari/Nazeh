@@ -8,6 +8,10 @@
 
 export * from './actionResponse';
 export * from './aid';
+export * from './aidDistribution';
+export * from './aidDistributionInput';
+export * from './aidDistributionReceipt';
+export * from './aidDistributionStatus';
 export * from './aidInput';
 export * from './aidList';
 export * from './aidPage';

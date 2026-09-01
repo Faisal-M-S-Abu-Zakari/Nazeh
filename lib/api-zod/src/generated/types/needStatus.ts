@@ -11,6 +11,7 @@ export type NeedStatus = typeof NeedStatus[keyof typeof NeedStatus];
 
 export const NeedStatus = {
   REQUIRED: 'REQUIRED',
+  APPROVED: 'APPROVED',
   IN_PROGRESS: 'IN_PROGRESS',
   FULFILLED: 'FULFILLED',
   CANCELLED: 'CANCELLED',

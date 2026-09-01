@@ -617,6 +617,69 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
+  /sync/aids/{aidId}/distributions:
+    get:
+      operationId: listAidDistributions
+      tags: [aids]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: aidId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Family-linked aid distributions
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/AidDistribution" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: createAidDistribution
+      tags: [aids]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: aidId, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AidDistributionInput" }
+      responses:
+        "201":
+          description: Distribution assigned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AidDistribution" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/SimpleConflict" }
+  /sync/distributions/{distributionId}/receive:
+    post:
+      operationId: receiveAidDistribution
+      tags: [aids]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: distributionId, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: "#/components/parameters/OptionalIdempotencyKey"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AidDistributionReceipt" }
+      responses:
+        "200":
+          description: Distribution receipt recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AidDistribution" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/SimpleConflict" }
   /sync/people:
     get:
       operationId: listPeople
@@ -1805,7 +1868,41 @@ components:
         updatedAt: { type: string, format: date-time }
         archivedAt: { type: string, format: date-time, nullable: true }
         version: { type: integer, minimum: 1 }
+        distributionCount: { type: integer, minimum: 0 }
+        receivedDistributionCount: { type: integer, minimum: 0 }
       required: [id, title, type, quantity, unit, location, distributionDate, createdById, createdAt, updatedAt, version]
+    AidDistributionStatus:
+      type: string
+      enum: [ASSIGNED, RECEIVED, CANCELLED]
+    AidDistribution:
+      type: object
+      required: [id, aidId, needId, familyId, quantity, unit, status, executedById, deliveredById, deliveredAt, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        aidId: { type: string, format: uuid }
+        needId: { type: string, format: uuid }
+        familyId: { type: string, format: uuid }
+        quantity: { type: integer, minimum: 1 }
+        unit: { type: string }
+        status: { $ref: "#/components/schemas/AidDistributionStatus" }
+        executedById: { type: string, format: uuid }
+        deliveredById: { type: ["string", "null"], format: uuid }
+        deliveredAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AidDistributionInput:
+      type: object
+      additionalProperties: false
+      required: [needId, familyId, quantity]
+      properties:
+        needId: { type: string, format: uuid }
+        familyId: { type: string, format: uuid }
+        quantity: { type: integer, minimum: 1 }
+    AidDistributionReceipt:
+      type: object
+      additionalProperties: false
+      properties:
+        deliveredAt: { type: string, format: date-time }
     CreateAidRequest:
       type: object
       additionalProperties: false
@@ -1999,7 +2096,7 @@ components:
       enum: [FOOD, WATER, MEDICAL, SHELTER, HYGIENE, OTHER]
     NeedStatus:
       type: string
-      enum: [REQUIRED, IN_PROGRESS, FULFILLED, CANCELLED]
+      enum: [REQUIRED, APPROVED, IN_PROGRESS, FULFILLED, CANCELLED]
     NeedPriority:
       type: string
       enum: [LOW, MEDIUM, HIGH, CRITICAL]

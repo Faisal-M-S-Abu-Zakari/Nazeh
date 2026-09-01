@@ -76,6 +76,8 @@ export type Aid = AddAidFormValues & {
     apiType?: string;
     apiUnit?: string;
     apiDistributionDate?: string;
+    distribution_count?: number;
+    received_distribution_count?: number;
     selected_displaced_Ids: number[];
     selected_delegates_portions?: SelectedDelegatePortion[];
     received_displaceds: ReceivedDisplaceds[];

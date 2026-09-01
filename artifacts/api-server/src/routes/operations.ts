@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, sql, sum } from "drizzle-orm";
 import {
   ArchiveAidBody,
   ArchiveAidParams,
@@ -79,9 +79,18 @@ import {
   ApproveTaskBody,
   ApproveTaskParams,
   ApproveTaskResponse,
+  CreateAidDistributionBody,
+  CreateAidDistributionParams,
+  CreateAidDistributionResponse,
+  ListAidDistributionsParams,
+  ListAidDistributionsResponse,
+  ReceiveAidDistributionBody,
+  ReceiveAidDistributionParams,
+  ReceiveAidDistributionResponse,
 } from "@workspace/api-zod";
 import {
   aids,
+  aidDistributionsTable,
   complaints,
   db,
   people,
@@ -155,7 +164,29 @@ async function assigneeValidationError(
 
 router.get("/aids", allowRoles(...recordManagers), async (_req, res): Promise<void> => {
   const rows = await db
-    .select()
+    .select({
+      id: aids.id,
+      title: aids.title,
+      type: aids.type,
+      quantity: aids.quantity,
+      unit: aids.unit,
+      location: aids.location,
+      distributionDate: aids.distributionDate,
+      notes: aids.notes,
+      createdById: aids.createdById,
+      createdAt: aids.createdAt,
+      updatedAt: aids.updatedAt,
+      archivedAt: aids.archivedAt,
+      version: aids.version,
+      distributionCount: sql<number>`(
+        SELECT COUNT(*)::int FROM aid_distributions d
+        WHERE d.aid_id = ${aids.id} AND d.status <> 'CANCELLED'
+      )`,
+      receivedDistributionCount: sql<number>`(
+        SELECT COUNT(*)::int FROM aid_distributions d
+        WHERE d.aid_id = ${aids.id} AND d.status = 'RECEIVED'
+      )`,
+    })
     .from(aids)
     .where(isNull(aids.archivedAt))
     .orderBy(desc(aids.createdAt));
@@ -877,6 +908,200 @@ router.patch("/needs/:needId/archive", allowRoles(...familyApprovers), async (re
     if (!updated) return { statusCode: 404, responseBody: { error: "Need not found" } };
     await audit(tx, actorId, "ARCHIVE", "FAMILY_NEED", updated.id, { expectedVersion: body.expectedVersion });
     return { statusCode: 200, responseBody: ArchiveNeedResponse.parse(updated) };
+  }, { required: false });
+  if (result) res.status(result.statusCode).json(result.responseBody);
+});
+
+router.get("/aids/:aidId/distributions", allowRoles(...familyManagers, ...securityLeads), async (req, res): Promise<void> => {
+  const params = parseRequest(ListAidDistributionsParams, req.params, res);
+  if (!params) return;
+  const staff = res.locals["staff"] as { id: string; role: StaffRole };
+  const [aid] = await db.select({ id: aids.id }).from(aids).where(and(eq(aids.id, params.aidId), isNull(aids.archivedAt))).limit(1);
+  if (!aid) {
+    res.status(404).json({ error: "Aid not found" });
+    return;
+  }
+  const distributions = await db
+    .select({ distribution: aidDistributionsTable })
+    .from(aidDistributionsTable)
+    .innerJoin(familiesTable, eq(aidDistributionsTable.familyId, familiesTable.id))
+    .where(and(
+      eq(aidDistributionsTable.aidId, params.aidId),
+      isNull(familiesTable.archivedAt),
+      staff.role === "DELEGATE" ? eq(familiesTable.delegateId, staff.id) : undefined,
+    ))
+    .orderBy(desc(aidDistributionsTable.createdAt));
+  res.json(ListAidDistributionsResponse.parse(distributions.map(({ distribution }) => distribution)));
+});
+
+router.post("/aids/:aidId/distributions", allowRoles(...familyManagers), async (req, res): Promise<void> => {
+  const params = parseRequest(CreateAidDistributionParams, req.params, res);
+  const body = parseRequest(CreateAidDistributionBody, req.body, res);
+  if (!params || !body) return;
+  const actorId = res.locals["staff"].id as string;
+  const staff = res.locals["staff"] as { id: string; role: StaffRole };
+  const result = await withIdempotency<unknown>(req, res, `createAidDistribution:${params.aidId}`, async (tx) => {
+    const [aid] = await tx
+      .select()
+      .from(aids)
+      .where(and(eq(aids.id, params.aidId), isNull(aids.archivedAt)))
+      .limit(1);
+    if (!aid) return { statusCode: 404, responseBody: { error: "Aid not found" } };
+    const [need] = await tx
+      .select({ need: familyNeedsTable, family: familiesTable })
+      .from(familyNeedsTable)
+      .innerJoin(familiesTable, eq(familyNeedsTable.familyId, familiesTable.id))
+      .where(and(
+        eq(familyNeedsTable.id, body.needId),
+        eq(familyNeedsTable.familyId, body.familyId),
+        eq(familiesTable.id, body.familyId),
+        eq(familiesTable.status, "ACTIVE"),
+        isNull(familiesTable.archivedAt),
+        isNull(familyNeedsTable.archivedAt),
+      ))
+      .limit(1);
+    if (!need) return { statusCode: 404, responseBody: { error: "Active family or need not found" } };
+    if (need.need.status !== "APPROVED") {
+      return { statusCode: 400, responseBody: { error: "Only approved needs can receive an aid distribution" } };
+    }
+    if (staff.role === "DELEGATE" && need.family.delegateId !== actorId) {
+      return { statusCode: 404, responseBody: { error: "Active family or need not found" } };
+    }
+
+    const [existing] = await tx
+      .select()
+      .from(aidDistributionsTable)
+      .where(and(
+        eq(aidDistributionsTable.aidId, params.aidId),
+        eq(aidDistributionsTable.familyId, body.familyId),
+      ))
+      .limit(1);
+    if (existing) {
+      await audit(tx, actorId, "DUPLICATE_ATTEMPT", "AID_DISTRIBUTION", existing.id, {
+        aidId: params.aidId,
+        familyId: body.familyId,
+        needId: body.needId,
+      });
+      return {
+        statusCode: 409,
+        responseBody: { error: "This family already has a distribution in this aid cycle", distributionId: existing.id },
+      };
+    }
+
+    const [assigned] = await tx
+      .select({ quantity: sum(aidDistributionsTable.quantity) })
+      .from(aidDistributionsTable)
+      .where(and(
+        eq(aidDistributionsTable.aidId, params.aidId),
+        inArray(aidDistributionsTable.status, ["ASSIGNED", "RECEIVED"]),
+      ));
+    const assignedQuantity = Number(assigned?.quantity ?? 0);
+    if (assignedQuantity + body.quantity > aid.quantity) {
+      return { statusCode: 400, responseBody: { error: "Aid quantity is insufficient for this distribution" } };
+    }
+
+    const [created] = await tx.insert(aidDistributionsTable).values({
+      aidId: params.aidId,
+      needId: body.needId,
+      familyId: body.familyId,
+      quantity: body.quantity,
+      unit: aid.unit,
+      executedById: actorId,
+    }).onConflictDoNothing({
+      target: [aidDistributionsTable.aidId, aidDistributionsTable.familyId],
+    }).returning();
+    if (!created) {
+      const [concurrent] = await tx.select({ id: aidDistributionsTable.id })
+        .from(aidDistributionsTable)
+        .where(and(eq(aidDistributionsTable.aidId, params.aidId), eq(aidDistributionsTable.familyId, body.familyId)))
+        .limit(1);
+      if (concurrent) {
+        await audit(tx, actorId, "DUPLICATE_ATTEMPT", "AID_DISTRIBUTION", concurrent.id, {
+          aidId: params.aidId,
+          familyId: body.familyId,
+          needId: body.needId,
+          concurrent: true,
+        });
+      }
+      return { statusCode: 409, responseBody: { error: "This family already has a distribution in this aid cycle" } };
+    }
+    await audit(tx, actorId, "ASSIGN", "AID_DISTRIBUTION", created.id, {
+      aidId: params.aidId,
+      needId: body.needId,
+      familyId: body.familyId,
+      quantity: body.quantity,
+    });
+    return { statusCode: 201, responseBody: CreateAidDistributionResponse.parse(created) };
+  });
+  if (result) res.status(result.statusCode).json(result.responseBody);
+});
+
+router.post("/distributions/:distributionId/receive", allowRoles(...familyManagers, ...securityLeads), async (req, res): Promise<void> => {
+  const params = parseRequest(ReceiveAidDistributionParams, req.params, res);
+  const body = parseRequest(ReceiveAidDistributionBody, req.body ?? {}, res);
+  if (!params || !body) return;
+  const actorId = res.locals["staff"].id as string;
+  const staff = res.locals["staff"] as { id: string; role: StaffRole };
+  const result = await withIdempotency<unknown>(req, res, `receiveAidDistribution:${params.distributionId}`, async (tx) => {
+    const [current] = await tx
+      .select({ distribution: aidDistributionsTable, family: familiesTable, need: familyNeedsTable })
+      .from(aidDistributionsTable)
+      .innerJoin(familiesTable, eq(aidDistributionsTable.familyId, familiesTable.id))
+      .innerJoin(familyNeedsTable, eq(aidDistributionsTable.needId, familyNeedsTable.id))
+      .where(eq(aidDistributionsTable.id, params.distributionId))
+      .limit(1);
+    if (!current || current.family.status !== "ACTIVE" || current.family.archivedAt) {
+      return { statusCode: 404, responseBody: { error: "Distribution not found" } };
+    }
+    if (staff.role === "DELEGATE" && current.family.delegateId !== actorId) {
+      return { statusCode: 404, responseBody: { error: "Distribution not found" } };
+    }
+    if (current.distribution.status !== "ASSIGNED") {
+      await audit(tx, actorId, "DUPLICATE_RECEIVE_ATTEMPT", "AID_DISTRIBUTION", current.distribution.id, {
+        currentStatus: current.distribution.status,
+      });
+      return { statusCode: 409, responseBody: { error: "This distribution has already been processed", status: current.distribution.status } };
+    }
+
+    const [updated] = await tx.update(aidDistributionsTable).set({
+      status: "RECEIVED",
+      deliveredById: actorId,
+      deliveredAt: body.deliveredAt ?? new Date(),
+      updatedAt: new Date(),
+    }).where(and(
+      eq(aidDistributionsTable.id, params.distributionId),
+      eq(aidDistributionsTable.status, "ASSIGNED"),
+    )).returning();
+    if (!updated) {
+      return { statusCode: 409, responseBody: { error: "This distribution has already been processed" } };
+    }
+    if (current.need.status !== "FULFILLED" && current.need.status !== "CANCELLED") {
+      const [fulfilledNeed] = await tx.update(familyNeedsTable).set({
+        status: "FULFILLED",
+        fulfilledAt: updated.deliveredAt,
+        version: sql`${familyNeedsTable.version} + 1`,
+        updatedAt: new Date(),
+      }).where(and(
+        eq(familyNeedsTable.id, current.need.id),
+        isNull(familyNeedsTable.archivedAt),
+      )).returning();
+      if (fulfilledNeed) {
+        await tx.insert(needStatusHistoryTable).values({
+          needId: fulfilledNeed.id,
+          fromStatus: current.need.status,
+          toStatus: "FULFILLED",
+          changedById: actorId,
+          note: "Aid distribution received",
+        });
+      }
+    }
+    await audit(tx, actorId, "RECEIVE", "AID_DISTRIBUTION", updated.id, {
+      aidId: updated.aidId,
+      familyId: updated.familyId,
+      needId: updated.needId,
+      deliveredAt: updated.deliveredAt,
+    });
+    return { statusCode: 200, responseBody: ReceiveAidDistributionResponse.parse(updated) };
   }, { required: false });
   if (result) res.status(result.statusCode).json(result.responseBody);
 });

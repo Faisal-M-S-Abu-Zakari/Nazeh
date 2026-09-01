@@ -26,7 +26,7 @@ import { z } from "zod"
 
 import 
 {
-  aidRecipientsTable, aidsTable, auditEventsTable, campsTable, campSectorsTable, complaintsTable, contactRequestsTable, contentPostsTable, db, displacedPersonsTable, familyMembersTable, familyNeedsTable, familiesTable, mediaReferencesTable, needStatusHistoryTable, notificationsTable, securityTaskAssigneesTable, securityTasksTable, sessionsTable, shelterUnitsTable, staffUsers, usersTable
+  aidRecipientsTable, aidsTable, aids as syncAids, aidDistributionsTable, auditEventsTable, campsTable, campSectorsTable, complaintsTable, contactRequestsTable, contentPostsTable, db, displacedPersonsTable, familyMembersTable, familyNeedsTable, familiesTable, mediaReferencesTable, needStatusHistoryTable, notificationsTable, securityTaskAssigneesTable, securityTasksTable, sessionsTable, shelterUnitsTable, staffUsers, usersTable
 }
  from "@workspace/db"
 ;
@@ -264,6 +264,28 @@ router.get("/family/me/needs", requireRoles("displaced"), async (req, res): Prom
     history: history.filter((entry) => entry.needId === need.id),
     clientRequestId: undefined,
   })));
+});
+
+router.get("/family/me/aid-distributions", requireRoles("displaced"), async (req, res): Promise<void> => {
+  const [family] = await db
+    .select({ id: familiesTable.id })
+    .from(familiesTable)
+    .where(familyHeadScope(req))
+    .limit(1);
+  if (!family) { res.status(404).json({ error: "Active family record not found" }); return; }
+  const rows = await db
+    .select({ distribution: aidDistributionsTable, aid: syncAids, need: familyNeedsTable, executedBy: staffUsers })
+    .from(aidDistributionsTable)
+    .innerJoin(syncAids, eq(aidDistributionsTable.aidId, syncAids.id))
+    .innerJoin(familyNeedsTable, eq(aidDistributionsTable.needId, familyNeedsTable.id))
+    .innerJoin(staffUsers, eq(aidDistributionsTable.executedById, staffUsers.id))
+    .where(and(
+      eq(aidDistributionsTable.familyId, family.id),
+      isNull(syncAids.archivedAt),
+      isNull(familyNeedsTable.archivedAt),
+    ))
+    .orderBy(desc(aidDistributionsTable.createdAt));
+  res.json(rows);
 });
 
 router.post("/family/me/needs", requireRoles("displaced"), async (req, res): Promise<void> => {

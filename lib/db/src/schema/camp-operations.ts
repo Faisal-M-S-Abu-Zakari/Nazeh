@@ -37,6 +37,7 @@ export const needCategoryEnum = pgEnum("need_category", [
 ]);
 export const needStatusEnum = pgEnum("need_status", [
   "REQUIRED",
+  "APPROVED",
   "IN_PROGRESS",
   "FULFILLED",
   "CANCELLED",

@@ -598,8 +598,13 @@ export interface Aid {
   archivedAt?: string | null;
   /** @minimum 1 */
   version: number;
+  /** @minimum 0 */
+  distributionCount?: number;
+  /** @minimum 0 */
+  receivedDistributionCount?: number;
 }
 
+export type AidDistributionStatus = typeof AidDistributionStatus[keyof typeof AidDistributionStatus];
 export interface CreateAidRequest {
   /**
      * @minLength 2
@@ -910,6 +915,7 @@ export type NeedStatus = typeof NeedStatus[keyof typeof NeedStatus];
 
 export const NeedStatus = {
   REQUIRED: 'REQUIRED',
+  APPROVED: 'APPROVED',
   IN_PROGRESS: 'IN_PROGRESS',
   FULFILLED: 'FULFILLED',
   CANCELLED: 'CANCELLED',
@@ -1502,3 +1508,38 @@ page?: PageParameter;
 limit?: LimitParameter;
 };
 
+
+export interface AidDistribution {
+  id: string;
+  aidId: string;
+  needId: string;
+  familyId: string;
+  /** @minimum 1 */
+  quantity: number;
+  unit: string;
+  status: AidDistributionStatus;
+  executedById: string;
+  /** @nullable */
+  deliveredById: string | null;
+  /** @nullable */
+  deliveredAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AidDistributionInput {
+  needId: string;
+  familyId: string;
+  /** @minimum 1 */
+  quantity: number;
+}
+
+export interface AidDistributionReceipt {
+  deliveredAt?: string;
+}
+
+export const AidDistributionStatus = {
+  ASSIGNED: 'ASSIGNED',
+  RECEIVED: 'RECEIVED',
+  CANCELLED: 'CANCELLED',
+} as const;

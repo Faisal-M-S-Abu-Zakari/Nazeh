@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   approveFamily,
   approveTask,
+  createAidDistribution,
   createFamily,
   createNeed,
   getListCampsQueryKey,
@@ -14,11 +15,16 @@ import {
   getListSheltersQueryKey,
   getListTasksQueryKey,
   getListSecurityMembersQueryKey,
+  getListAidDistributionsQueryKey,
+  getListAidsQueryKey,
+  receiveAidDistribution,
   submitTask,
   updateFamily,
   updateNeed,
   useListCamps,
   useListFamilies,
+  useListAidDistributions,
+  useListAids,
   useListNeeds,
   useListSecurityMembers,
   useListShelters,
@@ -41,9 +47,12 @@ const labels: Record<string, string> = {
   ACTIVE: 'نشطة',
   ARCHIVED: 'مؤرشفة',
   REQUIRED: 'مطلوب',
+  APPROVED: 'معتمد',
   IN_PROGRESS: 'قيد المعالجة',
   FULFILLED: 'منفّذ',
   CANCELLED: 'ملغى',
+  ASSIGNED: 'مسند للتسليم',
+  RECEIVED: 'تم الاستلام',
   CRITICAL: 'حرج',
   HIGH: 'عالي',
   MEDIUM: 'متوسط',
@@ -71,6 +80,10 @@ export default function OperationsDashboard() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [selectedFamily, setSelectedFamily] = useState('');
+  const [distributionAidId, setDistributionAidId] = useState('');
+  const [distributionFamilyId, setDistributionFamilyId] = useState('');
+  const [distributionNeedId, setDistributionNeedId] = useState('');
+  const [distributionQuantity, setDistributionQuantity] = useState('1');
   const [headName, setHeadName] = useState('');
   const [needTitle, setNeedTitle] = useState('');
   const [members, setMembers] = useState<FamilyMemberInput[]>([]);
@@ -96,6 +109,13 @@ export default function OperationsDashboard() {
   const shelters = useListShelters({ query: { queryKey: getListSheltersQueryKey(), enabled: canManageFamilies || isSecurityOfficer } });
   const families = useListFamilies({ query: { queryKey: getListFamiliesQueryKey(), enabled: canManageFamilies } });
   const needs = useListNeeds({ query: { queryKey: getListNeedsQueryKey(), enabled: canManageFamilies || isSecurityOfficer } });
+  const aids = useListAids({ query: { queryKey: getListAidsQueryKey(), enabled: canManageFamilies } });
+  const distributions = useListAidDistributions(distributionAidId, {
+    query: {
+      queryKey: getListAidDistributionsQueryKey(distributionAidId),
+      enabled: canManageFamilies && Boolean(distributionAidId),
+    },
+  });
   const tasks = useListTasks({ query: { queryKey: getListTasksQueryKey(), enabled: isSecurity } });
   const securityMembers = useListSecurityMembers({ query: { queryKey: getListSecurityMembersQueryKey(), enabled: isSecurityOfficer } });
 
@@ -138,6 +158,32 @@ export default function OperationsDashboard() {
     mutationFn: ({ id, data }: { id: string; data: { status: NeedStatus; expectedVersion: number } }) =>
       updateNeed(id, data, { headers: { 'Idempotency-Key': crypto.randomUUID() } }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: getListNeedsQueryKey() }),
+  });
+  const assignDistributionMutation = useMutation({
+    mutationFn: () => createAidDistribution(
+      distributionAidId,
+      {
+        familyId: distributionFamilyId,
+        needId: distributionNeedId,
+        quantity: Number(distributionQuantity),
+      },
+      { headers: { 'Idempotency-Key': crypto.randomUUID() } },
+    ),
+    onSuccess: () => {
+      setNotice('تم ربط المساعدة بالأسرة وتسجيل عملية التوزيع.');
+      queryClient.invalidateQueries({ queryKey: getListAidDistributionsQueryKey(distributionAidId) });
+      queryClient.invalidateQueries({ queryKey: getListNeedsQueryKey() });
+      setDistributionNeedId('');
+    },
+  });
+  const receiveDistributionMutation = useMutation({
+    mutationFn: (distributionId: string) =>
+      receiveAidDistribution(distributionId, {}, { headers: { 'Idempotency-Key': crypto.randomUUID() } }),
+    onSuccess: () => {
+      setNotice('تم تسجيل الاستلام مع الوقت والمنفذ.');
+      queryClient.invalidateQueries({ queryKey: getListAidDistributionsQueryKey(distributionAidId) });
+      queryClient.invalidateQueries({ queryKey: getListNeedsQueryKey() });
+    },
   });
   const submitTaskMutation = useMutation({
     mutationFn: ({ id, data, idempotencyKey }: { id: string; data: TaskSubmission; idempotencyKey: string }) =>
@@ -335,7 +381,41 @@ export default function OperationsDashboard() {
             <CardHeader><CardTitle className="flex items-center gap-2"><ClipboardList className="size-5 text-teal-700" />طلبات الاحتياج</CardTitle></CardHeader>
             <CardContent>
               {needs.isLoading ? <LoadingState /> : (needs.data ?? []).length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">لا توجد طلبات احتياج.</p> :
-                <div className="space-y-3">{(needs.data ?? []).map((need) => <div key={need.id} className="flex flex-col gap-3 rounded-xl border bg-white p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">{need.title}</p><p className="mt-1 text-sm text-muted-foreground">الأولوية: {labels[need.priority]} · الأسرة: #{need.familyId.slice(0, 8)}</p></div><div className="flex items-center gap-2"><Badge variant={statusVariant(need.status) as 'default' | 'secondary' | 'outline'}>{labels[need.status]}</Badge>{need.status !== 'FULFILLED' && <select className="h-8 rounded-md border bg-transparent px-2 text-xs" value={need.status} onChange={(event) => changeNeedMutation.mutate({ id: need.id, data: { status: event.target.value as NeedStatus, expectedVersion: need.version } })}><option value="REQUIRED">مطلوب</option><option value="IN_PROGRESS">قيد المعالجة</option><option value="FULFILLED">منفّذ</option></select>}</div></div>)}</div>}
+                <div className="space-y-3">{(needs.data ?? []).map((need) => <div key={need.id} className="flex flex-col gap-3 rounded-xl border bg-white p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">{need.title}</p><p className="mt-1 text-sm text-muted-foreground">الأولوية: {labels[need.priority]} · الأسرة: #{need.familyId.slice(0, 8)}</p></div><div className="flex items-center gap-2"><Badge variant={statusVariant(need.status) as 'default' | 'secondary' | 'outline'}>{labels[need.status]}</Badge>{need.status !== 'FULFILLED' && <select className="h-8 rounded-md border bg-transparent px-2 text-xs" value={need.status} onChange={(event) => changeNeedMutation.mutate({ id: need.id, data: { status: event.target.value as NeedStatus, expectedVersion: need.version } })}><option value="REQUIRED">مطلوب</option><option value="APPROVED">اعتماد للتوزيع</option><option value="IN_PROGRESS">قيد المعالجة</option><option value="FULFILLED">منفّذ</option></select>}</div></div>)}</div>}
+            </CardContent>
+          </Card>
+        )}
+
+        {canManageFamilies && (
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2"><ClipboardList className="size-5 text-teal-700" />توزيع المساعدة وتتبع الاستلام</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">لا يمكن توزيع المساعدة إلا على أسرة نشطة وطلب احتياج معتمد، ويُمنع تكرار الأسرة في دورة المساعدة نفسها.</p>
+              <div className="grid gap-3 md:grid-cols-4">
+                <select value={distributionAidId} onChange={(event) => { setDistributionAidId(event.target.value); setDistributionNeedId(''); }} className="h-10 rounded-md border bg-transparent px-3 text-sm" aria-label="اختر المساعدة">
+                  <option value="">اختر المساعدة</option>
+                  {(aids.data ?? []).map((aid) => <option key={aid.id} value={aid.id}>{aid.title} · {aid.quantity} {aid.unit}</option>)}
+                </select>
+                <select value={distributionFamilyId} onChange={(event) => { setDistributionFamilyId(event.target.value); setDistributionNeedId(''); }} className="h-10 rounded-md border bg-transparent px-3 text-sm" aria-label="اختر الأسرة المستلمة">
+                  <option value="">اختر الأسرة</option>
+                  {(families.data ?? []).filter((family) => family.status === 'ACTIVE').map((family) => <option key={family.id} value={family.id}>{family.headName}</option>)}
+                </select>
+                <select value={distributionNeedId} onChange={(event) => setDistributionNeedId(event.target.value)} className="h-10 rounded-md border bg-transparent px-3 text-sm" aria-label="اختر طلب الاحتياج المعتمد">
+                  <option value="">اختر الطلب المعتمد</option>
+                  {(needs.data ?? []).filter((need) => need.familyId === distributionFamilyId && need.status === 'APPROVED').map((need) => <option key={need.id} value={need.id}>{need.title}</option>)}
+                </select>
+                <div className="flex gap-2">
+                  <Input type="number" min="1" value={distributionQuantity} onChange={(event) => setDistributionQuantity(event.target.value)} aria-label="كمية التوزيع" />
+                  <Button disabled={!distributionAidId || !distributionFamilyId || !distributionNeedId || Number(distributionQuantity) < 1 || assignDistributionMutation.isPending} onClick={() => assignDistributionMutation.mutate()}>تسجيل</Button>
+                </div>
+              </div>
+              {distributionAidId && (
+                <div className="space-y-2 rounded-xl border bg-slate-50 p-3">
+                  <div className="flex items-center justify-between"><p className="font-semibold">سجل هذه المساعدة</p><span className="text-xs text-muted-foreground">{distributions.data?.length ?? 0} أسرة مرتبطة</span></div>
+                  {(distributions.data ?? []).length === 0 ? <p className="text-sm text-muted-foreground">لم تُسجل توزيعات بعد.</p> :
+                    (distributions.data ?? []).map((distribution) => <div key={distribution.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-white p-3 text-sm"><span>الأسرة #{distribution.familyId.slice(0, 8)} · {distribution.quantity} {distribution.unit}</span><div className="flex items-center gap-2"><Badge variant={distribution.status === 'RECEIVED' ? 'default' : 'secondary'}>{labels[distribution.status]}</Badge>{distribution.status === 'ASSIGNED' && <Button size="sm" variant="outline" disabled={receiveDistributionMutation.isPending} onClick={() => receiveDistributionMutation.mutate(distribution.id)}>تسجيل الاستلام</Button>}</div></div>)}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

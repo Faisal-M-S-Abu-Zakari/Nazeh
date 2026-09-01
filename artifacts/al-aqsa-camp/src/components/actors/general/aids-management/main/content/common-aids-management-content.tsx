@@ -79,6 +79,8 @@ export default function Common_Aids_Management_Content({
       additional_notes: aid.notes ?? '',
       selected_displaced_Ids: [],
       received_displaceds: [],
+      distribution_count: aid.distributionCount ?? 0,
+      received_distribution_count: aid.receivedDistributionCount ?? 0,
       is_completed: group === TYPE_GROUP_AIDS.PREVIOUS_AIDS,
       aid_status: group,
     } as AidsResponse['aids'][number];

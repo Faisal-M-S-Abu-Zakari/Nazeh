@@ -106,7 +106,7 @@ export default function Common_Aid_Card({ aid, actor_Id, role }: CommonAidCardPr
             <Group gap={5}>
               <UsersRound size={15} className='!text-primary' />
               <Text fz={14} className='!text-dark'>
-                عدد المستفيدين: {aid.selected_displaced_Ids.length}
+                عدد الأسر المرتبطة: {aid.distribution_count ?? aid.selected_displaced_Ids.length}
               </Text>
             </Group>
 
@@ -114,7 +114,7 @@ export default function Common_Aid_Card({ aid, actor_Id, role }: CommonAidCardPr
               <Group gap={5}>
                 <UsersRound size={15} className='!text-primary' />
                 <Text fz={14} className='!text-dark'>
-                  عدد المستلمين: {aid.received_displaceds.length}
+                  عدد المستلمين: {aid.received_distribution_count ?? aid.received_displaceds.length}
                 </Text>
               </Group>
             )}

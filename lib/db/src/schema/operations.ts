@@ -17,6 +17,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { staffUsers, usersTable } from "./auth";
 import { displacedPersonsTable } from "./people";
+import { familyNeedsTable, familiesTable } from "./camp-operations";
 export const aidStatusEnum = pgEnum("aid_status", ["DRAFT", "ACTIVE", "COMPLETED", "CANCELLED"]);
 export const allocationStatusEnum = pgEnum("allocation_status", [
   "ASSIGNED",
@@ -206,6 +207,7 @@ export const insertSecurityTaskSchema = createInsertSchema(securityTasksTable).o
 });
 
 export type AidRecord = typeof aidsTable.$inferSelect;
+export type AidDistributionRecord = typeof aidDistributionsTable.$inferSelect;
 export type ComplaintRecord = typeof complaintsTable.$inferSelect;
 export type SecurityTaskRecord = typeof securityTasksTable.$inferSelect;
 export type InsertAid = z.infer<typeof insertAidSchema>;
@@ -259,6 +261,37 @@ export const aids = pgTable("sync_aids", {
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   version: integer("version").notNull().default(1),
 });
+
+export const aidDistributionStatusEnum = pgEnum("aid_distribution_status", [
+  "ASSIGNED",
+  "RECEIVED",
+  "CANCELLED",
+]);
+
+export const aidDistributionsTable = pgTable(
+  "aid_distributions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    aidId: uuid("aid_id").notNull().references(() => aids.id, { onDelete: "cascade" }),
+    needId: uuid("need_id").notNull().references(() => familyNeedsTable.id, { onDelete: "restrict" }),
+    familyId: uuid("family_id").notNull().references(() => familiesTable.id, { onDelete: "restrict" }),
+    quantity: integer("quantity").notNull(),
+    unit: text("unit").notNull(),
+    status: aidDistributionStatusEnum("status").notNull().default("ASSIGNED"),
+    executedById: uuid("executed_by_id").notNull().references(() => staffUsers.id, { onDelete: "restrict" }),
+    deliveredById: uuid("delivered_by_id").references(() => staffUsers.id, { onDelete: "set null" }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("aid_distributions_cycle_family_unique").on(table.aidId, table.familyId),
+    index("aid_distributions_aid_idx").on(table.aidId),
+    index("aid_distributions_family_idx").on(table.familyId),
+    index("aid_distributions_need_idx").on(table.needId),
+    index("aid_distributions_status_idx").on(table.status),
+  ],
+);
 
 export const tasks = pgTable("sync_tasks", {
   id: uuid("id").primaryKey().defaultRandom(),

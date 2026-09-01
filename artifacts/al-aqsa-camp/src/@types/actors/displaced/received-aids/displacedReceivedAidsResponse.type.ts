@@ -14,7 +14,7 @@ export interface DisplacedReceivedAidsResponse {
 }
 
 export interface DisplacedReceivedAid {
-    id: number;
+    id: string | number;
     tab_type: DISPLACED_RECEIVED_AIDS_TABS;
 
     aid_name: string;
@@ -26,7 +26,7 @@ export interface DisplacedReceivedAid {
     receipt_date?: Date;
 
     aid_giver: {
-        giver_id: number;
+        giver_id: string | number;
         name: string;
         role: "DELEGATE" | "MANAGER";
         // role: Exclude<

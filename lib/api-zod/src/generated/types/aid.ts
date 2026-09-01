@@ -26,4 +26,8 @@ export interface Aid {
   archivedAt?: Date | null;
   /** @minimum 1 */
   version: number;
+  /** @minimum 0 */
+  distributionCount?: number;
+  /** @minimum 0 */
+  receivedDistributionCount?: number;
 }

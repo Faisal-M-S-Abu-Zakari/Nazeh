@@ -2,7 +2,13 @@
 import { AqsaAPI } from '@/services';
 import { DisplacedReceivedAidsResponse } from '@/@types/actors/displaced/received-aids/displacedReceivedAidsResponse.type';
 import { DISPLACED_RECEIVED_AIDS_TABS, TYPE_AIDS } from '@/@types/actors/common-types/index.type';
-import type { AidReceiptHistoryPage } from '@workspace/api-client-react';
+
+interface FamilyAidDistributionRow {
+    distribution: { id: string; status: 'ASSIGNED' | 'RECEIVED'; quantity: number; deliveredAt: string | null; createdAt: string };
+    aid: { title: string; type: string; location: string; distributionDate: string; unit: string };
+    need: { title: string };
+    executedBy: { id: string; name: string; role: string };
+}
 
 export interface GetDisplacedReceivedAidsProps {
     displaced_Id: number;
@@ -18,35 +24,30 @@ export async function getDisplacedReceivedAids({
     tab_type,
 }: GetDisplacedReceivedAidsProps): Promise<DisplacedReceivedAidsResponse> {
     try {
-        const allocationStatus = tab_type === DISPLACED_RECEIVED_AIDS_TABS.RECEIVED_AIDS
-            ? 'received'
-            : tab_type === DISPLACED_RECEIVED_AIDS_TABS.PROVIDED_AIDS
-                ? 'assigned'
-                : undefined;
-        const response = await AqsaAPI.get<AidReceiptHistoryPage>(`/displaced-persons/${displaced_Id}/aid-history`, {
-            params: { page, limit, status: allocationStatus },
-        });
-        const { items, pagination } = response.data;
-        const received_aids = items
-            .filter((item) => !allocationStatus || item.status === allocationStatus)
-            .map((item) => {
+        const response = await AqsaAPI.get<FamilyAidDistributionRow[]>('/family/me/aid-distributions');
+        const allocationStatus = tab_type === DISPLACED_RECEIVED_AIDS_TABS.RECEIVED_AIDS ? 'RECEIVED'
+            : tab_type === DISPLACED_RECEIVED_AIDS_TABS.PROVIDED_AIDS ? 'ASSIGNED' : undefined;
+        const allItems = response.data.filter((item) => !allocationStatus || item.distribution.status === allocationStatus);
+        const start = (page - 1) * limit;
+        const items = allItems.slice(start, start + limit);
+        const received_aids = items.map((item) => {
                 return {
-                    id: item.aidId,
-                    tab_type: item.status === 'received'
+                    id: item.distribution.id,
+                    tab_type: item.distribution.status === 'RECEIVED'
                         ? DISPLACED_RECEIVED_AIDS_TABS.RECEIVED_AIDS
                         : DISPLACED_RECEIVED_AIDS_TABS.PROVIDED_AIDS,
-                    aid_name: item.title,
-                    aid_type: Object.values(TYPE_AIDS).includes(item.type as TYPE_AIDS)
-                        ? item.type as TYPE_AIDS
+                    aid_name: item.aid.title,
+                    aid_type: Object.values(TYPE_AIDS).includes(item.aid.type as TYPE_AIDS)
+                        ? item.aid.type as TYPE_AIDS
                         : TYPE_AIDS.OTHER_AID,
-                    aid_content: item.description ?? '',
-                    delivery_location: item.distributionLocation ?? '',
-                    delivery_date: new Date(item.distributionDate ?? item.receivedAt ?? Date.now()),
-                    receipt_date: item.receivedAt ? new Date(item.receivedAt) : undefined,
+                    aid_content: `${item.distribution.quantity} ${item.aid.unit}${item.need.title ? ` · ${item.need.title}` : ''}`,
+                    delivery_location: item.aid.location,
+                    delivery_date: new Date(item.aid.distributionDate ?? item.distribution.createdAt),
+                    receipt_date: item.distribution.deliveredAt ? new Date(item.distribution.deliveredAt) : undefined,
                     aid_giver: {
-                        giver_id: item.assignedBy.id,
-                        name: item.assignedBy.name,
-                        role: item.assignedBy.role === 'delegate'
+                        giver_id: item.executedBy.id,
+                        name: item.executedBy.name,
+                        role: item.executedBy.role === 'DELEGATE'
                             ? ('DELEGATE' as const)
                             : ('MANAGER' as const),
                     },
@@ -56,10 +57,10 @@ export async function getDisplacedReceivedAids({
             status: response.status,
             received_aids,
             pagination: {
-                page: pagination.page,
-                limit: pagination.limit,
-                total_items: pagination.totalItems,
-                total_pages: pagination.totalPages,
+                page,
+                limit,
+                total_items: allItems.length,
+                total_pages: Math.max(1, Math.ceil(allItems.length / limit)),
             },
         };
     } catch (error: any) {
