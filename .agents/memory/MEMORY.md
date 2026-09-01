@@ -2,3 +2,4 @@
 - [Expo API host routing](expo-api-host-routing.md) — Expo web and native need different API base handling in Replit development.
 - [Safe development schema startup](safe-development-schema-startup.md) — API startup verifies schema read-only; reviewed migrations run separately to avoid destructive prompts.
 - [Legacy and staff auth schemas](legacy-staff-auth-schemas.md) — shared generated auth names can collide; keep legacy login validation distinct from UUID staff auth.
+- [Wouter nested actor paths](wouter-nested-actor-paths.md) — nested actor routes expose relative locations; normalize them before applying full-path access policy.

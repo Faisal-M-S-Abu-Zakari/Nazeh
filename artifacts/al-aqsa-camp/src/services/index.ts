@@ -1,4 +1,5 @@
 import { logout } from "@/utils/auth/logout"
+import { getAuthToken } from "@/utils/auth/getSession"
 import axios from "axios"
 
 // The web artifact and API server are served behind the same Replit proxy.
@@ -46,6 +47,17 @@ const AqsaAPI = axios.create({
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   }
+})
+
+// Legacy actor actions use this client while staff authentication uses the
+// tab-scoped bearer session. Forward that session so protected detail pages
+// do not turn their own data request's 401 into an unexpected logout.
+AqsaAPI.interceptors.request.use(config => {
+  const token = getAuthToken()
+  if (token) {
+    config.headers.set('Authorization', `Bearer ${token}`)
+  }
+  return config
 })
 
 // Handle response errors

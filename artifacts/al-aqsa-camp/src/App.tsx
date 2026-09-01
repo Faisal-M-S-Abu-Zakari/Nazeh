@@ -118,7 +118,11 @@ const ActorPages = () => (
 
 function AuthLoadingScreen() {
   return (
-    <div className="flex min-h-[60vh] items-center justify-center text-sm text-muted-foreground" dir="rtl">
+    <div
+      data-testid="auth-loading"
+      className="flex min-h-[60vh] items-center justify-center text-sm text-muted-foreground"
+      dir="rtl"
+    >
       جارٍ التحقق من جلسة المستخدم...
     </div>
   );
@@ -126,7 +130,11 @@ function AuthLoadingScreen() {
 
 function AccessDeniedScreen() {
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 p-6 text-center" dir="rtl">
+    <div
+      data-testid="access-denied"
+      className="flex min-h-[60vh] flex-col items-center justify-center gap-3 p-6 text-center"
+      dir="rtl"
+    >
       <h1 className="text-xl font-semibold">لا تملك صلاحية لهذه الشاشة</h1>
       <p className="text-sm text-muted-foreground">يمكنك الوصول فقط إلى الشاشات المخصصة لدور حسابك.</p>
     </div>
@@ -136,6 +144,9 @@ function AccessDeniedScreen() {
 function ProtectedActorPages() {
   const [location] = useLocation();
   const { isAuthenticated, isLoading, role, user } = useAuth();
+  const actorPath = location === '/actor' || location.startsWith('/actor/')
+    ? location
+    : `/actor${location.startsWith('/') ? location : `/${location}`}`;
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -145,7 +156,7 @@ function ProtectedActorPages() {
 
   if (isLoading) return <AuthLoadingScreen />;
   if (!isAuthenticated || !role || !user) return <AuthLoadingScreen />;
-  if (!canAccessActorPath(location, { id: String(user.identity), role })) {
+  if (!canAccessActorPath(actorPath, { id: String(user.identity), role })) {
     return <AccessDeniedScreen />;
   }
   return <ActorPages />;

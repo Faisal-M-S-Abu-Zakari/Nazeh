@@ -4,7 +4,7 @@ import React from 'react';
 
 export default function Actor_Layout({ children }: { children: React.ReactNode }) {
   return (
-    <Group wrap='nowrap' gap={0} justify='start' align='start' pt={60}>
+    <Group data-testid='actor-layout' wrap='nowrap' gap={0} justify='start' align='start' pt={60}>
       <Stack w={250} visibleFrom='lg' justify='flex-start' align='center'>
         <Actor_Navbar />
       </Stack>
