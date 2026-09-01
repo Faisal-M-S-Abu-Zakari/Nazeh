@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useEffect } from 'react';
 import { Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 import { ErrorBoundary } from '@/components/error-boundary';
 import NotFound from '@/pages/not-found';
@@ -53,6 +53,9 @@ import Page38 from '@/app/auth/login/page';
 import Page39 from '@/app/auth/otp/page';
 import Page40 from '@/app/(pages)/actor/staff/page';
 import OperationsPage from '@/app/(pages)/actor/operations/page';
+import useAuth from '@/hooks/useAuth';
+import { AUTH_ROUTES } from '@/constants/routes';
+import { canAccessActorPath } from '@/utils/auth/routeAccess';
 
 function RoutedErrorBoundary({ children }: { children: ReactNode }) {
   const [location] = useLocation();
@@ -113,6 +116,41 @@ const ActorPages = () => (
   </ActorLayout>
 );
 
+function AuthLoadingScreen() {
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center text-sm text-muted-foreground" dir="rtl">
+      جارٍ التحقق من جلسة المستخدم...
+    </div>
+  );
+}
+
+function AccessDeniedScreen() {
+  return (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 p-6 text-center" dir="rtl">
+      <h1 className="text-xl font-semibold">لا تملك صلاحية لهذه الشاشة</h1>
+      <p className="text-sm text-muted-foreground">يمكنك الوصول فقط إلى الشاشات المخصصة لدور حسابك.</p>
+    </div>
+  );
+}
+
+function ProtectedActorPages() {
+  const [location] = useLocation();
+  const { isAuthenticated, isLoading, role, user } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      window.location.replace(AUTH_ROUTES.LOGIN);
+    }
+  }, [isAuthenticated, isLoading]);
+
+  if (isLoading) return <AuthLoadingScreen />;
+  if (!isAuthenticated || !role || !user) return <AuthLoadingScreen />;
+  if (!canAccessActorPath(location, { id: String(user.identity), role })) {
+    return <AccessDeniedScreen />;
+  }
+  return <ActorPages />;
+}
+
 const AuthPages = () => (
   <AuthLayout>
     <Switch>
@@ -138,7 +176,7 @@ function AppRouter() {
       ) : (
         <PagesLayout>
           <Switch>
-            <Route path="/actor" nest component={ActorPages} />
+            <Route path="/actor" nest component={ProtectedActorPages} />
             <Route component={LandingPages} />
           </Switch>
         </PagesLayout>

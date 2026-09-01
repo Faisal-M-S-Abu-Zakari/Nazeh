@@ -32,25 +32,33 @@ export default function useAuth() {
   }, [me.error, queryClient]);
 
   const role = me.data?.role;
-  const uiRole = (role === Role.SECURITY_OFFICER || role === Role.SECURITY_MEMBER) ? USER_TYPE.SECURITY
-    : role === Role.DELEGATE ? USER_TYPE.DELEGATE
-    : USER_TYPE.MANAGER;
+  const uiRole = role === Role.ADMIN ? USER_TYPE.ADMIN
+    : role === Role.MANAGER ? USER_TYPE.MANAGER
+      : role === Role.DELEGATE ? USER_TYPE.DELEGATE
+        : role === Role.SECURITY_OFFICER ? USER_TYPE.SECURITY
+          : USER_TYPE.SECURITY_MEMBER;
+  const uiRank = role === Role.ADMIN ? USER_RANK.ADMIN
+    : role === Role.MANAGER ? USER_RANK.MANAGER
+      : role === Role.DELEGATE ? USER_RANK.DELEGATE
+        : role === Role.SECURITY_OFFICER ? USER_RANK.SECURITY_OFFICER
+          : USER_RANK.SECURITY_MEMBER;
   const user: User | null = me.data ? {
     id: canonicalIdToNumber(me.data.id),
     name: me.data.name,
     email: me.data.email,
-    identity: '',
+    identity: me.data.id,
     phone_number: '',
     created_at: new Date(),
     profile_image: '',
     role: uiRole,
-     rank: (role === Role.SECURITY_OFFICER || role === Role.SECURITY_MEMBER) ? USER_RANK.SECURITY_OFFICER : uiRole,
+    rank: uiRank,
   } : null;
 
   return {
     isAuthenticated: Boolean(token && me.data),
-    isLoading: me.isLoading,
+    isLoading: Boolean(token) && (me.isLoading || me.isFetching),
     error: me.error,
+    role,
     isManager: role === Role.MANAGER || role === Role.ADMIN,
     isAdmin: role === Role.ADMIN,
     isDelegate: role === Role.DELEGATE,

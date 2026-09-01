@@ -6,7 +6,8 @@ export const loginSchema = z.object({
         .email("صيغة البريد الإلكتروني غير صحيحة"),
     password: z
         .string({ required_error: "حقل كلمة المرور مطلوب" })
-        .min(6, "يجب أن تتكون كلمة المرور من 6 أحرف على الأقل"),
+        .min(8, "يجب أن تتكون كلمة المرور من 8 أحرف على الأقل")
+        .max(128, "يجب ألا تتجاوز كلمة المرور 128 حرفًا"),
 });
 
 export type loginType = z.infer<typeof loginSchema>;

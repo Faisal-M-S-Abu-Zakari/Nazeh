@@ -24,6 +24,9 @@ export default function Header_Avatar() {
     let route: string | undefined;
 
     switch (user.role) {
+      case USER_RANK.ADMIN:
+        route = MANAGER_ROUTES_fUNC({ manager_Id: user.id }).PROFILE;
+        break;
       case USER_RANK.DISPLACED:
         route = DISPLACED_ROUTES_fUNC({ displaced_Id: user.id }).PROFILE;
         break;
@@ -34,6 +37,8 @@ export default function Header_Avatar() {
         route = MANAGER_ROUTES_fUNC({ manager_Id: user.id }).PROFILE;
         break;
       case USER_RANK.SECURITY:
+      case USER_RANK.SECURITY_MEMBER:
+      case USER_RANK.SECURITY_OFFICER:
         route = SECURITY_ROUTES_fUNC({ security_Id: user.id }).PROFILE;
         break;
     }

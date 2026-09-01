@@ -10,7 +10,7 @@ export interface User {
     created_at: Date;
     updated_at?: Date;
     profile_image?: string | string | null;
-    role: UserType; // used for auth-based routing
+    role: UserType; // UI role, kept distinct from the server's StaffRole
     rank?: UserRank; // used for permission/access levels
 }
 

@@ -29,6 +29,7 @@ import {
   passwordPolicyError,
 } from "../lib/security";
 import { parseRequest } from "../lib/validation";
+import { loginAttemptKeys, loginRateLimit } from "../lib/loginRateLimit";
 
 const router: IRouter = Router();
 const SESSION_LIFETIME_MS = 12 * 60 * 60 * 1000;
@@ -73,10 +74,20 @@ async function issueCredentialToken(
 }
 
 router.post("/auth/login", async (req, res) => {
+  // Starting the modern flow must discard any legacy browser identity,
+  // including when the credentials submitted below are invalid.
+  res.clearCookie("aqsa_session");
   const body = parseRequest(LoginBody, req.body, res);
   if (!body) return;
   const email = body.email.trim().toLowerCase();
   const password = body.password;
+  const attemptKeys = loginAttemptKeys(req.ip, email);
+  const rate = loginRateLimit.check(attemptKeys);
+  if (!rate.allowed) {
+    res.set("Retry-After", String(rate.retryAfterSeconds));
+    res.status(429).json({ error: "Too many login attempts. Try again later." });
+    return;
+  }
 
   const [user] = await db.select().from(staffUsers)
     .where(eq(staffUsers.email, email)).limit(1);
@@ -89,10 +100,12 @@ router.post("/auth/login", async (req, res) => {
     productionDemo ||
     !(await bcrypt.compare(password, user.passwordHash))
   ) {
+    loginRateLimit.failure(attemptKeys);
     res.status(401).json({ error: "Invalid email or password" });
     return;
   }
 
+  loginRateLimit.success(attemptKeys);
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_LIFETIME_MS);
   await db.insert(sessions).values({
@@ -100,6 +113,9 @@ router.post("/auth/login", async (req, res) => {
     tokenHash: hashToken(token),
     expiresAt,
   });
+  // A browser must never retain a legacy cookie alongside a modern staff
+  // bearer session. The two identity stores are intentionally not merged.
+  res.clearCookie("aqsa_session");
   res.json({ token, expiresAt, user: publicStaff(user) });
 });
 
@@ -327,6 +343,7 @@ router.get("/auth/me", requireAuth, (_req, res) => {
 router.post("/auth/logout", requireAuth, async (_req, res) => {
   await db.update(sessions).set({ revokedAt: new Date() })
     .where(and(eq(sessions.id, res.locals["sessionId"] as string), isNull(sessions.revokedAt)));
+  res.clearCookie("aqsa_session");
   res.status(204).end();
 });
 

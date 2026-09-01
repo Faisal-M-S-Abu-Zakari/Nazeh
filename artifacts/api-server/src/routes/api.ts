@@ -44,6 +44,7 @@ import
 }
  from "../lib/security"
 ;
+import { loginAttemptKeys, loginRateLimit } from "../lib/loginRateLimit";
 
 
 const router: IRouter = Router()
@@ -252,12 +253,26 @@ router.post("/family/me/needs", requireRoles("displaced"), async (req, res): Pro
 router.post("/auth/login", async (req, res): Promise<void> => 
 {
 
+  if (req.get("authorization")?.startsWith("Bearer ")) {
+    res.status(400).json({ error: "Use the modern staff login without a role field." });
+    return;
+  }
+
   const input = parse<any>(LegacyLoginBody, req.body, res)
 ;
  if (!input) return
 ;
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, input.email))
+  const email = input.email.trim().toLowerCase();
+  const attemptKeys = loginAttemptKeys(req.ip, email);
+  const rate = loginRateLimit.check(attemptKeys);
+  if (!rate.allowed) {
+    res.set("Retry-After", String(rate.retryAfterSeconds));
+    res.status(429).json({ error: "Too many login attempts. Try again later." });
+    return;
+  }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email))
 ;
 
   const isDevelopmentDemo = user?.identity.startsWith("dev-") ||
@@ -266,6 +281,7 @@ router.post("/auth/login", async (req, res): Promise<void> =>
 ;
   if (!user || !user.active || (process.env.NODE_ENV === "production" && isDevelopmentDemo) || apiRole(user) !== input.role || !(await verifyPassword(input.password, user.passwordHash)))
 {
+  loginRateLimit.failure(attemptKeys);
  res.status(401).json(
 {
  error: "Invalid credentials" 
@@ -277,6 +293,7 @@ router.post("/auth/login", async (req, res): Promise<void> =>
  
 }
 
+  loginRateLimit.success(attemptKeys);
   const token = newToken(), expiresAt = new Date(Date.now() + 7 * 86400000)
 ;
 

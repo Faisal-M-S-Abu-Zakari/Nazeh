@@ -20,10 +20,14 @@ import { loginSchema, loginType } from '@/validation/auth/loginSchema';
 import {
   GENERAL_ACTOR_ROUTES,
   LANDING_ROUTES,
+  MANAGER_ROUTES_fUNC,
+  DELEGATE_ROUTES_fUNC,
+  SECURITY_ROUTES_fUNC,
 } from '@/constants/routes';
 import { AuthSessionResponse, Role } from '@workspace/api-client-react';
 import { setAuthToken } from '@/utils/auth/getSession';
 import { useQueryClient } from '@tanstack/react-query';
+import { canonicalIdToNumber } from '@/utils/auth/canonicalId';
 
 export default function Login() {
   const [error, setError] = useState('');
@@ -52,13 +56,10 @@ export default function Login() {
         queryClient.clear();
         const roleRedirects = {
           [Role.ADMIN]: () => navigateToApp(GENERAL_ACTOR_ROUTES.STAFF),
-          // Generated staff IDs are not IDs in the retired actor-profile
-          // endpoints. Send non-admin staff to the neutral actor landing;
-          // useAuth then establishes their session exclusively via /auth/me.
-          [Role.MANAGER]: () => navigateToApp(GENERAL_ACTOR_ROUTES.ADS),
-          [Role.DELEGATE]: () => navigateToApp(GENERAL_ACTOR_ROUTES.ADS),
-          [Role.SECURITY_OFFICER]: () => navigateToApp(GENERAL_ACTOR_ROUTES.ADS),
-          [Role.SECURITY_MEMBER]: () => navigateToApp(GENERAL_ACTOR_ROUTES.ADS),
+          [Role.MANAGER]: () => navigateToApp(MANAGER_ROUTES_fUNC({ manager_Id: canonicalIdToNumber(data.user.id) }).PROFILE),
+          [Role.DELEGATE]: () => navigateToApp(DELEGATE_ROUTES_fUNC({ delegate_Id: canonicalIdToNumber(data.user.id) }).PROFILE),
+          [Role.SECURITY_OFFICER]: () => navigateToApp(SECURITY_ROUTES_fUNC({ security_Id: canonicalIdToNumber(data.user.id) }).PROFILE),
+          [Role.SECURITY_MEMBER]: () => navigateToApp(SECURITY_ROUTES_fUNC({ security_Id: canonicalIdToNumber(data.user.id) }).PROFILE),
         };
 
         roleRedirects[data.user.role]?.();
