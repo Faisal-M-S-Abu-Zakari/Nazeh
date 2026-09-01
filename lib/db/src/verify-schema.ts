@@ -14,6 +14,7 @@ const requiredColumns: Record<string, readonly string[]> = {
   family_assignment_history: ["id", "family_id", "changed_by_id"],
   family_needs: ["id", "family_id", "category", "status", "priority", "version"],
   need_status_history: ["id", "need_id", "to_status", "changed_by_id"],
+  login_rate_limit_counters: ["key", "failures", "blocked_until", "last_attempt_at", "expires_at"],
 };
 
 async function verifySchema() {

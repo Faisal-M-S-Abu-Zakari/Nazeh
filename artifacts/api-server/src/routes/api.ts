@@ -44,11 +44,16 @@ import
 }
  from "../lib/security"
 ;
-import { loginAttemptKeys, loginRateLimit } from "../lib/loginRateLimit";
+import {
+  createLoginRateLimit,
+  createPostgresLoginRateLimitStore,
+  loginAttemptKeys,
+} from "../lib/loginRateLimit";
 
 
 const router: IRouter = Router()
 ;
+const loginRateLimit = createLoginRateLimit(createPostgresLoginRateLimitStore(db));
 const LegacyLoginBody = z.object({
   email: z.email(),
   password: z.string().min(8).max(128),
@@ -265,7 +270,7 @@ router.post("/auth/login", async (req, res): Promise<void> =>
 
   const email = input.email.trim().toLowerCase();
   const attemptKeys = loginAttemptKeys(req.ip, email);
-  const rate = loginRateLimit.check(attemptKeys);
+  const rate = await loginRateLimit.check(attemptKeys);
   if (!rate.allowed) {
     res.set("Retry-After", String(rate.retryAfterSeconds));
     res.status(429).json({ error: "Too many login attempts. Try again later." });
@@ -281,7 +286,7 @@ router.post("/auth/login", async (req, res): Promise<void> =>
 ;
   if (!user || !user.active || (process.env.NODE_ENV === "production" && isDevelopmentDemo) || apiRole(user) !== input.role || !(await verifyPassword(input.password, user.passwordHash)))
 {
-  loginRateLimit.failure(attemptKeys);
+  await loginRateLimit.failure(attemptKeys);
  res.status(401).json(
 {
  error: "Invalid credentials" 
@@ -293,7 +298,7 @@ router.post("/auth/login", async (req, res): Promise<void> =>
  
 }
 
-  loginRateLimit.success(attemptKeys);
+  await loginRateLimit.success(attemptKeys);
   const token = newToken(), expiresAt = new Date(Date.now() + 7 * 86400000)
 ;
 

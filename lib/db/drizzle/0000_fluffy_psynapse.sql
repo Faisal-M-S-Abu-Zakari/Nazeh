@@ -58,3 +58,11 @@ CREATE TABLE IF NOT EXISTS "sync_audit_events" (
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "sync_audit_entity_idx"
 ON "sync_audit_events" USING btree ("entity_type", "entity_id");
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "login_rate_limit_counters" (
+  "key" text PRIMARY KEY NOT NULL,
+  "failures" integer DEFAULT 0 NOT NULL,
+  "blocked_until" timestamp with time zone,
+  "last_attempt_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "expires_at" timestamp with time zone NOT NULL
+);

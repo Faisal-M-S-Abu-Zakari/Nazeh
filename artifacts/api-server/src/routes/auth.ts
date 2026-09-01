@@ -29,9 +29,14 @@ import {
   passwordPolicyError,
 } from "../lib/security";
 import { parseRequest } from "../lib/validation";
-import { loginAttemptKeys, loginRateLimit } from "../lib/loginRateLimit";
+import {
+  createLoginRateLimit,
+  createPostgresLoginRateLimitStore,
+  loginAttemptKeys,
+} from "../lib/loginRateLimit";
 
 const router: IRouter = Router();
+const loginRateLimit = createLoginRateLimit(createPostgresLoginRateLimitStore(db));
 const SESSION_LIFETIME_MS = 12 * 60 * 60 * 1000;
 const INVITE_LIFETIME_MS = 48 * 60 * 60 * 1000;
 const RESET_LIFETIME_MS = 60 * 60 * 1000;
@@ -82,7 +87,7 @@ router.post("/auth/login", async (req, res) => {
   const email = body.email.trim().toLowerCase();
   const password = body.password;
   const attemptKeys = loginAttemptKeys(req.ip, email);
-  const rate = loginRateLimit.check(attemptKeys);
+  const rate = await loginRateLimit.check(attemptKeys);
   if (!rate.allowed) {
     res.set("Retry-After", String(rate.retryAfterSeconds));
     res.status(429).json({ error: "Too many login attempts. Try again later." });
@@ -100,12 +105,12 @@ router.post("/auth/login", async (req, res) => {
     productionDemo ||
     !(await bcrypt.compare(password, user.passwordHash))
   ) {
-    loginRateLimit.failure(attemptKeys);
+    await loginRateLimit.failure(attemptKeys);
     res.status(401).json({ error: "Invalid email or password" });
     return;
   }
 
-  loginRateLimit.success(attemptKeys);
+  await loginRateLimit.success(attemptKeys);
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_LIFETIME_MS);
   await db.insert(sessions).values({
