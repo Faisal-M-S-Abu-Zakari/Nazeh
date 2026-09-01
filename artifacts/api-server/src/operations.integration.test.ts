@@ -293,6 +293,7 @@ test("displaced family-head access stays linked to the authenticated active fami
   let otherUserId: number | undefined;
   let unlinkedUserId: number | undefined;
   let token: string | undefined;
+  let otherToken: string | undefined;
   let unlinkedToken: string | undefined;
 
   try {
@@ -414,6 +415,18 @@ test("displaced family-head access stays linked to the authenticated active fami
       authorization: `Bearer ${token}`,
       "content-type": "application/json",
     };
+    const otherLogin = await fetch(`${baseUrl}/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: otherUserEmail, password, role: "displaced" }),
+    });
+    assert.equal(otherLogin.status, 200);
+    const otherLoginBody = await otherLogin.json() as { token: string };
+    otherToken = otherLoginBody.token;
+    const otherHeaders = {
+      authorization: `Bearer ${otherToken}`,
+      "content-type": "application/json",
+    };
 
     const familyResponse = await fetch(`${baseUrl}/family/me`, { headers });
     assert.equal(familyResponse.status, 200);
@@ -475,6 +488,10 @@ test("displaced family-head access stays linked to the authenticated active fami
     await db.update(usersTable).set({ active: false }).where(eq(usersTable.id, userId));
     const inactiveFamilyResponse = await fetch(`${baseUrl}/family/me`, { headers });
     assert.equal(inactiveFamilyResponse.status, 401);
+    const [revokedSession] = await db.select({ revokedAt: sessionsTable.revokedAt })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.tokenHash, hashToken(token)));
+    assert(revokedSession?.revokedAt, "deactivating a legacy account revokes its session");
     const inactiveFamilyBody = await inactiveFamilyResponse.text();
     assert(!inactiveFamilyBody.includes("Visible linked member"));
     assert(!inactiveFamilyBody.includes("Existing linked need"));
@@ -496,6 +513,13 @@ test("displaced family-head access stays linked to the authenticated active fami
     assert.equal(inactiveCreateResponse.status, 401);
     const inactiveCreateBody = await inactiveCreateResponse.text();
     assert(!inactiveCreateBody.includes("Must not be created"));
+
+    const otherFamilyResponse = await fetch(`${baseUrl}/family/me`, { headers: otherHeaders });
+    assert.equal(otherFamilyResponse.status, 200, "deactivating one account leaves other sessions signed in");
+    const [otherSession] = await db.select({ revokedAt: sessionsTable.revokedAt })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.tokenHash, hashToken(otherToken)));
+    assert.equal(otherSession?.revokedAt, null, "unrelated sessions remain active");
 
     const unlinkedLogin = await fetch(`${baseUrl}/auth/login`, {
       method: "POST",
@@ -536,6 +560,9 @@ test("displaced family-head access stays linked to the authenticated active fami
   } finally {
     if (token) {
       await db.delete(sessionsTable).where(eq(sessionsTable.tokenHash, hashToken(token)));
+    }
+    if (otherToken) {
+      await db.delete(sessionsTable).where(eq(sessionsTable.tokenHash, hashToken(otherToken)));
     }
     if (unlinkedToken) {
       await db.delete(sessionsTable).where(eq(sessionsTable.tokenHash, hashToken(unlinkedToken)));

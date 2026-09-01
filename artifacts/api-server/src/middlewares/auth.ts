@@ -36,7 +36,13 @@ export async function optionalAuth(req: Request, _res: Response, next: NextFunct
   const [row] = await db.select({ session: sessionsTable, user: usersTable }).from(sessionsTable)
     .innerJoin(usersTable, eq(sessionsTable.userId, usersTable.id))
     .where(and(eq(sessionsTable.tokenHash, tokenHash), isNull(sessionsTable.revokedAt), gt(sessionsTable.expiresAt, new Date())));
-  if (row?.user.active) { req.authUser = row.user; req.sessionToken = token; }
+  if (row?.user.active) {
+    req.authUser = row.user;
+    req.sessionToken = token;
+  } else if (row) {
+    await db.update(sessionsTable).set({ revokedAt: new Date() })
+      .where(and(eq(sessionsTable.id, row.session.id), isNull(sessionsTable.revokedAt)));
+  }
   next();
 }
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
