@@ -56,6 +56,7 @@ import OperationsPage from '@/app/(pages)/actor/operations/page';
 import useAuth from '@/hooks/useAuth';
 import { AUTH_ROUTES } from '@/constants/routes';
 import { canAccessActorPath } from '@/utils/auth/routeAccess';
+import FamilyHeadPage from '@/app/(pages)/actor/family/page';
 
 function RoutedErrorBoundary({ children }: { children: ReactNode }) {
   const [location] = useLocation();
@@ -111,6 +112,7 @@ const ActorPages = () => (
       <Route path="/securities/add" component={Page35} />
       <Route path="/staff" component={Page40} />
       <Route path="/operations" component={OperationsPage} />
+      <Route path="/family" component={FamilyHeadPage} />
       <Route component={NotFound} />
     </Switch>
   </ActorLayout>

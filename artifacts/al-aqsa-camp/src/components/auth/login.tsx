@@ -8,6 +8,7 @@ import {
   Group,
   LoadingOverlay,
   PasswordInput,
+  SegmentedControl,
   Stack,
   Text,
   TextInput,
@@ -15,7 +16,6 @@ import {
 import { useMutation } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import useAuth from '@/hooks/useAuth';
-import { login, loginProps } from '@/actions/auth/login';
 import { loginSchema, loginType } from '@/validation/auth/loginSchema';
 import {
   GENERAL_ACTOR_ROUTES,
@@ -24,13 +24,15 @@ import {
   DELEGATE_ROUTES_fUNC,
   SECURITY_ROUTES_fUNC,
 } from '@/constants/routes';
-import { AuthSessionResponse, Role } from '@workspace/api-client-react';
-import { setAuthToken } from '@/utils/auth/getSession';
 import { useQueryClient } from '@tanstack/react-query';
+import { login, loginFamilyHead, loginProps } from '@/actions/auth/login';
+import { AuthSessionResponse, Role, type User } from '@workspace/api-client-react';
+import { setAuthRole, setAuthToken, setAuthUser } from '@/utils/auth/getSession';
 import { canonicalIdToNumber } from '@/utils/auth/canonicalId';
 
 export default function Login() {
   const [error, setError] = useState('');
+  const [accountType, setAccountType] = useState<'staff' | 'family'>('staff');
   const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   const navigateToApp = (path: string) => window.location.replace(path);
@@ -46,23 +48,29 @@ export default function Login() {
     validate: zodResolver(loginSchema),
   });
 
-  const loginMutation = useMutation<AuthSessionResponse, Error, loginProps>({
-    mutationFn: login,
+  const loginMutation = useMutation<AuthSessionResponse | Awaited<ReturnType<typeof loginFamilyHead>>, Error, loginProps>({
+    mutationFn: (credentials) => accountType === 'family' ? loginFamilyHead(credentials) : login(credentials),
     onSuccess: (data) => {
       form.reset();
 
       {
         setAuthToken(data.token);
+        setAuthRole(accountType === 'family' ? 'displaced' : data.user.role);
+        setAuthUser(data.user as User);
         queryClient.clear();
+        if (accountType === 'family') {
+          navigateToApp(GENERAL_ACTOR_ROUTES.FAMILY);
+          return;
+        }
         const roleRedirects = {
           [Role.ADMIN]: () => navigateToApp(GENERAL_ACTOR_ROUTES.STAFF),
-          [Role.MANAGER]: () => navigateToApp(MANAGER_ROUTES_fUNC({ manager_Id: canonicalIdToNumber(data.user.id) }).PROFILE),
-          [Role.DELEGATE]: () => navigateToApp(DELEGATE_ROUTES_fUNC({ delegate_Id: canonicalIdToNumber(data.user.id) }).PROFILE),
-          [Role.SECURITY_OFFICER]: () => navigateToApp(SECURITY_ROUTES_fUNC({ security_Id: canonicalIdToNumber(data.user.id) }).PROFILE),
-          [Role.SECURITY_MEMBER]: () => navigateToApp(SECURITY_ROUTES_fUNC({ security_Id: canonicalIdToNumber(data.user.id) }).PROFILE),
+          [Role.MANAGER]: () => navigateToApp(MANAGER_ROUTES_fUNC({ manager_Id: canonicalIdToNumber(String(data.user.id)) }).PROFILE),
+          [Role.DELEGATE]: () => navigateToApp(DELEGATE_ROUTES_fUNC({ delegate_Id: canonicalIdToNumber(String(data.user.id)) }).PROFILE),
+          [Role.SECURITY_OFFICER]: () => navigateToApp(SECURITY_ROUTES_fUNC({ security_Id: canonicalIdToNumber(String(data.user.id)) }).PROFILE),
+          [Role.SECURITY_MEMBER]: () => navigateToApp(SECURITY_ROUTES_fUNC({ security_Id: canonicalIdToNumber(String(data.user.id)) }).PROFILE),
         };
 
-        roleRedirects[data.user.role]?.();
+        roleRedirects[data.user.role as Role]?.();
 
         // defer non-critical work
         setTimeout(() => {
@@ -124,6 +132,11 @@ export default function Login() {
       <Text fw={500} fz={{ base: 28, md: 32 }} ta={'center'}>
         تسجيل الدخول
       </Text>
+      <SegmentedControl
+        value={accountType}
+        onChange={(value) => setAccountType(value as 'staff' | 'family')}
+        data={[{ label: 'فريق المخيم', value: 'staff' }, { label: 'رب الأسرة', value: 'family' }]}
+      />
 
       <form className='flex flex-col items-center gap-3' onSubmit={handleSubmit}>
         <TextInput

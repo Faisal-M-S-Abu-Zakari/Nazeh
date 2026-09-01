@@ -1,7 +1,7 @@
 import { Role } from '@workspace/api-client-react';
 import { canonicalIdToNumber } from './canonicalId';
 
-export type StaffRouteRole = Role;
+export type StaffRouteRole = Role | 'displaced';
 
 export type RouteAccessUser = {
   id: string;
@@ -34,6 +34,7 @@ export function canAccessActorPath(pathname: string, user: RouteAccessUser): boo
   const path = pathname.replace(/\/+$/, '') || '/actor';
   const role = user.role;
 
+  if (path === '/actor/family') return role === 'displaced';
   if (path === '/actor' || path === '/actor/operations') return hasRole(role, allStaffRoles);
   if (path === '/actor/staff') return role === Role.ADMIN;
 

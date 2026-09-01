@@ -1155,6 +1155,122 @@ export interface NeedUpdate {
   expectedVersion: number;
 }
 
+export interface NeedStatusHistory {
+  id: string;
+  needId: string;
+  fromStatus?: NeedStatus;
+  toStatus: NeedStatus;
+  /** @nullable */
+  changedById?: string | null;
+  /** @nullable */
+  changedByLegacyUserId?: number | null;
+  /** @nullable */
+  note?: string | null;
+  changedAt: string;
+}
+
+export interface FamilyHeadNeed {
+  id: string;
+  familyId: string;
+  category: NeedCategory;
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  priority: NeedPriority;
+  status: NeedStatus;
+  /** @minimum 1 */
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  history: NeedStatusHistory[];
+}
+
+export interface FamilyHeadNeedInput {
+  category: NeedCategory;
+  /**
+     * @minLength 2
+     * @maxLength 240
+     */
+  title: string;
+  /** @maxLength 5000 */
+  description?: string;
+  priority: NeedPriority;
+}
+
+export type FamilyHeadNeedList = FamilyHeadNeed[];
+
+export type FamilyHeadProfileCamp = {
+  id: string;
+  name: string;
+};
+
+export type FamilyHeadProfileSector = {
+  id: string;
+  name: string;
+};
+
+/**
+ * @nullable
+ */
+export type FamilyHeadProfileShelter = {
+  id: string;
+  code: string;
+} | null;
+
+/**
+ * @nullable
+ */
+export type FamilyHeadProfileDelegate = {
+  id: string;
+  name: string;
+  email: string;
+} | null;
+
+export type FamilyHeadProfileHeadUserRole = typeof FamilyHeadProfileHeadUserRole[keyof typeof FamilyHeadProfileHeadUserRole];
+
+
+export const FamilyHeadProfileHeadUserRole = {
+  displaced: 'displaced',
+} as const;
+
+export type FamilyHeadProfileHeadUser = {
+  id: number;
+  name: string;
+  email: string;
+  role: FamilyHeadProfileHeadUserRole;
+  /** @nullable */
+  phone?: string | null;
+  createdAt: string;
+};
+
+export interface FamilyHeadProfile {
+  id: string;
+  campId: string;
+  sectorId: string;
+  /** @nullable */
+  shelterId?: string | null;
+  headName: string;
+  /** @nullable */
+  headPhone?: string | null;
+  /** @nullable */
+  delegateId?: string | null;
+  status: FamilyStatus;
+  /** @nullable */
+  criticalNotes?: string | null;
+  /** @minimum 1 */
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  camp: FamilyHeadProfileCamp;
+  sector: FamilyHeadProfileSector;
+  /** @nullable */
+  shelter?: FamilyHeadProfileShelter;
+  /** @nullable */
+  delegate?: FamilyHeadProfileDelegate;
+  headUser: FamilyHeadProfileHeadUser;
+  members: FamilyMember[];
+}
+
 export type SecurityMemberRole = typeof SecurityMemberRole[keyof typeof SecurityMemberRole];
 
 

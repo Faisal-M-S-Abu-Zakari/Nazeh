@@ -158,6 +158,7 @@ export const familyNeedsTable = pgTable(
     createdById: uuid("created_by_id").references(() => staffUsers.id, { onDelete: "restrict" }),
     createdByLegacyUserId: integer("created_by_legacy_user_id").references(() => usersTable.id, { onDelete: "set null" }),
     assignedToId: uuid("assigned_to_id").references(() => staffUsers.id, { onDelete: "set null" }),
+    clientRequestId: text("client_request_id"),
     fulfilledAt: timestamp("fulfilled_at", { withTimezone: true }),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     version: integer("version").notNull().default(1),
@@ -168,6 +169,7 @@ export const familyNeedsTable = pgTable(
     index("family_needs_family_idx").on(table.familyId),
     index("family_needs_status_idx").on(table.status),
     index("family_needs_priority_idx").on(table.priority),
+    uniqueIndex("family_needs_creator_request_unique").on(table.createdByLegacyUserId, table.clientRequestId),
   ],
 );
 

@@ -8,7 +8,7 @@ import { useState } from 'react';
 
 export default function HomeScreen() {
   const colors = useColors();
-  const { signedIn, aids, people, retrySync } = useApp();
+  const { signedIn, signedInAsFamilyHead, aids, people, retrySync } = useApp();
   const [refreshing, setRefreshing] = useState(false);
   const stats = [
     { label: 'العائلات المستفيدة', value: '٢٧٥', icon: 'people' as const },
@@ -51,7 +51,8 @@ export default function HomeScreen() {
           <Text style={[styles.body, { color: colors.mutedForeground }]}>خمسة عشر متطوعة يجهزن وجبات ساخنة لكبار السن يومياً.</Text>
           <Text style={[styles.date, { color: colors.primary }]}>أمس</Text>
         </Card>
-        {!signedIn ? <PrimaryButton testID="home-login" label="دخول فريق المخيم" icon="log-in-outline" onPress={() => router.push('/auth/login')} /> : null}
+        {signedInAsFamilyHead ? <PrimaryButton testID="home-family-portal" label="فتح ملف أسرتي وطلباتها" icon="people-outline" onPress={() => router.push('/family-head' as never)} /> : null}
+        {!signedIn ? <PrimaryButton testID="home-login" label="دخول فريق المخيم أو رب الأسرة" icon="log-in-outline" onPress={() => router.push('/auth/login')} /> : null}
       </ScrollView>
     </View>
   );

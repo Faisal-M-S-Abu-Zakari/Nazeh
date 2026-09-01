@@ -24,7 +24,7 @@ export default function AccountScreen() {
     if (item.kind === 'person') return `إضافة سجل: ${item.data.fullName}`;
     if (item.kind === 'complaint-create') return `إضافة شكوى: ${item.data.subject}`;
     if (item.kind === 'task-create') return `إضافة مهمة: ${item.data.title}`;
-    return item.kind === 'task' ? `تحديث مهمة: ${item.status}` : `تحديث شكوى: ${item.status}`;
+    return item.kind === 'task' ? `تحديث مهمة: ${item.status}` : item.kind === 'complaint' ? `تحديث شكوى: ${item.status}` : `طلب احتياج: ${item.data.title}`;
   };
   return (
     <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>

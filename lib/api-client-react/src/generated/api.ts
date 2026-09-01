@@ -62,6 +62,10 @@ import type {
   DisplacedPersonUpdate,
   FamilyApproval,
   FamilyDetail,
+  FamilyHeadNeed,
+  FamilyHeadNeedInput,
+  FamilyHeadNeedList,
+  FamilyHeadProfile,
   FamilyInput,
   FamilyList,
   FamilyUpdate,
@@ -210,6 +214,213 @@ export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TE
 
 
 
+
+export const getGetFamilyMeUrl = () => {
+
+
+
+
+  return `/api/family/me`
+}
+
+export const getFamilyMe = async ( options?: Parameters<typeof customFetch>[1]): Promise<FamilyHeadProfile> => {
+
+  return customFetch<FamilyHeadProfile>(getGetFamilyMeUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFamilyMeQueryKey = () => {
+    return [
+    `/api/family/me`
+    ] as const;
+    }
+
+
+export const getGetFamilyMeQueryOptions = <TData = Awaited<ReturnType<typeof getFamilyMe>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFamilyMe>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFamilyMeQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFamilyMe>>> = ({ signal }) => getFamilyMe({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFamilyMe>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFamilyMeQueryResult = NonNullable<Awaited<ReturnType<typeof getFamilyMe>>>
+export type GetFamilyMeQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
+
+
+
+export function useGetFamilyMe<TData = Awaited<ReturnType<typeof getFamilyMe>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFamilyMe>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFamilyMeQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetFamilyMeNeedsUrl = () => {
+
+
+
+
+  return `/api/family/me/needs`
+}
+
+export const getFamilyMeNeeds = async ( options?: Parameters<typeof customFetch>[1]): Promise<FamilyHeadNeedList> => {
+
+  return customFetch<FamilyHeadNeedList>(getGetFamilyMeNeedsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFamilyMeNeedsQueryKey = () => {
+    return [
+    `/api/family/me/needs`
+    ] as const;
+    }
+
+
+export const getGetFamilyMeNeedsQueryOptions = <TData = Awaited<ReturnType<typeof getFamilyMeNeeds>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFamilyMeNeeds>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFamilyMeNeedsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFamilyMeNeeds>>> = ({ signal }) => getFamilyMeNeeds({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFamilyMeNeeds>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFamilyMeNeedsQueryResult = NonNullable<Awaited<ReturnType<typeof getFamilyMeNeeds>>>
+export type GetFamilyMeNeedsQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
+
+
+
+export function useGetFamilyMeNeeds<TData = Awaited<ReturnType<typeof getFamilyMeNeeds>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFamilyMeNeeds>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFamilyMeNeedsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateFamilyMeNeedUrl = () => {
+
+
+
+
+  return `/api/family/me/needs`
+}
+
+export const createFamilyMeNeed = async (familyHeadNeedInput: FamilyHeadNeedInput, options?: Parameters<typeof customFetch>[1]): Promise<FamilyHeadNeed> => {
+
+  return customFetch<FamilyHeadNeed>(getCreateFamilyMeNeedUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(familyHeadNeedInput)
+  }
+);}
+
+
+
+
+
+export const getCreateFamilyMeNeedMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createFamilyMeNeed>>, TError,{data: BodyType<FamilyHeadNeedInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createFamilyMeNeed>>, TError,{data: BodyType<FamilyHeadNeedInput>}, TContext> => {
+
+const mutationKey = ['createFamilyMeNeed'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createFamilyMeNeed>>, {data: BodyType<FamilyHeadNeedInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createFamilyMeNeed(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateFamilyMeNeedMutationResult = NonNullable<Awaited<ReturnType<typeof createFamilyMeNeed>>>
+    export type CreateFamilyMeNeedMutationBody = BodyType<FamilyHeadNeedInput>
+    export type CreateFamilyMeNeedMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
+
+    export const useCreateFamilyMeNeed = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createFamilyMeNeed>>, TError,{data: BodyType<FamilyHeadNeedInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createFamilyMeNeed>>,
+        TError,
+        {data: BodyType<FamilyHeadNeedInput>},
+        TContext
+      > => {
+      return useMutation(getCreateFamilyMeNeedMutationOptions(options));
+    }
 
 export const getGetDashboardUrl = () => {
 

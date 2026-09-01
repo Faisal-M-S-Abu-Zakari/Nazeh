@@ -26,6 +26,7 @@ function RootLayoutNav() {
       <Stack.Screen name="person/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="complaint-form" options={{ title: 'إدارة شكوى', presentation: 'formSheet', sheetAllowedDetents: [0.9], sheetGrabberVisible: true }} />
       <Stack.Screen name="task-form" options={{ title: 'إدارة مهمة أمنية', presentation: 'formSheet', sheetAllowedDetents: [0.9], sheetGrabberVisible: true }} />
+      <Stack.Screen name="family-head" options={{ title: 'ملف أسرتي', headerShown: false }} />
     </Stack>
   );
 }

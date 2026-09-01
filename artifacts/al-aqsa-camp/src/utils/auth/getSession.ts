@@ -1,4 +1,5 @@
 import { SESSION_STORAGE_TOKEN_KEY } from "@/constants/sessionKey";
+import type { User } from "@workspace/api-client-react";
 
 export const getAuthToken = (): string | null => {
   if (typeof window === "undefined") return null;
@@ -31,8 +32,29 @@ export const clearAuthToken = () => {
   }
 };
 
+const SESSION_ROLE_KEY = "aqsa-session-role";
 /** @deprecated User identity is now verified with GET /api/auth/me. */
 export const getSession = () => {
   const token = getAuthToken();
   return token ? { token } : null;
 };
+
+export const getAuthRole = (): string | null =>
+  typeof window === "undefined" ? null : sessionStorage.getItem(SESSION_ROLE_KEY);
+
+export const clearAuthRole = () => sessionStorage.removeItem(SESSION_ROLE_KEY);
+
+export const getAuthUser = (): User | null => {
+  if (typeof window === "undefined") return null;
+  const value = sessionStorage.getItem(SESSION_USER_KEY);
+  if (!value) return null;
+  try { return JSON.parse(value) as User; } catch { return null; }
+};
+
+export const clearAuthUser = () => sessionStorage.removeItem(SESSION_USER_KEY);
+
+export const setAuthRole = (role: string) => sessionStorage.setItem(SESSION_ROLE_KEY, role);
+
+export const setAuthUser = (user: User) => sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(user));
+
+const SESSION_USER_KEY = "aqsa-session-user";

@@ -7,7 +7,7 @@ import
 
 import 
 {
- and, count, desc, eq, inArray, isNull, sql 
+ and, asc, count, desc, eq, inArray, isNull, sql
 }
  from "drizzle-orm"
 ;
@@ -26,7 +26,7 @@ import { z } from "zod"
 
 import 
 {
- aidRecipientsTable, aidsTable, auditEventsTable, complaintsTable, contactRequestsTable, contentPostsTable, db, displacedPersonsTable, familyMembersTable, familyNeedsTable, familiesTable, mediaReferencesTable, needStatusHistoryTable, notificationsTable, securityTaskAssigneesTable, securityTasksTable, sessionsTable, usersTable
+  aidRecipientsTable, aidsTable, auditEventsTable, campsTable, campSectorsTable, complaintsTable, contactRequestsTable, contentPostsTable, db, displacedPersonsTable, familyMembersTable, familyNeedsTable, familiesTable, mediaReferencesTable, needStatusHistoryTable, notificationsTable, securityTaskAssigneesTable, securityTasksTable, sessionsTable, shelterUnitsTable, staffUsers, usersTable
 }
  from "@workspace/db"
 ;
@@ -217,39 +217,103 @@ const familyHeadScope = (req: Request) => and(
 );
 
 router.get("/family/me", requireRoles("displaced"), async (req, res): Promise<void> => {
-  const [family] = await db.select().from(familiesTable).where(familyHeadScope(req)).limit(1);
-  if (!family) { res.status(404).json({ error: "Active family record not found" }); return; }
-  const members = await db.select().from(familyMembersTable).where(eq(familyMembersTable.familyId, family.id));
-  res.json({ ...family, members });
+  const [row] = await db.select({
+    family: familiesTable,
+    campName: campsTable.name,
+    sectorName: campSectorsTable.name,
+    shelterCode: shelterUnitsTable.code,
+    delegateName: staffUsers.name,
+    delegateEmail: staffUsers.email,
+  }).from(familiesTable)
+    .innerJoin(campsTable, eq(familiesTable.campId, campsTable.id))
+    .innerJoin(campSectorsTable, eq(familiesTable.sectorId, campSectorsTable.id))
+    .leftJoin(shelterUnitsTable, eq(familiesTable.shelterId, shelterUnitsTable.id))
+    .leftJoin(staffUsers, eq(familiesTable.delegateId, staffUsers.id))
+    .where(familyHeadScope(req)).limit(1);
+  if (!row) { res.status(404).json({ error: "Active family record not found" }); return; }
+  const members = await db.select().from(familyMembersTable).where(eq(familyMembersTable.familyId, row.family.id));
+  res.json({
+    ...row.family,
+    camp: { id: row.family.campId, name: row.campName },
+    sector: { id: row.family.sectorId, name: row.sectorName },
+    shelter: row.family.shelterId && row.shelterCode ? { id: row.family.shelterId, code: row.shelterCode } : null,
+    delegate: row.family.delegateId && row.delegateName ? { id: row.family.delegateId, name: row.delegateName, email: row.delegateEmail } : null,
+    headUser: {
+      id: req.authUser!.id,
+      name: req.authUser!.name,
+      email: req.authUser!.email,
+      role: "displaced",
+      phone: req.authUser!.phoneNumber,
+      createdAt: req.authUser!.createdAt,
+    },
+    members,
+  });
 });
 
 router.get("/family/me/needs", requireRoles("displaced"), async (req, res): Promise<void> => {
   const [family] = await db.select({ id: familiesTable.id }).from(familiesTable).where(familyHeadScope(req)).limit(1);
   if (!family) { res.status(404).json({ error: "Active family record not found" }); return; }
-  const needs = await db.select().from(familyNeedsTable).where(and(eq(familyNeedsTable.familyId, family.id), isNull(familyNeedsTable.archivedAt))).orderBy(desc(familyNeedsTable.createdAt));
-  res.json(needs);
+  const needs = await db.select().from(familyNeedsTable)
+    .where(and(eq(familyNeedsTable.familyId, family.id), isNull(familyNeedsTable.archivedAt)))
+    .orderBy(desc(familyNeedsTable.createdAt));
+  const history = await db.select().from(needStatusHistoryTable)
+    .where(needs.length ? inArray(needStatusHistoryTable.needId, needs.map((need) => need.id)) : sql`false`)
+    .orderBy(asc(needStatusHistoryTable.changedAt));
+  res.json(needs.map((need) => ({
+    ...need,
+    history: history.filter((entry) => entry.needId === need.id),
+    clientRequestId: undefined,
+  })));
 });
 
 router.post("/family/me/needs", requireRoles("displaced"), async (req, res): Promise<void> => {
   const body = parse<any>(FamilyHeadNeedBody, req.body, res);
   if (!body) return;
+  const requestId = req.get("Idempotency-Key")?.trim() || null;
+  if (requestId && requestId.length > 200) {
+    res.status(400).json({ error: "Idempotency-Key must be 1 to 200 characters" });
+    return;
+  }
   const result = await db.transaction(async (tx) => {
     const [family] = await tx.select({ id: familiesTable.id }).from(familiesTable).where(familyHeadScope(req)).limit(1);
     if (!family) return { status: 404, body: { error: "Active family record not found" } };
-    const [need] = await tx.insert(familyNeedsTable).values({
+    if (requestId) {
+      const [existing] = await tx.select().from(familyNeedsTable).where(and(
+        eq(familyNeedsTable.familyId, family.id),
+        eq(familyNeedsTable.createdByLegacyUserId, req.authUser!.id),
+        eq(familyNeedsTable.clientRequestId, requestId),
+        isNull(familyNeedsTable.archivedAt),
+      )).limit(1);
+      if (existing) {
+        const existingHistory = await tx.select().from(needStatusHistoryTable).where(eq(needStatusHistoryTable.needId, existing.id)).orderBy(asc(needStatusHistoryTable.changedAt));
+        return { status: 200, body: { ...existing, history: existingHistory, clientRequestId: undefined } };
+      }
+    }
+    const inserted = await tx.insert(familyNeedsTable).values({
       familyId: family.id,
       category: body.category,
       title: body.title,
       description: body.description ?? null,
       priority: body.priority,
       createdByLegacyUserId: req.authUser!.id,
-    }).returning();
-    await tx.insert(needStatusHistoryTable).values({
+      clientRequestId: requestId,
+    }).onConflictDoNothing().returning();
+    const [need] = inserted.length ? inserted : await tx.select().from(familyNeedsTable).where(and(
+      eq(familyNeedsTable.familyId, family.id),
+      eq(familyNeedsTable.createdByLegacyUserId, req.authUser!.id),
+      eq(familyNeedsTable.clientRequestId, requestId!),
+    )).limit(1);
+    if (!need) return { status: 409, body: { error: "Request could not be stored safely; retry with a new request key" } };
+    if (inserted.length === 0) {
+      const existingHistory = await tx.select().from(needStatusHistoryTable).where(eq(needStatusHistoryTable.needId, need.id)).orderBy(asc(needStatusHistoryTable.changedAt));
+      return { status: 200, body: { ...need, history: existingHistory, clientRequestId: undefined } };
+    }
+    const [statusEntry] = await tx.insert(needStatusHistoryTable).values({
       needId: need.id,
       toStatus: "REQUIRED",
       changedByLegacyUserId: req.authUser!.id,
-    });
-    return { status: 201, body: need };
+    }).returning();
+    return { status: 201, body: { ...need, history: statusEntry ? [statusEntry] : [], clientRequestId: undefined } };
   });
   res.status(result.status).json(result.body);
 });

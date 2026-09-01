@@ -22,6 +22,140 @@ export const GetSessionResponse = zod.object({
 })
 
 
+
+
+
+export const GetFamilyMeResponse = zod.object({
+  "id": zod.uuid(),
+  "campId": zod.uuid(),
+  "sectorId": zod.uuid(),
+  "shelterId": zod.uuid().nullish(),
+  "headName": zod.string(),
+  "headPhone": zod.string().nullish(),
+  "delegateId": zod.uuid().nullish(),
+  "status": zod.enum(['PENDING_APPROVAL', 'ACTIVE', 'ARCHIVED']),
+  "criticalNotes": zod.string().nullish(),
+  "version": zod.int().min(1),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "camp": zod.object({
+  "id": zod.uuid(),
+  "name": zod.string()
+}),
+  "sector": zod.object({
+  "id": zod.uuid(),
+  "name": zod.string()
+}),
+  "shelter": zod.object({
+  "id": zod.uuid(),
+  "code": zod.string()
+}).nullish(),
+  "delegate": zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "email": zod.email()
+}).nullish(),
+  "headUser": zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "email": zod.email(),
+  "role": zod.enum(['displaced']),
+  "phone": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}),
+  "members": zod.array(zod.object({
+  "id": zod.uuid(),
+  "familyId": zod.uuid(),
+  "fullName": zod.string(),
+  "nationalId": zod.string().nullish(),
+  "gender": zod.enum(['MALE', 'FEMALE', 'OTHER']),
+  "birthDate": zod.coerce.date().nullish(),
+  "relationship": zod.string(),
+  "criticalCase": zod.boolean(),
+  "criticalNotes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+
+
+
+export const GetFamilyMeNeedsResponseItem = zod.object({
+  "id": zod.uuid(),
+  "familyId": zod.uuid(),
+  "category": zod.enum(['FOOD', 'WATER', 'MEDICAL', 'SHELTER', 'HYGIENE', 'OTHER']),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "priority": zod.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
+  "status": zod.enum(['REQUIRED', 'IN_PROGRESS', 'FULFILLED', 'CANCELLED']),
+  "version": zod.int().min(1),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "history": zod.array(zod.object({
+  "id": zod.uuid(),
+  "needId": zod.uuid(),
+  "fromStatus": zod.enum(['REQUIRED', 'IN_PROGRESS', 'FULFILLED', 'CANCELLED']).optional(),
+  "toStatus": zod.enum(['REQUIRED', 'IN_PROGRESS', 'FULFILLED', 'CANCELLED']),
+  "changedById": zod.uuid().nullish(),
+  "changedByLegacyUserId": zod.int().nullish(),
+  "note": zod.string().nullish(),
+  "changedAt": zod.coerce.date()
+}))
+})
+export const GetFamilyMeNeedsResponse = zod.array(GetFamilyMeNeedsResponseItem)
+
+
+export const createFamilyMeNeedHeaderIdempotencyKeyMax = 200;
+
+
+
+export const CreateFamilyMeNeedHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(createFamilyMeNeedHeaderIdempotencyKeyMax).describe('A caller-generated, non-empty key (maximum 200 characters) used to safely retry this mutation.')
+})
+
+export const createFamilyMeNeedBodyTitleMin = 2;
+export const createFamilyMeNeedBodyTitleMax = 240;
+
+export const createFamilyMeNeedBodyDescriptionMax = 5000;
+
+
+
+export const CreateFamilyMeNeedBody = zod.object({
+  "category": zod.enum(['FOOD', 'WATER', 'MEDICAL', 'SHELTER', 'HYGIENE', 'OTHER']),
+  "title": zod.string().min(createFamilyMeNeedBodyTitleMin).max(createFamilyMeNeedBodyTitleMax),
+  "description": zod.string().max(createFamilyMeNeedBodyDescriptionMax).optional(),
+  "priority": zod.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'])
+})
+
+
+
+
+export const CreateFamilyMeNeedResponse = zod.object({
+  "id": zod.uuid(),
+  "familyId": zod.uuid(),
+  "category": zod.enum(['FOOD', 'WATER', 'MEDICAL', 'SHELTER', 'HYGIENE', 'OTHER']),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "priority": zod.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
+  "status": zod.enum(['REQUIRED', 'IN_PROGRESS', 'FULFILLED', 'CANCELLED']),
+  "version": zod.int().min(1),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "history": zod.array(zod.object({
+  "id": zod.uuid(),
+  "needId": zod.uuid(),
+  "fromStatus": zod.enum(['REQUIRED', 'IN_PROGRESS', 'FULFILLED', 'CANCELLED']).optional(),
+  "toStatus": zod.enum(['REQUIRED', 'IN_PROGRESS', 'FULFILLED', 'CANCELLED']),
+  "changedById": zod.uuid().nullish(),
+  "changedByLegacyUserId": zod.int().nullish(),
+  "note": zod.string().nullish(),
+  "changedAt": zod.coerce.date()
+}))
+})
+
+
 export const GetDashboardResponse = zod.object({
   "totalDelegates": zod.int(),
   "totalDisplacedPersons": zod.int(),

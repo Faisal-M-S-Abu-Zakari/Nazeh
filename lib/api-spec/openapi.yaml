@@ -31,6 +31,42 @@ paths:
       responses:
         "200": { description: Current session, content: { application/json: { schema: { $ref: "#/components/schemas/SessionResponse" } } } }
         "401": { $ref: "#/components/responses/Unauthorized" }
+  /family/me:
+    get:
+      operationId: getFamilyMe
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Active family profile, content: { application/json: { schema: { $ref: "#/components/schemas/FamilyHeadProfile" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /family/me/needs:
+    get:
+      operationId: getFamilyMeNeeds
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Family needs and status history, content: { application/json: { schema: { $ref: "#/components/schemas/FamilyHeadNeedList" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: createFamilyMeNeed
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: "#/components/schemas/FamilyHeadNeedInput" } }
+      responses:
+        "201": { description: Need created, content: { application/json: { schema: { $ref: "#/components/schemas/FamilyHeadNeed" } } } }
+        "200": { description: Duplicate request replay, content: { application/json: { schema: { $ref: "#/components/schemas/FamilyHeadNeed" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /dashboard:
     get:
       operationId: getDashboard
@@ -2136,6 +2172,88 @@ components:
         assignedToId: { type: ["string", "null"], format: uuid }
         note: { type: string, maxLength: 2000 }
         expectedVersion: { type: integer, minimum: 1 }
+    NeedStatusHistory:
+      type: object
+      required: [id, needId, toStatus, changedAt]
+      properties:
+        id: { type: string, format: uuid }
+        needId: { type: string, format: uuid }
+        fromStatus: { $ref: "#/components/schemas/NeedStatus" }
+        toStatus: { $ref: "#/components/schemas/NeedStatus" }
+        changedById: { type: ["string", "null"], format: uuid }
+        changedByLegacyUserId: { type: ["integer", "null"] }
+        note: { type: ["string", "null"] }
+        changedAt: { type: string, format: date-time }
+    FamilyHeadNeed:
+      type: object
+      required: [id, familyId, category, title, priority, status, version, createdAt, updatedAt, history]
+      properties:
+        id: { type: string, format: uuid }
+        familyId: { type: string, format: uuid }
+        category: { $ref: "#/components/schemas/NeedCategory" }
+        title: { type: string }
+        description: { type: ["string", "null"] }
+        priority: { $ref: "#/components/schemas/NeedPriority" }
+        status: { $ref: "#/components/schemas/NeedStatus" }
+        version: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        history: { type: array, items: { $ref: "#/components/schemas/NeedStatusHistory" } }
+    FamilyHeadNeedInput:
+      type: object
+      additionalProperties: false
+      required: [category, title, priority]
+      properties:
+        category: { $ref: "#/components/schemas/NeedCategory" }
+        title: { type: string, minLength: 2, maxLength: 240 }
+        description: { type: string, maxLength: 5000 }
+        priority: { $ref: "#/components/schemas/NeedPriority" }
+    FamilyHeadNeedList:
+      type: array
+      items: { $ref: "#/components/schemas/FamilyHeadNeed" }
+    FamilyHeadProfile:
+      type: object
+      required: [id, campId, sectorId, headName, status, version, createdAt, updatedAt, camp, sector, members, headUser]
+      properties:
+        id: { type: string, format: uuid }
+        campId: { type: string, format: uuid }
+        sectorId: { type: string, format: uuid }
+        shelterId: { type: ["string", "null"], format: uuid }
+        headName: { type: string }
+        headPhone: { type: ["string", "null"] }
+        delegateId: { type: ["string", "null"], format: uuid }
+        status: { $ref: "#/components/schemas/FamilyStatus" }
+        criticalNotes: { type: ["string", "null"] }
+        version: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        camp:
+          type: object
+          required: [id, name]
+          properties: { id: { type: string, format: uuid }, name: { type: string } }
+        sector:
+          type: object
+          required: [id, name]
+          properties: { id: { type: string, format: uuid }, name: { type: string } }
+        shelter:
+          type: ["object", "null"]
+          required: [id, code]
+          properties: { id: { type: string, format: uuid }, code: { type: string } }
+        delegate:
+          type: ["object", "null"]
+          required: [id, name, email]
+          properties: { id: { type: string, format: uuid }, name: { type: string }, email: { type: string, format: email } }
+        headUser:
+          type: object
+          required: [id, name, email, role, createdAt]
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            email: { type: string, format: email }
+            role: { type: string, enum: [displaced] }
+            phone: { type: ["string", "null"] }
+            createdAt: { type: string, format: date-time }
+        members: { type: array, items: { $ref: "#/components/schemas/FamilyMember" } }
     SecurityMember:
       type: object
       required: [id, name, email, role, active]
