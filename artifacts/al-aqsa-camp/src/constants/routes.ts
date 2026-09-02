@@ -58,12 +58,8 @@ export const DELEGATE_ROUTES_fUNC = (
   }
 ) => {
   return {
-    PROFILE: `/actor/delegates/${delegate_Id}/profile`,
     COMPLAINTS: `/actor/delegates/${delegate_Id}/complaints`,
-    REPORTS: `/actor/delegates/${delegate_Id}/reports`,
 
-    // AIDS_MANAGEMENT
-    AIDS_MANAGEMENT: `/actor/delegates/${delegate_Id}/aids-management`,
     ADD_AID_DISPLACEDS: `/actor/delegates/${delegate_Id}/aids-management/${aid_Id}/add-displaceds`,
     AID: `/actor/delegates/${delegate_Id}/aids-management/${aid_Id}`,
   } as const;
@@ -83,8 +79,6 @@ export const MANAGER_ROUTES_fUNC = (
 ) => {
   return {
 
-    PROFILE: `/actor/manager/${manager_Id}/profile`,
-    REPORTS: `/actor/manager/${manager_Id}/reports`,
     COMPLAINTS: `/actor/manager/${manager_Id}/complaints`,
 
     // ADS_BLOGS
@@ -93,8 +87,6 @@ export const MANAGER_ROUTES_fUNC = (
     ADD_ADS_BLOGS_STORIES: `/actor/manager/${manager_Id}/ads-blogs-stories/add`,
 
 
-    // AIDS_MANAGEMENT
-    AIDS_MANAGEMENT: `/actor/manager/${manager_Id}/aids-management`,
     ADD_AID: `/actor/manager/${manager_Id}/aids-management/add`,
     AID: `/actor/manager/${manager_Id}/aids-management/${aid_Id}`,
 
@@ -106,8 +98,6 @@ export const SECURITY_ROUTES_fUNC = (
     security_Id: number,
   }) => {
   return {
-    PROFILE: `/actor/securities/${security_Id}/profile`,
     COMPLAINTS: `/actor/securities/${security_Id}/complaints`,
-    TASKS: `/actor/securities/${security_Id}/tasks`,
   } as const;
 };

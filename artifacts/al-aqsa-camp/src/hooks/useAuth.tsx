@@ -6,7 +6,6 @@ import { getGetCurrentUserQueryKey, getGetFamilyMeQueryKey, Role, useGetCurrentU
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AUTH_ROUTES } from '@/constants/routes';
-import { canonicalIdToNumber } from '@/utils/auth/canonicalId';
 import { createAuthLifecycle } from '@/utils/auth/authLifecycle';
 
 export default function useAuth() {
@@ -46,8 +45,10 @@ export default function useAuth() {
     : (role === Role.SECURITY_OFFICER || role === Role.SECURITY_MEMBER) ? USER_TYPE.SECURITY
     : role === Role.DELEGATE ? USER_TYPE.DELEGATE
     : USER_TYPE.MANAGER;
+  const rawUserId = legacyUser?.id ?? me.data?.id ?? storedFamilyUser?.id;
+  const numericUserId = typeof rawUserId === 'number' ? rawUserId : Number(rawUserId);
   const user: User | null = me.data || legacyUser || storedFamilyUser ? {
-    id: canonicalIdToNumber(String(legacyUser?.id ?? me.data?.id ?? storedFamilyUser?.id)),
+    id: Number.isSafeInteger(numericUserId) && numericUserId > 0 ? numericUserId : 0,
     name: legacyUser?.name ?? me.data?.name ?? storedFamilyUser?.name ?? '',
     email: legacyUser?.email ?? me.data?.email ?? storedFamilyUser?.email ?? '',
     identity: String(legacyUser?.id ?? me.data?.id ?? storedFamilyUser?.id ?? ''),

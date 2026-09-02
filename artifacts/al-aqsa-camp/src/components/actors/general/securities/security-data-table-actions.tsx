@@ -3,24 +3,19 @@
 import { ActionIcon, Button, Popover, Stack, ThemeIcon } from '@mantine/core';
 import {
   EllipsisVertical,
-  Eye,
   Hammer,
   Speech,
   Trash,
   UserCog,
-  UserPen,
   Users,
 } from 'lucide-react';
-import { useRouter  } from '@/lib/nextjs-mocks';
 import { ComponentType, useState } from 'react';
 import useAuth from '@/hooks/useAuth';
-import { SECURITY_ROUTES_fUNC } from '@/constants/routes';
 import { cn } from '@/utils/cn';
 import Delete_Security_Members_Modal from './modals/delete-security-members-modal';
 import Call_Security_Members_Modal from './modals/call-security-members-modal';
 import Meeting_Security_Members_Modal from './modals/meeting-security-members-modal';
 import Update_Security_Members_Modal from './modals/update-security-members-modal';
-import { ACTION_ADD_EDIT_DISPLAY } from '@/@types/actors/common-types/index.type';
 
 interface ActionItem {
   label: string;
@@ -45,19 +40,12 @@ export default function Security_Data_Table_Actions({
     'edit' | 'delete' | 'call' | 'update' | 'meeting' | null
   >(null);
 
-  const router = useRouter();
-
   const openModal = (type: typeof modalType) => {
     setModalType(type);
     setOpenedPopover(false);
   };
 
   const closeModal = () => setModalType(null);
-
-  const buildRoute = (id: number, edit = false) => {
-    const base = SECURITY_ROUTES_fUNC({ security_Id: id });
-    return edit ? `${base.PROFILE}?action=${ACTION_ADD_EDIT_DISPLAY.EDIT}` : base.PROFILE;
-  };
 
   const commonActions: ActionItem[] = [
     { label: 'حذف', icon: Trash, action: () => openModal('delete') },
@@ -66,23 +54,9 @@ export default function Security_Data_Table_Actions({
     { label: 'اجتماع', icon: Users, action: () => openModal('meeting') },
   ];
 
-  const viewEditActions: ActionItem[] = [
-    {
-      label: 'عرض',
-      icon: Eye,
-      action: () => router.push(buildRoute(security_Id || 0)),
-    },
-    {
-      label: 'تعديل',
-      icon: UserPen,
-      action: () => router.push(buildRoute(security_Id || 0, true)),
-    },
-  ];
-
   const getActions = (): ActionItem[] => {
     if ((isManager || isSecurityOfficer) && security_Ids) return [...commonActions];
-    if ((isManager || isSecurityOfficer) && security_Id)
-      return [...viewEditActions, ...commonActions];
+    if ((isManager || isSecurityOfficer) && security_Id) return [...commonActions];
     return [];
   };
 

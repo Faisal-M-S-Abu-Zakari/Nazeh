@@ -7,12 +7,7 @@ import { logout } from '@/utils/auth/logout';
 import { MAN } from '@/assets/actor';
 import { User, LogOut } from 'lucide-react';
 import { USER_RANK } from '@/constants/userTypes';
-import {
-  DELEGATE_ROUTES_fUNC,
-  DISPLACED_ROUTES_fUNC,
-  MANAGER_ROUTES_fUNC,
-  SECURITY_ROUTES_fUNC,
-} from '@/constants/routes';
+import { GENERAL_ACTOR_ROUTES } from '@/constants/routes';
 
 export default function Header_Avatar() {
   const { user } = useAuth();
@@ -21,31 +16,11 @@ export default function Header_Avatar() {
   const goToProfile = () => {
     if (!user) return;
 
-    let route: string | undefined;
-
-    switch (user.role) {
-      case USER_RANK.ADMIN:
-        route = MANAGER_ROUTES_fUNC({ manager_Id: user.id }).PROFILE;
-        break;
-      case USER_RANK.DISPLACED:
-        route = DISPLACED_ROUTES_fUNC({ displaced_Id: user.id }).PROFILE;
-        break;
-      case USER_RANK.DELEGATE:
-        route = DELEGATE_ROUTES_fUNC({ delegate_Id: user.id }).PROFILE;
-        break;
-      case USER_RANK.MANAGER:
-        route = MANAGER_ROUTES_fUNC({ manager_Id: user.id }).PROFILE;
-        break;
-      case USER_RANK.SECURITY:
-      case USER_RANK.SECURITY_MEMBER:
-      case USER_RANK.SECURITY_OFFICER:
-        route = SECURITY_ROUTES_fUNC({ security_Id: user.id }).PROFILE;
-        break;
-    }
-
-    if (route) {
-      router.push(route);
-    }
+    router.push(
+      user.role === USER_RANK.DISPLACED
+        ? GENERAL_ACTOR_ROUTES.FAMILY
+        : GENERAL_ACTOR_ROUTES.PROFILE
+    );
   };
 
   return (

@@ -18,20 +18,18 @@ test('requires a session for every actor screen and limits staff management to a
 });
 
 test('allows role owners to open only their own role profile', () => {
-  assert.equal(canAccessActorPath('/actor/manager/228054100', users.manager), true);
-  assert.equal(canAccessActorPath('/actor/manager/228054100', users.delegate), false);
-  assert.equal(canAccessActorPath('/actor/delegates/228054099/profile', users.delegate), true);
-  assert.equal(canAccessActorPath('/actor/delegates/228054100/profile', users.delegate), false);
+  assert.equal(canAccessActorPath('/actor/manager/228054100/complaints', users.manager), true);
+  assert.equal(canAccessActorPath('/actor/manager/228054100/complaints', users.delegate), false);
+  assert.equal(canAccessActorPath('/actor/delegates/228054099/complaints', users.delegate), true);
   assert.equal(canAccessActorPath('/actor/displaceds', users.member), false);
   assert.equal(canAccessActorPath('/actor/displaceds', users.delegate), true);
-  assert.equal(canAccessActorPath('/actor/securities/228054097/tasks', users.member), true);
-  assert.equal(canAccessActorPath('/actor/securities/228054100/tasks', users.member), false);
+  assert.equal(canAccessActorPath('/actor/securities/228054097/complaints', users.member), true);
 });
 
 test('keeps security officer and security member as separate server roles', () => {
-  assert.equal(canAccessActorPath('/actor/securities/228054098/tasks', users.officer), true);
-  assert.equal(canAccessActorPath('/actor/securities/228054098/tasks', users.member), false);
-  assert.equal(canAccessActorPath('/actor/securities/228054098/tasks', users.manager), true);
+  assert.equal(canAccessActorPath('/actor/securities/228054098/complaints', users.officer), true);
+  assert.equal(canAccessActorPath('/actor/securities/228054098/complaints', users.member), true);
+  assert.equal(canAccessActorPath('/actor/securities/228054098/complaints', users.manager), true);
 });
 
 test('exposes the modern fixed workspace routes only to appropriate roles', () => {

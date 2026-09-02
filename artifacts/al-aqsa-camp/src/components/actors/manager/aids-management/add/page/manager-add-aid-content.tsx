@@ -22,7 +22,7 @@ import { useMutation } from '@tanstack/react-query';
 import { updateAid } from '@/actions/actors/general/aids-management/updateAid';
 import { addAid } from '@/actions/actors/general/aids-management/addAid';
 import { useRouter  } from '@/lib/nextjs-mocks';
-import { MANAGER_ROUTES_fUNC } from '@/constants/routes';
+import { GENERAL_ACTOR_ROUTES, MANAGER_ROUTES_fUNC } from '@/constants/routes';
 import Common_Aid_Add_Displaceds from '@/components/actors/general/aids-management/add/aid-add-displaceds/common-aid-add-displaceds';
 
 function Add_Aid_Header() {
@@ -229,7 +229,7 @@ export default function Add_Aid_Content({
     };
 
     actionAidMutation.mutate(payload);
-    router.push(MANAGER_ROUTES_fUNC({ manager_Id: manager_Id }).PROFILE);
+    router.push(GENERAL_ACTOR_ROUTES.PROFILE);
   };
 
   return (

@@ -5,22 +5,18 @@ import { cn } from '@/utils/cn';
 import { ActionIcon, Button, Popover, Stack, ThemeIcon } from '@mantine/core';
 import {
   EllipsisVertical,
-  Eye,
   Hammer,
   Speech,
   Trash,
   UserCog,
-  UserPen,
   Users,
 } from 'lucide-react';
-import { useRouter  } from '@/lib/nextjs-mocks';
 import { ComponentType, useState } from 'react';
 import useAuth from '@/hooks/useAuth';
 import Call_Delegate_Modal from './modals/call-delegate-modal';
 import Delete_Delegate_Modal from './modals/delete-delegate-modal';
 import Update_Delegate_Modal from './modals/update-delegate-modal';
 import Meeting_Delegate_Modal from './modals/meeting-delegate-modal';
-import { ACTION_ADD_EDIT_DISPLAY } from '@/@types/actors/common-types/index.type';
 
 interface ActionItem {
   label: string;
@@ -41,19 +37,12 @@ export default function Delegates_Table_Actions({ delegate_Id, delegate_Ids, dis
     'edit' | 'delete' | 'call' | 'update' | 'meeting' | null
   >(null);
 
-  const router = useRouter();
-
   const openModal = (type: typeof modalType) => {
     setModalType(type);
     setOpenedPopover(false);
   };
 
   const closeModal = () => setModalType(null);
-
-  const buildRoute = (id: number, edit = false) => {
-    const base = DELEGATE_ROUTES_fUNC({ delegate_Id: id });
-    return edit ? `${base.PROFILE}?action=${ACTION_ADD_EDIT_DISPLAY.EDIT}` : base.PROFILE;
-  };
 
   const commonActions: ActionItem[] = [
     { label: 'حذف', icon: Trash, action: () => openModal('delete') },
@@ -62,31 +51,13 @@ export default function Delegates_Table_Actions({ delegate_Id, delegate_Ids, dis
     { label: 'اجتماع', icon: Users, action: () => openModal('meeting') },
   ];
 
-  const viewEditActions: ActionItem[] = [
-    {
-      label: 'عرض',
-      icon: Eye,
-      action: () => router.push(buildRoute(delegate_Id || 0)),
-    },
-    {
-      label: 'تعديل',
-      icon: UserPen,
-      action: () => router.push(buildRoute(delegate_Id || 0, true)),
-    },
-  ];
-
   const securityActions: ActionItem[] = [
-    {
-      label: 'عرض',
-      icon: Eye,
-      action: () => router.push(buildRoute(delegate_Id || 0)),
-    },
     { label: 'استدعاء', icon: Speech, action: () => openModal('call') },
   ];
 
   const getActions = (): ActionItem[] => {
     if (isManager && delegate_Ids) return [...commonActions];
-    if (isManager && delegate_Id) return [...viewEditActions, ...commonActions];
+    if (isManager && delegate_Id) return [...commonActions];
     if (isSecurity || isSecurityOfficer) return securityActions;
     return [];
   };

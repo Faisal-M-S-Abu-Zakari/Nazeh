@@ -48,7 +48,7 @@ import {
 } from '@/validation/actor/displaceds/profile/displaced-profile-schema';
 import { handleUploadMedia } from '@/utils/uploadthing/handleUploadMedia';
 import { notifications } from '@mantine/notifications';
-import { DELEGATE_ROUTES_fUNC, GENERAL_ACTOR_ROUTES } from '@/constants/routes';
+import { GENERAL_ACTOR_ROUTES } from '@/constants/routes';
 import {
   addNewDisplaced,
   AddNewDisplacedProps,
@@ -451,7 +451,7 @@ export default function Displaced_Profile_Form({
     event.preventDefault();
     const selectedDelegateId = form.getValues().displacement.delegate.id;
     if (selectedDelegateId) {
-      router.push(DELEGATE_ROUTES_fUNC({ delegate_Id: Number(selectedDelegateId) }).PROFILE);
+      router.push(GENERAL_ACTOR_ROUTES.DELEGATES);
     }
   };
 
