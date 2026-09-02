@@ -46,8 +46,12 @@ import Page39 from '@/app/auth/otp/page';
 import Page40 from '@/app/(pages)/actor/staff/page';
 import OperationsPage from '@/app/(pages)/actor/operations/page';
 import useAuth from '@/hooks/useAuth';
-import { AUTH_ROUTES, GENERAL_ACTOR_ROUTES } from '@/constants/routes';
-import { canAccessActorPath } from '@/utils/auth/routeAccess';
+import { AUTH_ROUTES } from '@/constants/routes';
+import {
+  canAccessActorPath,
+  getLegacyActorRedirectTarget,
+  navigateWithHistoryReplacement,
+} from '@/utils/auth/routeAccess';
 import FamilyHeadPage from '@/app/(pages)/actor/family/page';
 import RoleWorkspacePage from '@/components/actors/workspace/role-workspace-page';
 
@@ -56,13 +60,20 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
   return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>;
 }
 
-function LegacyActorRedirect({ target }: { target: string }) {
-  const [, setLocation] = useLocation();
+function LegacyActorRedirect() {
+  const [location, setLocation] = useLocation();
+  const actorPath = location === '/actor' || location.startsWith('/actor/')
+    ? location
+    : `/actor${location.startsWith('/') ? location : `/${location}`}`;
+  const target = getLegacyActorRedirectTarget(actorPath);
 
   useEffect(() => {
-    setLocation(target, { replace: true });
+    if (target) {
+      navigateWithHistoryReplacement(target, setLocation);
+    }
   }, [setLocation, target]);
 
+  if (!target) return <NotFound />;
   return <AuthLoadingScreen />;
 }
 
@@ -91,19 +102,10 @@ const ActorPages = () => (
       <Route path="/securities" component={Page11} />
       <Route path="/delegates/:delegate/aids-management/:aid/add-displaceds" component={Page12} />
       <Route path="/delegates/:delegate/aids-management/:aid" component={Page13} />
-      <Route
-        path="/delegates/:delegate/aids-management"
-        component={() => <LegacyActorRedirect target={GENERAL_ACTOR_ROUTES.AIDS} />}
-      />
+      <Route path="/delegates/:delegate/aids-management" component={LegacyActorRedirect} />
       <Route path="/delegates/:delegate/complaints" component={Page15} />
-      <Route
-        path="/delegates/:delegate/profile"
-        component={() => <LegacyActorRedirect target={GENERAL_ACTOR_ROUTES.PROFILE} />}
-      />
-      <Route
-        path="/delegates/:delegate/reports"
-        component={() => <LegacyActorRedirect target={GENERAL_ACTOR_ROUTES.REPORTS} />}
-      />
+      <Route path="/delegates/:delegate/profile" component={LegacyActorRedirect} />
+      <Route path="/delegates/:delegate/reports" component={LegacyActorRedirect} />
       <Route path="/delegates/add" component={Page18} />
       <Route path="/displaceds/:displaced/complaints" component={Page19} />
       <Route path="/displaceds/:displaced/profile" component={Page20} />
@@ -114,28 +116,13 @@ const ActorPages = () => (
       <Route path="/manager/:manager/ads-blogs-stories" component={Page25} />
       <Route path="/manager/:manager/aids-management/:aid" component={Page26} />
       <Route path="/manager/:manager/aids-management/add" component={Page27} />
-      <Route
-        path="/manager/:manager/aids-management"
-        component={() => <LegacyActorRedirect target={GENERAL_ACTOR_ROUTES.AIDS} />}
-      />
+      <Route path="/manager/:manager/aids-management" component={LegacyActorRedirect} />
       <Route path="/manager/:manager/complaints" component={Page29} />
-      <Route
-        path="/manager/:manager/profile"
-        component={() => <LegacyActorRedirect target={GENERAL_ACTOR_ROUTES.PROFILE} />}
-      />
-      <Route
-        path="/manager/:manager/reports"
-        component={() => <LegacyActorRedirect target={GENERAL_ACTOR_ROUTES.REPORTS} />}
-      />
+      <Route path="/manager/:manager/profile" component={LegacyActorRedirect} />
+      <Route path="/manager/:manager/reports" component={LegacyActorRedirect} />
       <Route path="/securities/:security/complaints" component={Page32} />
-      <Route
-        path="/securities/:security/profile"
-        component={() => <LegacyActorRedirect target={GENERAL_ACTOR_ROUTES.PROFILE} />}
-      />
-      <Route
-        path="/securities/:security/tasks"
-        component={() => <LegacyActorRedirect target={GENERAL_ACTOR_ROUTES.TASKS} />}
-      />
+      <Route path="/securities/:security/profile" component={LegacyActorRedirect} />
+      <Route path="/securities/:security/tasks" component={LegacyActorRedirect} />
       <Route path="/securities/add" component={Page35} />
       <Route path="/staff" component={Page40} />
       <Route path="/operations" component={OperationsPage} />

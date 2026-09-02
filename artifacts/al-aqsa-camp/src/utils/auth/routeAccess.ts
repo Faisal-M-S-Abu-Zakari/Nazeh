@@ -1,4 +1,5 @@
 import { Role } from '@workspace/api-client-react';
+import { GENERAL_ACTOR_ROUTES } from '@/constants/routes';
 
 export type StaffRouteRole = Role | 'displaced';
 
@@ -16,6 +17,52 @@ const allStaffRoles: StaffRouteRole[] = [
 ];
 
 const hasRole = (role: StaffRouteRole, roles: StaffRouteRole[]) => roles.includes(role);
+
+const legacyActorRedirects: Array<{ pattern: RegExp; target: string }> = [
+  {
+    pattern: /^\/actor\/delegates\/[^/]+\/aids-management$/,
+    target: GENERAL_ACTOR_ROUTES.AIDS,
+  },
+  {
+    pattern: /^\/actor\/delegates\/[^/]+\/profile$/,
+    target: GENERAL_ACTOR_ROUTES.PROFILE,
+  },
+  {
+    pattern: /^\/actor\/delegates\/[^/]+\/reports$/,
+    target: GENERAL_ACTOR_ROUTES.REPORTS,
+  },
+  {
+    pattern: /^\/actor\/manager\/[^/]+\/aids-management$/,
+    target: GENERAL_ACTOR_ROUTES.AIDS,
+  },
+  {
+    pattern: /^\/actor\/manager\/[^/]+\/profile$/,
+    target: GENERAL_ACTOR_ROUTES.PROFILE,
+  },
+  {
+    pattern: /^\/actor\/manager\/[^/]+\/reports$/,
+    target: GENERAL_ACTOR_ROUTES.REPORTS,
+  },
+  {
+    pattern: /^\/actor\/securities\/[^/]+\/profile$/,
+    target: GENERAL_ACTOR_ROUTES.PROFILE,
+  },
+  {
+    pattern: /^\/actor\/securities\/[^/]+\/tasks$/,
+    target: GENERAL_ACTOR_ROUTES.TASKS,
+  },
+];
+
+export function getLegacyActorRedirectTarget(pathname: string): string | null {
+  const path = (pathname.split(/[?#]/, 1)[0].replace(/\/+$/, '') || '/actor');
+  return legacyActorRedirects.find(({ pattern }) => pattern.test(path))?.target ?? null;
+}
+
+export type ReplaceNavigation = (target: string, options: { replace: true }) => void;
+
+export function navigateWithHistoryReplacement(target: string, navigate: ReplaceNavigation): void {
+  navigate(target, { replace: true });
+}
 
 /**
  * The actor router is intentionally deny-by-default. A backend 403 is not a
