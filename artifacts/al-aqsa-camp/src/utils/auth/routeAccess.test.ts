@@ -33,3 +33,13 @@ test('keeps security officer and security member as separate server roles', () =
   assert.equal(canAccessActorPath('/actor/securities/228054098/tasks', users.member), false);
   assert.equal(canAccessActorPath('/actor/securities/228054098/tasks', users.manager), true);
 });
+
+test('exposes the modern fixed workspace routes only to appropriate roles', () => {
+  assert.equal(canAccessActorPath('/actor/profile', users.member), true);
+  assert.equal(canAccessActorPath('/actor/families', users.delegate), true);
+  assert.equal(canAccessActorPath('/actor/families', users.officer), false);
+  assert.equal(canAccessActorPath('/actor/needs', users.officer), true);
+  assert.equal(canAccessActorPath('/actor/aids', users.delegate), true);
+  assert.equal(canAccessActorPath('/actor/tasks', users.member), true);
+  assert.equal(canAccessActorPath('/actor/reports', users.member), true);
+});

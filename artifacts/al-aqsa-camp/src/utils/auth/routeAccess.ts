@@ -36,6 +36,14 @@ export function canAccessActorPath(pathname: string, user: RouteAccessUser): boo
 
   if (path === '/actor/family') return role === 'displaced';
   if (path === '/actor' || path === '/actor/operations') return hasRole(role, allStaffRoles);
+  if (path === '/actor/profile' || path === '/actor/reports') return hasRole(role, allStaffRoles);
+  if (path === '/actor/families' || path === '/actor/aids') {
+    return hasRole(role, [Role.ADMIN, Role.MANAGER, Role.DELEGATE]);
+  }
+  if (path === '/actor/needs') return hasRole(role, [Role.ADMIN, Role.MANAGER, Role.DELEGATE, Role.SECURITY_OFFICER]);
+  if (path === '/actor/tasks') {
+    return hasRole(role, [Role.ADMIN, Role.MANAGER, Role.SECURITY_OFFICER, Role.SECURITY_MEMBER]);
+  }
   if (path === '/actor/staff') return role === Role.ADMIN;
 
   if (path === '/actor/ads' || path.startsWith('/actor/ads/')) {

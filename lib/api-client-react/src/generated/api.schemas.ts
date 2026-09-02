@@ -600,11 +600,47 @@ export interface Aid {
   version: number;
   /** @minimum 0 */
   distributionCount?: number;
-  /** @minimum 0 */
   receivedDistributionCount?: number;
 }
 
 export type AidDistributionStatus = typeof AidDistributionStatus[keyof typeof AidDistributionStatus];
+
+
+export const AidDistributionStatus = {
+  ASSIGNED: 'ASSIGNED',
+  RECEIVED: 'RECEIVED',
+  CANCELLED: 'CANCELLED',
+} as const;
+
+export interface AidDistribution {
+  id: string;
+  aidId: string;
+  needId: string;
+  familyId: string;
+  /** @minimum 1 */
+  quantity: number;
+  unit: string;
+  status: AidDistributionStatus;
+  executedById: string;
+  /** @nullable */
+  deliveredById: string | null;
+  /** @nullable */
+  deliveredAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AidDistributionInput {
+  needId: string;
+  familyId: string;
+  /** @minimum 1 */
+  quantity: number;
+}
+
+export interface AidDistributionReceipt {
+  deliveredAt?: string;
+}
+
 export interface CreateAidRequest {
   /**
      * @minLength 2
@@ -1508,38 +1544,3 @@ page?: PageParameter;
 limit?: LimitParameter;
 };
 
-
-export interface AidDistribution {
-  id: string;
-  aidId: string;
-  needId: string;
-  familyId: string;
-  /** @minimum 1 */
-  quantity: number;
-  unit: string;
-  status: AidDistributionStatus;
-  executedById: string;
-  /** @nullable */
-  deliveredById: string | null;
-  /** @nullable */
-  deliveredAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface AidDistributionInput {
-  needId: string;
-  familyId: string;
-  /** @minimum 1 */
-  quantity: number;
-}
-
-export interface AidDistributionReceipt {
-  deliveredAt?: string;
-}
-
-export const AidDistributionStatus = {
-  ASSIGNED: 'ASSIGNED',
-  RECEIVED: 'RECEIVED',
-  CANCELLED: 'CANCELLED',
-} as const;

@@ -1869,7 +1869,7 @@ components:
         archivedAt: { type: string, format: date-time, nullable: true }
         version: { type: integer, minimum: 1 }
         distributionCount: { type: integer, minimum: 0 }
-        receivedDistributionCount: { type: integer, minimum: 0 }
+        receivedDistributionCount: { type: integer }
       required: [id, title, type, quantity, unit, location, distributionDate, createdById, createdAt, updatedAt, version]
     AidDistributionStatus:
       type: string

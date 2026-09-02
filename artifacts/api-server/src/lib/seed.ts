@@ -18,9 +18,21 @@ export function seedDevelopmentData(): Promise<void> {
       details: Partial<typeof usersTable.$inferInsert> = {},
     ) => {
       const [byIdentity] = await db.select().from(usersTable).where(eq(usersTable.identity, identity)).limit(1);
-      if (byIdentity) return byIdentity;
       const [byEmail] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
-      if (byEmail) return byEmail;
+      const existing = byIdentity ?? byEmail;
+      if (existing) {
+        const [updated] = await db.update(usersTable).set({
+          name,
+          email,
+          role,
+          rank: role,
+          identity,
+          passwordHash,
+          active: true,
+          ...details,
+        }).where(eq(usersTable.id, existing.id)).returning();
+        return updated;
+      }
       return (await db.insert(usersTable).values({
         name, email, role, rank: role, identity, passwordHash, active: true, ...details,
       }).returning())[0];

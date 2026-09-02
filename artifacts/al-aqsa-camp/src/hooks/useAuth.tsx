@@ -50,7 +50,7 @@ export default function useAuth() {
     id: canonicalIdToNumber(String(legacyUser?.id ?? me.data?.id ?? storedFamilyUser?.id)),
     name: legacyUser?.name ?? me.data?.name ?? storedFamilyUser?.name ?? '',
     email: legacyUser?.email ?? me.data?.email ?? storedFamilyUser?.email ?? '',
-    identity: '',
+    identity: String(legacyUser?.id ?? me.data?.id ?? storedFamilyUser?.id ?? ''),
     phone_number: legacyUser?.phone ?? storedFamilyUser?.phone ?? '',
     created_at: new Date(),
     profile_image: '',
@@ -60,8 +60,8 @@ export default function useAuth() {
 
   return {
     isAuthenticated: Boolean(token && (me.data || isDisplaced)),
-    isLoading: me.isLoading,
-    error: me.error,
+    isLoading: storedRole === 'displaced' ? family.isLoading : me.isLoading,
+    error: storedRole === 'displaced' ? family.error : me.error,
     role: isDisplaced ? 'displaced' as const : role,
     isManager: role === Role.MANAGER || role === Role.ADMIN,
     isAdmin: role === Role.ADMIN,

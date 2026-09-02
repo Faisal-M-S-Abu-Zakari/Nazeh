@@ -28,6 +28,5 @@ export interface Aid {
   version: number;
   /** @minimum 0 */
   distributionCount?: number;
-  /** @minimum 0 */
   receivedDistributionCount?: number;
 }

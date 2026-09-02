@@ -1,4 +1,5 @@
 import bcrypt from "bcrypt";
+import { eq } from "drizzle-orm";
 import { db, pool } from "./index";
 import {
   aids,
@@ -37,7 +38,7 @@ async function seed() {
     throw new Error("Development seed requires NODE_ENV=development");
   }
   const passwordHash = await bcrypt.hash("CampDemo2025!", 12);
-  await db.insert(staffUsers).values([
+  const demoStaff: Array<typeof staffUsers.$inferInsert> = [
     { id: ids.admin, email: "admin@alaqsa.local", name: "مدير النظام", role: "ADMIN", passwordHash, active: true, passwordSetAt: new Date(), isDevelopmentDemo: true },
     { id: ids.manager, email: "manager@alaqsa.local", name: "أحمد الخطيب", role: "MANAGER", passwordHash, active: true, passwordSetAt: new Date(), isDevelopmentDemo: true },
     { id: ids.delegate, email: "delegate@alaqsa.local", name: "سارة النجار", role: "DELEGATE", passwordHash, active: true, passwordSetAt: new Date(), isDevelopmentDemo: true },
@@ -45,7 +46,19 @@ async function seed() {
     { id: ids.delegateTwo, email: "delegate2@alaqsa.local", name: "ليان أبو عودة", role: "DELEGATE", passwordHash, active: true, passwordSetAt: new Date(), isDevelopmentDemo: true },
     { id: ids.securityTwo, email: "security2@alaqsa.local", name: "عمر حمدان", role: "SECURITY_OFFICER", passwordHash, active: true, passwordSetAt: new Date(), isDevelopmentDemo: true },
     { id: ids.securityMember, email: "security-member@alaqsa.local", name: "فارس شحادة", role: "SECURITY_MEMBER", passwordHash, active: true, passwordSetAt: new Date(), isDevelopmentDemo: true },
-  ]).onConflictDoNothing();
+  ];
+  await db.insert(staffUsers).values(demoStaff).onConflictDoNothing();
+  for (const user of demoStaff) {
+    await db.update(staffUsers).set({
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      passwordHash,
+      active: true,
+      passwordSetAt: new Date(),
+      isDevelopmentDemo: true,
+    }).where(eq(staffUsers.id, user.id!));
+  }
 
   await db.insert(campsTable).values({
     id: ids.camp,

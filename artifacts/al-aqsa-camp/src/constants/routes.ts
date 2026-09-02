@@ -26,6 +26,13 @@ export const GENERAL_ACTOR_ROUTES = {
   NOTIFICATIONS: '/actor/notifications',
   STAFF: '/actor/staff',
   FAMILY: '/actor/family',
+  OPERATIONS: '/actor/operations',
+  PROFILE: '/actor/profile',
+  FAMILIES: '/actor/families',
+  NEEDS: '/actor/needs',
+  AIDS: '/actor/aids',
+  TASKS: '/actor/tasks',
+  REPORTS: '/actor/reports',
 
 } as const;
 

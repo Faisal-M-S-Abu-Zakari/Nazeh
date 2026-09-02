@@ -19,28 +19,23 @@ import useAuth from '@/hooks/useAuth';
 import { loginSchema, loginType } from '@/validation/auth/loginSchema';
 import {
   GENERAL_ACTOR_ROUTES,
-  LANDING_ROUTES,
-  MANAGER_ROUTES_fUNC,
-  DELEGATE_ROUTES_fUNC,
-  SECURITY_ROUTES_fUNC,
 } from '@/constants/routes';
 import { useQueryClient } from '@tanstack/react-query';
 import { login, loginFamilyHead, loginProps } from '@/actions/auth/login';
-import { AuthSessionResponse, Role, type User } from '@workspace/api-client-react';
+import { AuthSessionResponse, type User } from '@workspace/api-client-react';
 import { setAuthRole, setAuthToken, setAuthUser } from '@/utils/auth/getSession';
-import { canonicalIdToNumber } from '@/utils/auth/canonicalId';
 
 export default function Login() {
   const [error, setError] = useState('');
   const [accountType, setAccountType] = useState<'staff' | 'family'>('staff');
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isDisplaced } = useAuth();
   const queryClient = useQueryClient();
   const navigateToApp = (path: string) => window.location.replace(path);
 
   // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated) navigateToApp(LANDING_ROUTES.HOME);
-  }, [isAuthenticated]);
+    if (isAuthenticated) navigateToApp(isDisplaced ? GENERAL_ACTOR_ROUTES.FAMILY : GENERAL_ACTOR_ROUTES.OPERATIONS);
+  }, [isAuthenticated, isDisplaced]);
 
   const form = useForm<loginType>({
     mode: 'uncontrolled',
@@ -62,15 +57,7 @@ export default function Login() {
           navigateToApp(GENERAL_ACTOR_ROUTES.FAMILY);
           return;
         }
-        const roleRedirects = {
-          [Role.ADMIN]: () => navigateToApp(GENERAL_ACTOR_ROUTES.STAFF),
-          [Role.MANAGER]: () => navigateToApp(MANAGER_ROUTES_fUNC({ manager_Id: canonicalIdToNumber(String(data.user.id)) }).PROFILE),
-          [Role.DELEGATE]: () => navigateToApp(DELEGATE_ROUTES_fUNC({ delegate_Id: canonicalIdToNumber(String(data.user.id)) }).PROFILE),
-          [Role.SECURITY_OFFICER]: () => navigateToApp(SECURITY_ROUTES_fUNC({ security_Id: canonicalIdToNumber(String(data.user.id)) }).PROFILE),
-          [Role.SECURITY_MEMBER]: () => navigateToApp(SECURITY_ROUTES_fUNC({ security_Id: canonicalIdToNumber(String(data.user.id)) }).PROFILE),
-        };
-
-        roleRedirects[data.user.role as Role]?.();
+        navigateToApp(GENERAL_ACTOR_ROUTES.OPERATIONS);
 
         // defer non-critical work
         setTimeout(() => {
@@ -90,7 +77,12 @@ export default function Login() {
       }
     },
     onError: (error: any) => {
-      const errorMessage = error?.response?.data?.error || error?.message;
+      const status = error?.status ?? error?.response?.status;
+      const errorMessage = status === 429
+        ? 'تم تجاوز عدد محاولات الدخول. انتظر قليلًا ثم حاول مجددًا.'
+        : status === 401
+          ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة، أو تم اختيار نوع حساب غير مناسب.'
+          : 'تعذر تسجيل الدخول الآن. تحقق من الاتصال وحاول مجددًا.';
       setError(errorMessage);
 
       notifications.show({
