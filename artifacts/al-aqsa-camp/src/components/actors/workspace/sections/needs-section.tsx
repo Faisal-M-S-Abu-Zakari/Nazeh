@@ -5,12 +5,16 @@ import { Badge } from '@/components/ui/badge';
 import { Labels, StatusVariant } from '../shared/labels';
 import { LoadingState, ErrorState, EmptyState } from '../shared/ui-states';
 import { ClipboardList, User } from 'lucide-react';
+import useAuth from '@/hooks/useAuth';
 
 export default function NeedsSection() {
   const [statusFilter, setStatusFilter] = useState('');
-  
+  const { isManager, isDelegate } = useAuth();
+  const canViewFamilies = isManager || isDelegate;
   const needs = useListNeeds({ query: { queryKey: getListNeedsQueryKey() } });
-  const families = useListFamilies({ query: { queryKey: getListFamiliesQueryKey() } });
+  const families = useListFamilies({
+    query: { queryKey: getListFamiliesQueryKey(), enabled: canViewFamilies },
+  });
 
   const getFamilyName = (id: string) => {
     return families.data?.find((f: any) => f.id === id)?.headName ?? `أسرة #${id.slice(0, 6)}`;

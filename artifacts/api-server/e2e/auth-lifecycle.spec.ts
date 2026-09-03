@@ -7,6 +7,7 @@ import { db, sessions, staffUsers, type StaffRole } from '@workspace/db';
 const webUrl = process.env.WEB_E2E_URL;
 const expoUrl = process.env.EXPO_E2E_URL;
 const password = `Task10-${randomUUID()}!`;
+const developmentDemoPassword = "CampDemo2025!";
 const userId = randomUUID();
 const email = `task10-browser-${randomUUID()}@example.invalid`;
 type BrowserStaff = {
@@ -89,7 +90,7 @@ test('web login, reload, synchronized refresh and logout clear private state', a
   await page.locator('[data-testid="login-email"]:visible').fill(email);
   await page.locator('[data-testid="login-password"]:visible').fill(password);
   await page.locator('[data-testid="login-submit"]:visible').click();
-  await expect(page).toHaveURL(/\/manager\/.+\/profile/);
+  await expect(page).toHaveURL(/\/actor\/operations/);
   await expect(page.getByText('Task 10 browser user').first()).toBeAttached();
   await expect.poll(() => page.evaluate(() => sessionStorage.getItem('aqsa-access-token'))).not.toBeNull();
 
@@ -185,11 +186,7 @@ for (const routeCase of roleRouteCases) {
     await page.locator('[data-testid="login-email"]:visible').fill(fixture.email);
     await page.locator('[data-testid="login-password"]:visible').fill(password);
     await page.locator('[data-testid="login-submit"]:visible').click();
-    if (routeCase.role === 'ADMIN') {
-      await expect(page).toHaveURL(/\/actor\/staff$/);
-    } else {
-      await expect(page).toHaveURL(/\/(manager|delegates|securities)\/.+\/(profile|tasks)/);
-    }
+    await expect(page).toHaveURL(/\/actor\/operations$/);
 
     await page.goto(`${webUrl}${routeCase.allowedPath}`);
     await expect(page).toHaveURL(new RegExp(`${routeCase.allowedPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`));
@@ -213,6 +210,185 @@ for (const routeCase of roleRouteCases) {
   });
 }
 
+type DemoStaffAccount = {
+  role: StaffRole;
+  email: string;
+  name: string;
+  allowedPath: string;
+  allowedHeading: string;
+  deniedPath: string;
+  expectedNavigation: string[];
+  hiddenNavigation: string[];
+};
+
+const demoStaffAccounts: DemoStaffAccount[] = [
+  {
+    role: 'ADMIN',
+    email: 'admin@alaqsa.local',
+    name: 'مدير النظام',
+    allowedPath: '/actor/staff',
+    allowedHeading: 'إدارة الموظفين',
+    deniedPath: '/actor/manager/2000000000/profile',
+    expectedNavigation: ['لوحة العمليات', 'ملفي الشخصي', 'الأسر والإيواء', 'الاحتياجات والطلبات', 'المساعدات والتسليم', 'المهام الأمنية', 'التقارير', 'إدارة الموظفين'],
+    hiddenNavigation: [],
+  },
+  {
+    role: 'MANAGER',
+    email: 'manager@alaqsa.local',
+    name: 'أحمد الخطيب',
+    allowedPath: '/actor/families',
+    allowedHeading: 'سجل الأسر',
+    deniedPath: '/actor/staff',
+    expectedNavigation: ['لوحة العمليات', 'ملفي الشخصي', 'الأسر والإيواء', 'الاحتياجات والطلبات', 'المساعدات والتسليم', 'المهام الأمنية', 'التقارير'],
+    hiddenNavigation: ['إدارة الموظفين'],
+  },
+  {
+    role: 'DELEGATE',
+    email: 'delegate@alaqsa.local',
+    name: 'سارة النجار',
+    allowedPath: '/actor/families',
+    allowedHeading: 'سجل الأسر',
+    deniedPath: '/actor/tasks',
+    expectedNavigation: ['لوحة العمليات', 'ملفي الشخصي', 'الأسر والإيواء', 'الاحتياجات والطلبات', 'المساعدات والتسليم', 'التقارير'],
+    hiddenNavigation: ['المهام الأمنية', 'إدارة الموظفين'],
+  },
+  {
+    role: 'SECURITY_OFFICER',
+    email: 'security@alaqsa.local',
+    name: 'محمود سالم',
+    allowedPath: '/actor/needs',
+    allowedHeading: 'الاحتياجات',
+    deniedPath: '/actor/families',
+    expectedNavigation: ['لوحة العمليات', 'ملفي الشخصي', 'الاحتياجات العاجلة', 'المهام الأمنية', 'التقارير'],
+    hiddenNavigation: ['الأسر والإيواء', 'المساعدات والتسليم', 'إدارة الموظفين'],
+  },
+  {
+    role: 'SECURITY_MEMBER',
+    email: 'security-member@alaqsa.local',
+    name: 'فارس شحادة',
+    allowedPath: '/actor/tasks',
+    allowedHeading: 'المهام الأمنية والميدانية',
+    deniedPath: '/actor/needs',
+    expectedNavigation: ['لوحة العمليات', 'ملفي الشخصي', 'المهام الأمنية', 'التقارير'],
+    hiddenNavigation: ['الأسر والإيواء', 'الاحتياجات العاجلة', 'المساعدات والتسليم', 'إدارة الموظفين'],
+  },
+];
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const loginDemoStaff = async (page: import('@playwright/test').Page, account: DemoStaffAccount) => {
+  await page.goto(`${webUrl}/auth/login`);
+  await page.locator('[data-testid="login-email"]:visible').fill(account.email);
+  await page.locator('[data-testid="login-password"]:visible').fill(developmentDemoPassword);
+  await page.locator('[data-testid="login-submit"]:visible').click();
+  await expect(page).toHaveURL(/\/actor\/operations$/);
+  await expect(page.getByTestId('actor-layout')).toBeVisible();
+  await expect(page.getByText(account.name, { exact: true }).first()).toBeVisible();
+};
+
+const expectHealthyActorRoute = async (
+  page: import('@playwright/test').Page,
+  path: string,
+  heading: string,
+) => {
+  const unhealthyApiResponses: string[] = [];
+  const onResponse = (response: import('@playwright/test').Response) => {
+    const responseUrl = new URL(response.url());
+    if (
+      responseUrl.pathname.startsWith('/api/') &&
+      [401, 403, 404].includes(response.status())
+    ) {
+      unhealthyApiResponses.push(`${response.status()} ${responseUrl.pathname}`);
+    }
+  };
+  page.on('response', onResponse);
+  try {
+    await page.goto(`${webUrl}${path}`);
+    await expect(page).toHaveURL(new RegExp(`${escapeRegExp(path)}$`));
+    await expect(page.getByTestId('actor-layout')).toBeVisible();
+    await expect(page.getByTestId('access-denied')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: heading, exact: true }).first()).toBeVisible();
+    await page.waitForTimeout(250);
+    expect(unhealthyApiResponses).toEqual([]);
+  } finally {
+    page.off('response', onResponse);
+  }
+};
+
+for (const account of demoStaffAccounts) {
+  test(`${account.role} demo account is redirected, sees the right menu, and loads its workspace`, async ({ browser }) => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    await loginDemoStaff(page, account);
+    const actorLayout = page.getByTestId('actor-layout');
+    for (const label of account.expectedNavigation) {
+      await expect(actorLayout.getByRole('link', { name: label, exact: true })).toBeVisible();
+    }
+    for (const label of account.hiddenNavigation) {
+      await expect(actorLayout.getByRole('link', { name: label, exact: true })).toHaveCount(0);
+    }
+
+    await expectHealthyActorRoute(page, account.allowedPath, account.allowedHeading);
+
+    const deniedApiRequests: string[] = [];
+    page.on('request', (request) => {
+      const requestUrl = new URL(request.url());
+      if (requestUrl.pathname.startsWith('/api/') && !requestUrl.pathname.startsWith('/api/auth/')) {
+        deniedApiRequests.push(requestUrl.pathname);
+      }
+    });
+    await page.goto(`${webUrl}${account.deniedPath}`);
+    await expect(page).toHaveURL(new RegExp(`${escapeRegExp(account.deniedPath)}$`));
+    await expect(page.getByTestId('access-denied')).toBeVisible();
+    await expect(page.getByTestId('actor-layout')).toHaveCount(0);
+    expect(deniedApiRequests).toEqual([]);
+
+    await context.close();
+  });
+}
+
+test('DELEGATE demo account only sees families assigned to its scope', async ({ browser }) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const delegate = demoStaffAccounts.find((account) => account.role === 'DELEGATE')!;
+
+  await loginDemoStaff(page, delegate);
+  await expectHealthyActorRoute(page, '/actor/families', 'سجل الأسر');
+  await expect(page.getByRole('heading', { name: 'أمينة يوسف العطار', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'خالد محمد أبو عودة', exact: true })).toHaveCount(0);
+
+  await context.close();
+});
+
+test('family head demo account reaches its private family page without unauthorized API calls', async ({ browser }) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const unhealthyApiResponses: string[] = [];
+  page.on('response', (response) => {
+    const responseUrl = new URL(response.url());
+    if (responseUrl.pathname.startsWith('/api/') && [401, 403, 404].includes(response.status())) {
+      unhealthyApiResponses.push(`${response.status()} ${responseUrl.pathname}`);
+    }
+  });
+
+  await page.goto(`${webUrl}/auth/login`);
+  await page.getByRole('radiogroup').getByText('رب الأسرة', { exact: true }).click();
+  await page.locator('[data-testid="login-email"]:visible').fill('resident@local.invalid');
+  await page.locator('[data-testid="login-password"]:visible').fill(developmentDemoPassword);
+  await page.locator('[data-testid="login-submit"]:visible').click();
+  await expect(page).toHaveURL(/\/actor\/family$/);
+  await expect(page.getByRole('heading', { name: 'ملف أسرتي واحتياجاتها', exact: true })).toBeVisible();
+  await expect(page.getByText('أمينة يوسف العطار', { exact: true }).first()).toBeVisible();
+  await expect(page.getByTestId('actor-layout')).toBeVisible();
+  await expect(page.getByTestId('actor-layout').getByRole('link', { name: 'ملف الأسرة وطلباتها', exact: true })).toBeVisible();
+  await expect(page.getByTestId('actor-layout').getByRole('link', { name: 'لوحة العمليات', exact: true })).toHaveCount(0);
+  await page.waitForTimeout(250);
+  expect(unhealthyApiResponses).toEqual([]);
+
+  await context.close();
+});
+
 test('browser back after logout cannot restore the protected actor screen', async ({ browser }) => {
   const context = await browser.newContext();
   const page = await context.newPage();
@@ -222,7 +398,7 @@ test('browser back after logout cannot restore the protected actor screen', asyn
   await page.locator('[data-testid="login-email"]:visible').fill(manager.email);
   await page.locator('[data-testid="login-password"]:visible').fill(password);
   await page.locator('[data-testid="login-submit"]:visible').click();
-  await expect(page).toHaveURL(/\/manager\/.+\/profile/);
+  await expect(page).toHaveURL(/\/actor\/operations/);
   await expect(page.getByTestId('actor-layout')).toBeVisible();
 
   const navbarLogout = page.locator('[data-testid="navbar-logout"]:visible');
