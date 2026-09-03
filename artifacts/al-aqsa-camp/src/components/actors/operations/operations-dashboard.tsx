@@ -288,7 +288,7 @@ export default function OperationsDashboard() {
   return (
     <main dir="rtl" className="min-h-screen w-full bg-slate-50 px-4 py-6 sm:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <header className="rounded-2xl bg-gradient-to-l from-slate-950 to-teal-900 p-6 text-white shadow-lg">
+        <header className="rounded-2xl bg-gradient-to-l from-sidebar to-primary p-6 text-white shadow-lg">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="mb-2 text-sm text-teal-200">مركز العمليات الإنسانية</p>
@@ -309,7 +309,7 @@ export default function OperationsDashboard() {
         {canManageFamilies && (
           <section className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
             <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><Users className="size-5 text-teal-700" />تسجيل أسرة جديدة</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-2"><Users className="size-5 text-primary" />تسجيل أسرة جديدة</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-sm text-muted-foreground">تُسجل الأسرة مبدئياً بواسطة المندوب، ولا تظهر كفعالة حتى اعتماد المدير.</p>
                 <div className="flex flex-col gap-3 sm:flex-row">
@@ -336,7 +336,7 @@ export default function OperationsDashboard() {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><ClipboardList className="size-5 text-teal-700" />طلب احتياج</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-2"><ClipboardList className="size-5 text-primary" />طلب احتياج</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <select value={selectedFamily} onChange={(event) => setSelectedFamily(event.target.value)} className="h-10 w-full rounded-md border bg-transparent px-3 text-sm" aria-label="اختر الأسرة">
                   <option value="">اختر الأسرة</option>
@@ -354,7 +354,7 @@ export default function OperationsDashboard() {
         {canManageFamilies && (
           <Card>
             <CardHeader className="flex-row items-center justify-between gap-3">
-              <CardTitle className="flex items-center gap-2"><Home className="size-5 text-teal-700" />الأسر والإيواء</CardTitle>
+              <CardTitle className="flex items-center gap-2"><Home className="size-5 text-primary" />الأسر والإيواء</CardTitle>
               <div className="relative w-full max-w-xs"><Search className="absolute right-3 top-2.5 size-4 text-muted-foreground" /><Input className="pr-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="بحث بالاسم أو المعرّف" /></div>
             </CardHeader>
             <CardContent>
@@ -378,7 +378,7 @@ export default function OperationsDashboard() {
 
         {(canManageFamilies || isSecurityOfficer) && (
           <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2"><ClipboardList className="size-5 text-teal-700" />طلبات الاحتياج</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-2"><ClipboardList className="size-5 text-primary" />طلبات الاحتياج</CardTitle></CardHeader>
             <CardContent>
               {needs.isLoading ? <LoadingState /> : (needs.data ?? []).length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">لا توجد طلبات احتياج.</p> :
                 <div className="space-y-3">{(needs.data ?? []).map((need) => <div key={need.id} className="flex flex-col gap-3 rounded-xl border bg-white p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">{need.title}</p><p className="mt-1 text-sm text-muted-foreground">الأولوية: {labels[need.priority]} · الأسرة: #{need.familyId.slice(0, 8)}</p></div><div className="flex items-center gap-2"><Badge variant={statusVariant(need.status) as 'default' | 'secondary' | 'outline'}>{labels[need.status]}</Badge>{need.status !== 'FULFILLED' && <select className="h-8 rounded-md border bg-transparent px-2 text-xs" value={need.status} onChange={(event) => changeNeedMutation.mutate({ id: need.id, data: { status: event.target.value as NeedStatus, expectedVersion: need.version } })}><option value="REQUIRED">مطلوب</option><option value="APPROVED">اعتماد للتوزيع</option><option value="IN_PROGRESS">قيد المعالجة</option><option value="FULFILLED">منفّذ</option></select>}</div></div>)}</div>}
@@ -388,7 +388,7 @@ export default function OperationsDashboard() {
 
         {canManageFamilies && (
           <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2"><ClipboardList className="size-5 text-teal-700" />توزيع المساعدة وتتبع الاستلام</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-2"><ClipboardList className="size-5 text-primary" />توزيع المساعدة وتتبع الاستلام</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">لا يمكن توزيع المساعدة إلا على أسرة نشطة وطلب احتياج معتمد، ويُمنع تكرار الأسرة في دورة المساعدة نفسها.</p>
               <div className="grid gap-3 md:grid-cols-4">
@@ -423,7 +423,7 @@ export default function OperationsDashboard() {
         {isSecurity && (
           <section className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
             <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck className="size-5 text-teal-700" />مهام الأمن</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck className="size-5 text-primary" />مهام الأمن</CardTitle></CardHeader>
               <CardContent>
                 {tasks.isLoading ? <LoadingState /> : (tasks.data ?? []).length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">لا توجد مهام مسندة.</p> :
                   <div className="space-y-3">{(tasks.data ?? []).map((task) => <div key={task.id} className="rounded-xl border bg-white p-4"><div className="flex items-start justify-between gap-2"><div><p className="font-semibold">{task.title}</p><p className="mt-1 text-sm text-muted-foreground">{task.location ?? 'الموقع غير محدد'}</p></div><Badge variant="outline">{labels[task.status] ?? task.status}</Badge></div>{role === 'SECURITY_MEMBER' && task.status !== 'COMPLETED' && <Button size="sm" className="mt-3" onClick={() => submitTaskNow(task)}>رفع النتيجة</Button>}{isSecurityOfficer && task.status === 'COMPLETED' && !task.approvedAt && <Button size="sm" className="mt-3" onClick={() => approveTaskMutation.mutate({ id: task.id, data: { expectedVersion: task.version } })}><CheckCircle2 className="size-4" />اعتماد الإكمال</Button>}</div>)}</div>}

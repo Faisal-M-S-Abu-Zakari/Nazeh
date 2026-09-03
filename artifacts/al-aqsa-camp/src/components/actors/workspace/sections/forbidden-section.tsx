@@ -1,16 +1,28 @@
-import { ShieldAlert } from 'lucide-react';
+import React from 'react';
+import { Title, Text, Button } from '@mantine/core';
+import { ShieldAlert, ArrowRight } from 'lucide-react';
+import { Link } from 'wouter';
 
 export default function ForbiddenSection({ section }: { section: string }) {
   return (
-    <div className="flex flex-col items-center justify-center p-12 text-center min-h-[50vh] animate-in fade-in zoom-in duration-300">
-      <div className="p-6 bg-destructive/10 text-destructive rounded-full mb-6 ring-8 ring-destructive/5">
-        <ShieldAlert className="size-12" />
+    <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-4 animate-in fade-in zoom-in-95">
+      <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-2">
+        <ShieldAlert size={40} />
       </div>
-      <h1 className="text-3xl font-bold mb-3">غير مصرح بالوصول</h1>
-      <p className="text-muted-foreground max-w-md mx-auto leading-relaxed">
-        عذراً، صلاحيات حسابك الحالي لا تتيح لك الوصول إلى قسم <strong className="text-foreground">{section}</strong>. 
-        يُرجى العودة للصفحة السابقة أو مراجعة مدير النظام إذا كنت تعتقد أن هذا خطأ.
-      </p>
+      <Title order={2} className="font-display text-2xl text-slate-800 dark:text-slate-200">
+        صلاحية غير متوفرة
+      </Title>
+      <Text className="text-muted-foreground max-w-md">
+        عذراً، حسابك لا يملك الصلاحيات الكافية للوصول إلى قسم <span className="font-bold">"{section}"</span>. يرجى مراجعة إدارة المخيم إذا كنت تعتقد أن هذا خطأ.
+      </Text>
+      
+      <div className="pt-6">
+        <Link href="/actor/profile" className="no-underline">
+          <Button variant="light" color="gray" leftSection={<ArrowRight size={16} />}>
+            العودة لملف الحساب
+          </Button>
+        </Link>
+      </div>
     </div>
   );
 }

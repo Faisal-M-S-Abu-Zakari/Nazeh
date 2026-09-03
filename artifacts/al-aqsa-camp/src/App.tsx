@@ -11,70 +11,32 @@ import PagesLayout from '@/app/(pages)/layout';
 import LandingLayout from '@/app/(pages)/(landing)/layout';
 import ActorLayout from '@/app/(pages)/actor/layout';
 
-// Pages
+// Landing Pages
 import Page1 from '@/app/(pages)/(landing)/blog/[id]/page';
 import Page2 from '@/app/(pages)/(landing)/blog/page';
 import Page3 from '@/app/(pages)/(landing)/page';
 import Page4 from '@/app/(pages)/(landing)/success-stories/[id]/page';
 import Page5 from '@/app/(pages)/(landing)/success-stories/page';
-import Page6 from '@/app/(pages)/actor/(general)/ads/[id]/page';
-import Page7 from '@/app/(pages)/actor/(general)/ads/page';
-import Page8 from '@/app/(pages)/actor/(general)/delegates/page';
-import Page9 from '@/app/(pages)/actor/(general)/displaceds/page';
-import Page10 from '@/app/(pages)/actor/(general)/notifications/page';
-import Page11 from '@/app/(pages)/actor/(general)/securities/page';
-import Page12 from '@/app/(pages)/actor/delegates/[delegate]/aids-management/[aid]/add-displaceds/page';
-import Page13 from '@/app/(pages)/actor/delegates/[delegate]/aids-management/[aid]/page';
-import Page15 from '@/app/(pages)/actor/delegates/[delegate]/complaints/page';
-import Page18 from '@/app/(pages)/actor/delegates/add/page';
-import Page19 from '@/app/(pages)/actor/displaceds/[displaced]/complaints/page';
-import Page20 from '@/app/(pages)/actor/displaceds/[displaced]/profile/page';
-import Page21 from '@/app/(pages)/actor/displaceds/[displaced]/received-aids/page';
-import Page22 from '@/app/(pages)/actor/displaceds/add/page';
-import Page23 from '@/app/(pages)/actor/manager/[manager]/ads-blogs-stories/[id]/page';
-import Page24 from '@/app/(pages)/actor/manager/[manager]/ads-blogs-stories/add/page';
-import Page25 from '@/app/(pages)/actor/manager/[manager]/ads-blogs-stories/page';
-import Page26 from '@/app/(pages)/actor/manager/[manager]/aids-management/[aid]/page';
-import Page27 from '@/app/(pages)/actor/manager/[manager]/aids-management/add/page';
-import Page29 from '@/app/(pages)/actor/manager/[manager]/complaints/page';
-import Page32 from '@/app/(pages)/actor/securities/[security]/complaints/page';
-import Page35 from '@/app/(pages)/actor/securities/add/page';
+
+// Actor Pages & Views
+import OperationsPage from '@/app/(pages)/actor/operations/page';
+import FamilyHeadPage from '@/app/(pages)/actor/family/page';
+import RoleWorkspacePage from '@/components/actors/workspace/role-workspace-page';
+import Page40 from '@/app/(pages)/actor/staff/page';
+
+// Auth Pages
 import Page36 from '@/app/auth/create-new-password/page';
 import Page37 from '@/app/auth/forget-password/page';
 import Page38 from '@/app/auth/login/page';
 import Page39 from '@/app/auth/otp/page';
-import Page40 from '@/app/(pages)/actor/staff/page';
-import OperationsPage from '@/app/(pages)/actor/operations/page';
+
 import useAuth from '@/hooks/useAuth';
 import { AUTH_ROUTES } from '@/constants/routes';
-import {
-  canAccessActorPath,
-  getLegacyActorRedirectTarget,
-  navigateWithHistoryReplacement,
-} from '@/utils/auth/routeAccess';
-import FamilyHeadPage from '@/app/(pages)/actor/family/page';
-import RoleWorkspacePage from '@/components/actors/workspace/role-workspace-page';
+import { canAccessActorPath } from '@/utils/auth/routeAccess';
 
 function RoutedErrorBoundary({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>;
-}
-
-function LegacyActorRedirect() {
-  const [location, setLocation] = useLocation();
-  const actorPath = location === '/actor' || location.startsWith('/actor/')
-    ? location
-    : `/actor${location.startsWith('/') ? location : `/${location}`}`;
-  const target = getLegacyActorRedirectTarget(actorPath);
-
-  useEffect(() => {
-    if (target) {
-      navigateWithHistoryReplacement(target, setLocation);
-    }
-  }, [setLocation, target]);
-
-  if (!target) return <NotFound />;
-  return <AuthLoadingScreen />;
 }
 
 // Layout wrapper for dynamic wouter nested routes
@@ -94,45 +56,47 @@ const LandingPages = () => (
 const ActorPages = () => (
   <ActorLayout>
     <Switch>
-      <Route path="/ads/:id" component={Page6} />
-      <Route path="/ads" component={Page7} />
-      <Route path="/delegates" component={Page8} />
-      <Route path="/displaceds" component={Page9} />
-      <Route path="/notifications" component={Page10} />
-      <Route path="/securities" component={Page11} />
-      <Route path="/delegates/:delegate/aids-management/:aid/add-displaceds" component={Page12} />
-      <Route path="/delegates/:delegate/aids-management/:aid" component={Page13} />
-      <Route path="/delegates/:delegate/aids-management" component={LegacyActorRedirect} />
-      <Route path="/delegates/:delegate/complaints" component={Page15} />
-      <Route path="/delegates/:delegate/profile" component={LegacyActorRedirect} />
-      <Route path="/delegates/:delegate/reports" component={LegacyActorRedirect} />
-      <Route path="/delegates/add" component={Page18} />
-      <Route path="/displaceds/:displaced/complaints" component={Page19} />
-      <Route path="/displaceds/:displaced/profile" component={Page20} />
-      <Route path="/displaceds/:displaced/received-aids" component={Page21} />
-      <Route path="/displaceds/add" component={Page22} />
-      <Route path="/manager/:manager/ads-blogs-stories/:id" component={Page23} />
-      <Route path="/manager/:manager/ads-blogs-stories/add" component={Page24} />
-      <Route path="/manager/:manager/ads-blogs-stories" component={Page25} />
-      <Route path="/manager/:manager/aids-management/:aid" component={Page26} />
-      <Route path="/manager/:manager/aids-management/add" component={Page27} />
-      <Route path="/manager/:manager/aids-management" component={LegacyActorRedirect} />
-      <Route path="/manager/:manager/complaints" component={Page29} />
-      <Route path="/manager/:manager/profile" component={LegacyActorRedirect} />
-      <Route path="/manager/:manager/reports" component={LegacyActorRedirect} />
-      <Route path="/securities/:security/complaints" component={Page32} />
-      <Route path="/securities/:security/profile" component={LegacyActorRedirect} />
-      <Route path="/securities/:security/tasks" component={LegacyActorRedirect} />
-      <Route path="/securities/add" component={Page35} />
-      <Route path="/staff" component={Page40} />
       <Route path="/operations" component={OperationsPage} />
       <Route path="/family" component={FamilyHeadPage} />
-      <Route path="/profile">{() => <RoleWorkspacePage section="profile" />}</Route>
-      <Route path="/families">{() => <RoleWorkspacePage section="families" />}</Route>
-      <Route path="/needs">{() => <RoleWorkspacePage section="needs" />}</Route>
-      <Route path="/aids">{() => <RoleWorkspacePage section="aids" />}</Route>
-      <Route path="/tasks">{() => <RoleWorkspacePage section="tasks" />}</Route>
-      <Route path="/reports">{() => <RoleWorkspacePage section="reports" />}</Route>
+      
+      {/* Workspace Sections */}
+      <Route path="/profile">{(params) => <RoleWorkspacePage section="profile" params={params} />}</Route>
+      
+      {/* Families */}
+      <Route path="/families/new">{(params) => <RoleWorkspacePage section="families" params={params} />}</Route>
+      <Route path="/families/:id">{(params) => <RoleWorkspacePage section="families" params={params} />}</Route>
+      <Route path="/families">{(params) => <RoleWorkspacePage section="families" params={params} />}</Route>
+      
+      {/* Needs */}
+      <Route path="/needs/new">{(params) => <RoleWorkspacePage section="needs" params={params} />}</Route>
+      <Route path="/needs/:id">{(params) => <RoleWorkspacePage section="needs" params={params} />}</Route>
+      <Route path="/needs">{(params) => <RoleWorkspacePage section="needs" params={params} />}</Route>
+      
+      {/* Aids */}
+      <Route path="/aids/new">{(params) => <RoleWorkspacePage section="aids" params={params} />}</Route>
+      <Route path="/aids/:id">{(params) => <RoleWorkspacePage section="aids" params={params} />}</Route>
+      <Route path="/aids">{(params) => <RoleWorkspacePage section="aids" params={params} />}</Route>
+      
+      {/* Tasks */}
+      <Route path="/tasks/new">{(params) => <RoleWorkspacePage section="tasks" params={params} />}</Route>
+      <Route path="/tasks/:id">{(params) => <RoleWorkspacePage section="tasks" params={params} />}</Route>
+      <Route path="/tasks">{(params) => <RoleWorkspacePage section="tasks" params={params} />}</Route>
+      
+      {/* Reports */}
+      <Route path="/reports">{(params) => <RoleWorkspacePage section="reports" params={params} />}</Route>
+
+      {/* Extra Modules */}
+      <Route path="/complaints/:id">{(params) => <RoleWorkspacePage section="complaints" params={params} />}</Route>
+      <Route path="/complaints">{(params) => <RoleWorkspacePage section="complaints" params={params} />}</Route>
+      <Route path="/notifications">{(params) => <RoleWorkspacePage section="notifications" params={params} />}</Route>
+      <Route path="/content/new">{(params) => <RoleWorkspacePage section="content" params={params} />}</Route>
+      <Route path="/content/:id">{(params) => <RoleWorkspacePage section="content" params={params} />}</Route>
+      <Route path="/content">{(params) => <RoleWorkspacePage section="content" params={params} />}</Route>
+
+      {/* Staff */}
+      <Route path="/staff" component={Page40} />
+
+      {/* Fallback to legacy structure or Not Found */}
       <Route component={NotFound} />
     </Switch>
   </ActorLayout>
@@ -145,7 +109,10 @@ function AuthLoadingScreen() {
       className="flex min-h-[60vh] items-center justify-center text-sm text-muted-foreground"
       dir="rtl"
     >
-      جارٍ التحقق من جلسة المستخدم...
+      <div className="flex flex-col items-center gap-4">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        <span>جارٍ التحقق من جلسة المستخدم...</span>
+      </div>
     </div>
   );
 }
@@ -157,7 +124,7 @@ function AccessDeniedScreen() {
       className="flex min-h-[60vh] flex-col items-center justify-center gap-3 p-6 text-center"
       dir="rtl"
     >
-      <h1 className="text-xl font-semibold">لا تملك صلاحية لهذه الشاشة</h1>
+      <h1 className="text-xl font-semibold text-destructive">لا تملك صلاحية لهذه الشاشة</h1>
       <p className="text-sm text-muted-foreground">يمكنك الوصول فقط إلى الشاشات المخصصة لدور حسابك.</p>
     </div>
   );
@@ -166,6 +133,8 @@ function AccessDeniedScreen() {
 function ProtectedActorPages() {
   const [location] = useLocation();
   const { isAuthenticated, isLoading, role, user } = useAuth();
+  
+  // Wouter matches path exactly. Actor pages base is /actor
   const actorPath = location === '/actor' || location.startsWith('/actor/')
     ? location
     : `/actor${location.startsWith('/') ? location : `/${location}`}`;
@@ -178,9 +147,11 @@ function ProtectedActorPages() {
 
   if (isLoading) return <AuthLoadingScreen />;
   if (!isAuthenticated || !role || !user) return <AuthLoadingScreen />;
+  
   if (!canAccessActorPath(actorPath, { role })) {
     return <AccessDeniedScreen />;
   }
+  
   return <ActorPages />;
 }
 

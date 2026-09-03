@@ -42,10 +42,27 @@ test('exposes the modern fixed workspace routes only to appropriate roles', () =
   assert.equal(canAccessActorPath('/actor/profile', users.member), true);
   assert.equal(canAccessActorPath('/actor/families', users.delegate), true);
   assert.equal(canAccessActorPath('/actor/families', users.officer), false);
+  assert.equal(canAccessActorPath('/actor/families/new', users.delegate), true);
+  assert.equal(canAccessActorPath('/actor/families/12345', users.manager), true);
+
   assert.equal(canAccessActorPath('/actor/needs', users.officer), true);
+  assert.equal(canAccessActorPath('/actor/needs/new', users.officer), true);
+
   assert.equal(canAccessActorPath('/actor/aids', users.delegate), true);
+  assert.equal(canAccessActorPath('/actor/aids/123', users.manager), true);
+
   assert.equal(canAccessActorPath('/actor/tasks', users.member), true);
+  assert.equal(canAccessActorPath('/actor/tasks/new', users.officer), true);
+
+  assert.equal(canAccessActorPath('/actor/complaints', users.member), true);
+  assert.equal(canAccessActorPath('/actor/complaints/123', users.delegate), true);
+
+  assert.equal(canAccessActorPath('/actor/content', users.delegate), true);
+  assert.equal(canAccessActorPath('/actor/content/new', users.manager), true);
+  assert.equal(canAccessActorPath('/actor/content/123', users.member), false);
+
   assert.equal(canAccessActorPath('/actor/reports', users.member), true);
+  assert.equal(canAccessActorPath('/actor/notifications', users.officer), true);
 });
 
 test('redirects every legacy staff profile, report, aid and task link with history replacement', () => {

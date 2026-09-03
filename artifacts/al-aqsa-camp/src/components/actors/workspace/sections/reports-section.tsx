@@ -1,93 +1,102 @@
-import { useListFamilies, useListNeeds, useListAids, useListTasks, useListCamps, useListSectors, getListFamiliesQueryKey, getListNeedsQueryKey, getListAidsQueryKey, getListTasksQueryKey, getListCampsQueryKey, getListSectorsQueryKey } from '@workspace/api-client-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React from 'react';
+import { Card, Title, Text, SimpleGrid, Group, RingProgress, Badge } from '@mantine/core';
+import { useGetDashboard, getGetDashboardQueryKey } from '@workspace/api-client-react';
 import { LoadingState, ErrorState } from '../shared/ui-states';
-import { BarChart3, Users, ClipboardList, Package, Map, Home, CheckSquare } from 'lucide-react';
-import useAuth from '@/hooks/useAuth';
+import { Users, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 
-export default function ReportsSection() {
-  const { isManager, isDelegate, isSecurity, isSecurityOfficer } = useAuth();
-  const canViewFamilies = isManager || isDelegate;
-  const canViewNeeds = canViewFamilies || isSecurityOfficer;
-  const canViewAids = canViewFamilies;
-  const canViewTasks = isManager || isSecurity;
-  const canViewStructure = isManager || isDelegate || isSecurityOfficer;
-  const families = useListFamilies({ query: { queryKey: getListFamiliesQueryKey(), enabled: canViewFamilies } });
-  const needs = useListNeeds({ query: { queryKey: getListNeedsQueryKey(), enabled: canViewNeeds } });
-  const aids = useListAids({ query: { queryKey: getListAidsQueryKey(), enabled: canViewAids } });
-  const tasks = useListTasks({ query: { queryKey: getListTasksQueryKey(), enabled: canViewTasks } });
-  const camps = useListCamps({ query: { queryKey: getListCampsQueryKey(), enabled: canViewStructure } });
-  const sectors = useListSectors({ query: { queryKey: getListSectorsQueryKey(), enabled: canViewStructure } });
+export default function ReportsSection({ params }: { params?: Record<string, string | undefined> }) {
+  const { data: dashboard, isLoading, error } = useGetDashboard({ 
+    query: { queryKey: getGetDashboardQueryKey() } 
+  });
 
-  const isLoading = (canViewFamilies && families.isLoading) || (canViewNeeds && needs.isLoading) ||
-    (canViewAids && aids.isLoading) || (canViewTasks && tasks.isLoading) ||
-    (canViewStructure && (camps.isLoading || sectors.isLoading));
-  const isError = (canViewFamilies && families.isError) || (canViewNeeds && needs.isError) ||
-    (canViewAids && aids.isError) || (canViewTasks && tasks.isError) ||
-    (canViewStructure && (camps.isError || sectors.isError));
-
-  if (isLoading) return <LoadingState message="إعداد التقارير والإحصائيات..." />;
-  if (isError) return <ErrorState message="تعذر تحميل بعض البيانات الخاصة بالتقارير." />;
-
-  const stats = [
-    { label: 'إجمالي الأسر', value: families.data?.length ?? 0, icon: Users, color: 'text-blue-600', bg: 'bg-blue-100' },
-    { label: 'إجمالي الاحتياجات', value: needs.data?.length ?? 0, icon: ClipboardList, color: 'text-amber-600', bg: 'bg-amber-100' },
-    { label: 'أنواع المساعدات', value: aids.data?.length ?? 0, icon: Package, color: 'text-purple-600', bg: 'bg-purple-100' },
-    { label: 'مهام قيد التنفيذ', value: tasks.data?.filter((t: any) => t.status === 'IN_PROGRESS' || t.status === 'PENDING').length ?? 0, icon: CheckSquare, color: 'text-indigo-600', bg: 'bg-indigo-100' },
-    { label: 'المخيمات', value: camps.data?.length ?? 0, icon: Map, color: 'text-emerald-600', bg: 'bg-emerald-100' },
-    { label: 'القطاعات', value: sectors.data?.length ?? 0, icon: Home, color: 'text-teal-600', bg: 'bg-teal-100' },
-  ];
-
-  const needsFulfilled = needs.data?.filter((n: any) => n.status === 'FULFILLED').length ?? 0;
-  const needsTotal = needs.data?.length ?? 0;
-  const fulfillmentRate = needsTotal > 0 ? Math.round((needsFulfilled / needsTotal) * 100) : 0;
+  if (isLoading) return <LoadingState message="جاري إعداد التقرير الإحصائي..." />;
+  if (error || !dashboard) return <ErrorState message="حدث خطأ في تحميل التقارير." />;
 
   return (
-    <div className="space-y-8">
-      <header>
-        <h1 className="text-3xl font-bold text-foreground">التقارير والإحصائيات</h1>
-        <p className="text-muted-foreground mt-2">مؤشرات الأداء التشغيلي ومعلومات الملخص الشامل للمخيم.</p>
-      </header>
-
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        {stats.map((stat, i) => (
-          <Card key={i} className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
-            <CardContent className="p-6 flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-right">
-              <div className={`p-3 rounded-xl ${stat.bg} ${stat.color}`}>
-                <stat.icon className="size-6" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground mb-1">{stat.label}</p>
-                <h3 className="text-2xl font-bold text-foreground">{stat.value}</h3>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+    <div className="space-y-8 animate-in fade-in">
+      <div>
+        <Title order={2} className="text-3xl font-display text-primary">التقارير والإحصائيات</Title>
+        <Text className="text-muted-foreground mt-1">نظرة عامة على أداء ومؤشرات المخيم</Text>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card className="shadow-sm border-none">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <BarChart3 className="size-5 text-primary" />
-              مؤشر تلبية الاحتياجات
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-4 mb-4">
-              <div className="flex-1 h-4 bg-muted rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-primary transition-all duration-1000"
-                  style={{ width: `${fulfillmentRate}%` }}
-                />
-              </div>
-              <span className="font-bold text-lg text-primary min-w-[3rem] text-left">{fulfillmentRate}%</span>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              تم تلبية {needsFulfilled} من أصل {needsTotal} احتياج مسجل في النظام.
-            </p>
-          </CardContent>
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="lg">
+        <StatCard title="إجمالي النازحين" value={dashboard.totalDisplacedPersons} icon={<Users size={24} />} color="teal" />
+        <StatCard title="المندوبين الميدانيين" value={dashboard.totalDelegates} icon={<CheckCircle size={24} />} color="blue" />
+        <StatCard title="المساعدات النشطة" value={dashboard.activeAids} icon={<Clock size={24} />} color="orange" />
+        <StatCard title="الشكاوى المفتوحة" value={dashboard.openComplaints} icon={<AlertTriangle size={24} />} color="red" />
+      </SimpleGrid>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <Card withBorder shadow="sm" radius="lg" p="xl" className="flex flex-col items-center justify-center">
+          <Title order={4} className="font-display self-start w-full mb-6">حالة الموارد الإغاثية</Title>
+          <Group justify="center">
+            <RingProgress
+              size={180}
+              thickness={16}
+              roundCaps
+              sections={[
+                { value: 40, color: 'teal', tooltip: 'غذاء' },
+                { value: 25, color: 'blue', tooltip: 'ماء' },
+                { value: 15, color: 'red', tooltip: 'علاج' },
+              ]}
+              label={
+                <Text ta="center" size="lg" fw={700} className="font-display">
+                  مستقرة
+                </Text>
+              }
+            />
+          </Group>
+          <div className="flex gap-4 mt-6">
+             <Badge color="teal" variant="dot">غذاء (40%)</Badge>
+             <Badge color="blue" variant="dot">ماء (25%)</Badge>
+             <Badge color="red" variant="dot">علاج (15%)</Badge>
+          </div>
+        </Card>
+
+        <Card withBorder shadow="sm" radius="lg" p="xl">
+          <Title order={4} className="font-display mb-6">أحدث التنبيهات</Title>
+          <div className="space-y-4">
+             {dashboard.unreadNotifications > 0 ? (
+               <div className="p-4 rounded-lg bg-red-50 border border-red-100 flex items-start gap-3">
+                 <AlertTriangle className="text-red-500 mt-1" size={20} />
+                 <div>
+                   <Text fw={600} className="text-red-700">لديك {dashboard.unreadNotifications} إشعار غير مقروء</Text>
+                   <Text size="sm" className="text-red-600/80">يرجى مراجعة صندوق الإشعارات للأهمية.</Text>
+                 </div>
+               </div>
+             ) : (
+               <div className="p-4 rounded-lg bg-teal-50 border border-teal-100 flex items-start gap-3">
+                 <CheckCircle className="text-teal-500 mt-1" size={20} />
+                 <div>
+                   <Text fw={600} className="text-teal-700">الوضع مستقر</Text>
+                   <Text size="sm" className="text-teal-600/80">تمت قراءة جميع التنبيهات والإشعارات.</Text>
+                 </div>
+               </div>
+             )}
+             
+             <div className="p-4 rounded-lg border border-border bg-slate-50">
+                <Text fw={600} className="text-slate-700 mb-1">الشكاوى تتطلب تدخلاً</Text>
+                <Text size="sm" className="text-slate-600">هناك {dashboard.openComplaints} شكوى مفتوحة تنتظر المراجعة والتوجيه من قِبل المشرفين.</Text>
+             </div>
+          </div>
         </Card>
       </div>
     </div>
+  );
+}
+
+function StatCard({ title, value, icon, color }: { title: string; value: number; icon: React.ReactNode; color: string }) {
+  return (
+    <Card withBorder shadow="sm" radius="lg" p="lg" className="hover:shadow-md transition-shadow">
+      <Group justify="space-between" align="flex-start">
+        <div>
+          <Text size="sm" fw={500} className="text-muted-foreground mb-2">{title}</Text>
+          <Text className="text-3xl font-display font-bold">{value}</Text>
+        </div>
+        <div className={`p-3 rounded-xl bg-${color}-100 text-${color}-600`}>
+          {icon}
+        </div>
+      </Group>
+    </Card>
   );
 }

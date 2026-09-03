@@ -146,10 +146,10 @@ export default function StaffManagement() {
       <LoadingOverlay visible={busy} zIndex={1000} />
       <Group justify='space-between'>
         <div>
-          <Title order={2}>إدارة الموظفين</Title>
-          <Text c='dimmed'>أنشئ الحسابات وحدد الصلاحيات وحالة الوصول بأمان.</Text>
+          <Title order={2} className="text-3xl font-display text-primary">إدارة الموظفين</Title>
+          <Text className="text-muted-foreground mt-1">أنشئ الحسابات وحدد الصلاحيات وحالة الوصول بأمان.</Text>
         </div>
-        <Button leftSection={<Plus size={18} />} onClick={() => setCreateOpen(true)} data-testid='open-create-staff'>
+        <Button leftSection={<Plus size={18} />} onClick={() => setCreateOpen(true)} className="bg-primary hover:bg-primary/90" radius="md" size="md" data-testid='open-create-staff'>
           دعوة موظف
         </Button>
       </Group>

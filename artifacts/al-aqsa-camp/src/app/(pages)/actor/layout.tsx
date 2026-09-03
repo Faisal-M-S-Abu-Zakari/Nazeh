@@ -1,16 +1,15 @@
 import Actor_Navbar from '@/components/actors/common/navbar/actor-navbar';
-import { Group, Stack } from '@mantine/core';
 import React from 'react';
 
-export default function Actor_Layout({ children }: { children: React.ReactNode }) {
+export default function ActorLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Group data-testid='actor-layout' wrap='nowrap' gap={0} justify='start' align='start' pt={60}>
-      <Stack w={250} visibleFrom='lg' justify='flex-start' align='center'>
+    <div data-testid="actor-layout" className="flex min-h-screen bg-slate-50 dark:bg-background" dir="rtl">
+      <aside className="hidden lg:flex flex-col w-64 fixed inset-y-0 right-0 z-50">
         <Actor_Navbar />
-      </Stack>
-      <Stack mih='100vh' w={'100%'} h={'100%'} justify='start'>
+      </aside>
+      <main className="flex-1 flex flex-col min-w-0 lg:mr-64 transition-all duration-300">
         {children}
-      </Stack>
-    </Group>
+      </main>
+    </div>
   );
 }

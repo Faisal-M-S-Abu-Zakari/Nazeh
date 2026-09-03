@@ -1,32 +1,23 @@
 import React from 'react';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
+import { Text } from '@mantine/core';
 
-export function ErrorState({ message = 'تعذر تحميل البيانات. حاول مرة أخرى.' }: { message?: string }) {
+export function LoadingState({ message = 'جاري التحميل...' }: { message?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-destructive/20 bg-destructive/5 p-8 text-destructive min-h-[300px]">
-      <AlertCircle className="size-8" />
-      <p className="text-sm font-medium">{message}</p>
+    <div className="flex flex-col items-center justify-center min-h-[40vh] gap-4 text-primary opacity-80 animate-in fade-in">
+      <Loader2 size={32} className="animate-spin" />
+      <Text className="font-medium">{message}</Text>
     </div>
   );
 }
 
-export function LoadingState({ message = 'جارٍ التحميل...' }: { message?: string }) {
+export function ErrorState({ message = 'حدث خطأ. يرجى المحاولة مرة أخرى.' }: { message?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 text-muted-foreground p-12 min-h-[300px]">
-      <Loader2 className="size-8 animate-spin text-primary/60" />
-      <p className="text-sm">{message}</p>
-    </div>
-  );
-}
-
-export function EmptyState({ title = 'لا توجد بيانات', description = 'لم يتم العثور على سجلات تطابق طلبك.', icon: Icon }: { title?: string, description?: string, icon?: React.ElementType }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-12 text-center text-muted-foreground bg-muted/20 min-h-[300px]">
-      {Icon && <Icon className="size-10 text-muted-foreground/50" />}
-      <div>
-        <p className="font-semibold text-foreground">{title}</p>
-        <p className="text-sm mt-1">{description}</p>
+    <div className="flex flex-col items-center justify-center min-h-[40vh] gap-3 text-red-500 animate-in fade-in zoom-in-95">
+      <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center">
+        <AlertCircle size={32} />
       </div>
+      <Text fw={500} size="lg">{message}</Text>
     </div>
   );
 }
