@@ -45,7 +45,7 @@ function ContentList() {
           <Title order={2} className="text-3xl font-display text-primary">إدارة المحتوى</Title>
           <Text className="text-muted-foreground mt-1">نشر الأخبار والتقارير الميدانية وقصص النجاح</Text>
         </div>
-        <Link href="/actor/content/new" className="no-underline">
+        <Link href="~/actor/content/new" className="no-underline">
           <Button leftSection={<Plus size={18} />} size="md" radius="md" className="bg-primary hover:bg-primary/90">
             إضافة محتوى جديد
           </Button>
@@ -104,7 +104,7 @@ function ContentList() {
                         color="primary" 
                         size="xs" 
                         radius="md"
-                        onClick={() => setLocation(`/actor/content/${post.id}`)}
+                        onClick={() => setLocation(`~/actor/content/${post.id}`)}
                       >
                         معاينة وتعديل
                       </Button>
@@ -154,7 +154,7 @@ function ContentDetail({ id }: { id: number }) {
   return (
     <div className="space-y-6 animate-in fade-in max-w-4xl mx-auto">
       <div className="flex items-center gap-4 mb-6">
-        <ActionIcon variant="light" size="lg" radius="md" onClick={() => setLocation('/actor/content')}>
+        <ActionIcon variant="light" size="lg" radius="md" onClick={() => setLocation('~/actor/content')}>
           <ArrowRight size={20} />
         </ActionIcon>
         <div>
@@ -216,7 +216,7 @@ function ContentForm() {
     }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListContentQueryKey() });
-        setLocation('/actor/content');
+        setLocation('~/actor/content');
       }
     });
   };
@@ -224,7 +224,7 @@ function ContentForm() {
   return (
     <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in">
       <div className="flex items-center gap-4 mb-6">
-        <ActionIcon variant="light" size="lg" radius="md" onClick={() => setLocation('/actor/content')}>
+        <ActionIcon variant="light" size="lg" radius="md" onClick={() => setLocation('~/actor/content')}>
           <ArrowRight size={20} />
         </ActionIcon>
         <Title order={2} className="text-3xl font-display text-primary">إضافة محتوى جديد</Title>
@@ -259,7 +259,7 @@ function ContentForm() {
          />
          
          <div className="flex justify-end gap-3 pt-4 border-t border-border mt-6">
-          <Button variant="outline" color="gray" onClick={() => setLocation('/actor/content')} radius="md">
+          <Button variant="outline" color="gray" onClick={() => setLocation('~/actor/content')} radius="md">
             إلغاء
           </Button>
           <Button variant="light" color="orange" onClick={() => handleSubmit('draft')} disabled={!title || !body || createContent.isPending}>

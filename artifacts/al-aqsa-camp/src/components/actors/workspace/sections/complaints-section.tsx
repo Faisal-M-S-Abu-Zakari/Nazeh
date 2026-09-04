@@ -108,7 +108,7 @@ function ComplaintsList() {
                         color="primary" 
                         size="xs" 
                         radius="md"
-                        onClick={() => setLocation(`/actor/complaints/${complaint.id}`)}
+                        onClick={() => setLocation(`~/actor/complaints/${complaint.id}`)}
                       >
                         معالجة
                       </Button>
@@ -159,7 +159,7 @@ function ComplaintDetail({ id }: { id: string }) {
   return (
     <div className="space-y-6 animate-in fade-in max-w-4xl mx-auto">
       <div className="flex items-center gap-4 mb-6">
-        <ActionIcon variant="light" size="lg" radius="md" onClick={() => setLocation('/actor/complaints')}>
+        <ActionIcon variant="light" size="lg" radius="md" onClick={() => setLocation('~/actor/complaints')}>
           <ArrowRight size={20} />
         </ActionIcon>
         <div>

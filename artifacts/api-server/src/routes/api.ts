@@ -467,10 +467,19 @@ n:count()
 }
 ).from(t).where(w))[0].n)
 ;
+  const unreadNotifications = req.authUser
+    ? await q(
+        notificationsTable,
+        and(
+          eq(notificationsTable.recipientUserId, req.authUser.id),
+          isNull(notificationsTable.readAt),
+        ),
+      )
+    : 0;
 
   res.json(V.GetDashboardResponse.parse(
 {
- totalDelegates:await q(usersTable,eq(usersTable.role,"DELEGATE")), totalDisplacedPersons:await q(displacedPersonsTable), activeAids:await q(aidsTable,eq(aidsTable.status,"ACTIVE")), openComplaints:await q(complaintsTable,inArray(complaintsTable.status,["PENDING","IN_PROGRESS"])), unreadNotifications:await q(notificationsTable,and(eq(notificationsTable.recipientUserId,req.authUser!.id),isNull(notificationsTable.readAt))) 
+ totalDelegates:await q(usersTable,eq(usersTable.role,"DELEGATE")), totalDisplacedPersons:await q(displacedPersonsTable), activeAids:await q(aidsTable,eq(aidsTable.status,"ACTIVE")), openComplaints:await q(complaintsTable,inArray(complaintsTable.status,["PENDING","IN_PROGRESS"])), unreadNotifications
 }
 ))
 ;
@@ -1441,6 +1450,20 @@ const q=parse<any>(V.ListNotificationsQueryParams,req.query,res)
 ;
 if(!q)return
 ;
+if(!req.authUser)
+{
+res.json(V.ListNotificationsResponse.parse(
+{
+items:[],pagination:
+{
+page:q.page,limit:q.limit,totalItems:0,totalPages:0
+}
+}
+))
+;
+return
+;
+}
 const where=eq(notificationsTable.recipientUserId,req.authUser!.id),rows=await db.select().from(notificationsTable).where(where).limit(q.limit).offset((q.page-1)*q.limit)
 ;
 const[

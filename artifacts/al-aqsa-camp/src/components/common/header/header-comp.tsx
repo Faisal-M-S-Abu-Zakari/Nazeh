@@ -25,7 +25,7 @@ export default function HeaderComp({ opened, toggle }: Props) {
     <AppShell.Header zIndex={50} withBorder={false} className='!bg-second-light shadow-sm'>
       <Flex justify='space-between' align='center' h='100%' px='lg'>
         <Group gap='md'>
-          <Burger opened={opened} onClick={toggle} hiddenFrom='lg' size='sm' />
+          {!isActor && <Burger opened={opened} onClick={toggle} hiddenFrom='lg' size='sm' />}
           <Link href={LANDING_ROUTES.HOME} className='flex items-center'>
             <Image
               src={LOGO}
