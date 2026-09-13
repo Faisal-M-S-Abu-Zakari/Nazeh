@@ -22,3 +22,17 @@ mtime_ms = 1789285198496
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:f36bfd94-ea83-442c-818d-c1056b3c4cfe/b2e85960-965c-43b7-a2f9-b7c14b1ffe76/736065e6-231a-4631-9abc-ca833fc7888b"
 storage_version_token = "1789285313060908"
 content_type = "image/svg+xml"
+
+[[outputs]]
+id = "k2kEH9CiBbUl6Bkj9ym67"
+uri = "file://artifacts/al-aqsa-camp/src/assets/common/nazeh-phoenix-logo.png"
+type = "image"
+title = "شعار نازح بخلفية شفافة"
+description = "الشعار المرفق بعد حذف الخلفية وقص المساحات الفارغة وتحسينه للاستخدام داخل التطبيق."
+logical_id = "fb127040-d1e1-48bb-8897-eb861335e933"
+content_hash = "sha256:79598baf4fb45e9d6e73f3e508ee4ca1ec7ca6fc16165922e726d2bbc5a91d51"
+size = 327469
+mtime_ms = 1789287115840
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:f36bfd94-ea83-442c-818d-c1056b3c4cfe/fb127040-d1e1-48bb-8897-eb861335e933/3897de12-0b8d-44de-a184-d0839435d923"
+storage_version_token = "1789287151318465"
+content_type = "image/png"

@@ -33,9 +33,9 @@ export default function HeaderComp({ opened, toggle }: Props) {
               <Image
                 src={NAZEH_LOGO}
                 alt='نازح — منصة إدارة المخيمات الإنسانية'
-                width={116}
-                height={48}
-                className='h-12 w-auto hover:opacity-90 transition-opacity'
+                width={52}
+                height={56}
+                className='h-14 w-auto object-contain hover:opacity-90 transition-opacity'
                 priority
               />
             </Link>

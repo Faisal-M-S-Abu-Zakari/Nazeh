@@ -104,7 +104,7 @@ export default function Actor_Navbar({ onNavigate }: { onNavigate?: () => void }
     <Box className="flex h-full w-full flex-col text-sidebar-foreground">
       {/* Brand Header */}
       <div className="flex h-16 shrink-0 items-center gap-3 border-b border-sidebar-border px-6 bg-sidebar">
-        <img src={NAZEH_LOGO} alt="نازح" className="h-12 w-auto shrink-0" />
+        <img src={NAZEH_LOGO} alt="نازح" className="h-[52px] w-auto shrink-0 object-contain" />
         <Text fz={10} c="dimmed" className="leading-tight">منصة إدارة المخيمات الإنسانية</Text>
       </div>
 
