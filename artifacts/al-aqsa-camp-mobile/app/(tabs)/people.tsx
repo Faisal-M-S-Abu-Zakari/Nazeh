@@ -13,7 +13,7 @@ export default function PeopleScreen() {
   const filtered = useMemo(() => people.filter((person) => person.name.includes(query) || person.role.includes(query)), [people, query]);
   return (
     <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
-      <ScreenHeader title="سجل المخيم" subtitle="سجل النازحين المشترك" action={canManagePeople ? <Pressable testID="add-person" onPress={() => router.push('/add-person')}><Ionicons name="person-add" size={26} color={colors.gold} /></Pressable> : undefined} />
+      <ScreenHeader title="سجل المخيم" subtitle="سجل النازحين المشترك" action={canManagePeople ? <Pressable testID="add-person" onPress={() => router.push('/add-person')}><Ionicons name="person-add" size={26} color={colors.primary} /></Pressable> : undefined} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <SyncBanner />
         <View style={[styles.search, { backgroundColor: colors.background, borderColor: colors.border }]}>

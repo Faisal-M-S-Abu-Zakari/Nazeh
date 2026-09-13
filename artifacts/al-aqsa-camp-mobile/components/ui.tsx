@@ -1,27 +1,27 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { ReactNode } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/context/AppContext';
 
 export const fonts = { regular: 'Tajawal_400Regular', medium: 'Tajawal_500Medium', bold: 'Tajawal_700Bold', extraBold: 'Tajawal_800ExtraBold' };
 
+const logoSource = require('@/assets/images/nazeh-phoenix-logo.png');
+
 export function ScreenHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.header, { paddingTop: Platform.OS === 'web' ? 67 : insets.top + 8, backgroundColor: colors.primary }]}>
+    <View style={[styles.header, { paddingTop: Platform.OS === 'web' ? 67 : insets.top + 8, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
       <View style={styles.headerRow}>
         {action}
         <View style={styles.headerText}>
-          <Text style={[styles.headerTitle, { color: colors.primaryForeground }]}>{title}</Text>
-          {subtitle ? <Text style={[styles.headerSubtitle, { color: colors.accent }]}>{subtitle}</Text> : null}
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>{title}</Text>
+          {subtitle ? <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>{subtitle}</Text> : null}
         </View>
-        <View style={[styles.mark, { backgroundColor: colors.gold }]}>
-          <Ionicons name="home-outline" size={22} color={colors.primary} />
-        </View>
+        <Image source={logoSource} style={{ width: 44, height: 44, resizeMode: 'contain' }} />
       </View>
     </View>
   );
@@ -88,13 +88,12 @@ export function SyncBanner() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: 20, paddingBottom: 18, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
+  header: { paddingHorizontal: 20, paddingBottom: 18, borderBottomWidth: 1 },
   headerRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   headerText: { flex: 1, alignItems: 'flex-end' },
-  headerTitle: { fontFamily: fonts.extraBold, fontSize: 25, textAlign: 'right' },
+  headerTitle: { fontFamily: fonts.extraBold, fontSize: 22, textAlign: 'right' },
   headerSubtitle: { fontFamily: fonts.regular, fontSize: 13, textAlign: 'right', marginTop: 2 },
-  mark: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  card: { borderWidth: 1, borderRadius: 16, padding: 16, shadowColor: '#1f3527', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 2 },
+  card: { borderWidth: 1, borderRadius: 12, padding: 16, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
   button: { minHeight: 50, borderRadius: 14, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   buttonText: { fontFamily: fonts.bold, fontSize: 16 },
   fieldWrap: { gap: 7 },

@@ -28,8 +28,8 @@ export default function AlertsScreen() {
   return (
     <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
       <ScreenHeader title="التنبيهات والمهام" subtitle="المهام والشكاوى المشتركة" action={(canManageComplaints || canManageTasks) ? <View style={styles.headerActions}>
-        {canManageComplaints ? <Pressable testID="add-complaint" onPress={() => router.push('/complaint-form' as never)}><Ionicons name="chatbox-ellipses" size={25} color={colors.gold} /></Pressable> : null}
-        {canManageTasks ? <Pressable testID="add-task" onPress={() => router.push('/task-form' as never)}><Ionicons name="shield-checkmark" size={27} color={colors.gold} /></Pressable> : null}
+        {canManageComplaints ? <Pressable testID="add-complaint" onPress={() => router.push('/complaint-form' as never)}><Ionicons name="chatbox-ellipses" size={25} color={colors.primary} /></Pressable> : null}
+        {canManageTasks ? <Pressable testID="add-task" onPress={() => router.push('/task-form' as never)}><Ionicons name="shield-checkmark" size={27} color={colors.primary} /></Pressable> : null}
       </View> : undefined} />
       <ScrollView contentContainerStyle={styles.content}>
         <SyncBanner />

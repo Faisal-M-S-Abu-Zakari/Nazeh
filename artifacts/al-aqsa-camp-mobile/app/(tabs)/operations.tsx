@@ -13,7 +13,7 @@ export default function OperationsScreen() {
       <ScreenHeader
         title="إدارة المساعدات"
         subtitle="الحملات والتوزيعات"
-        action={canManageAids ? <Pressable testID="add-aid" onPress={() => router.push('/add-aid')}><Ionicons name="add-circle" size={31} color={colors.gold} /></Pressable> : undefined}
+        action={canManageAids ? <Pressable testID="add-aid" onPress={() => router.push('/add-aid')}><Ionicons name="add-circle" size={31} color={colors.primary} /></Pressable> : undefined}
       />
       <ScrollView contentContainerStyle={styles.content}>
         <SyncBanner />

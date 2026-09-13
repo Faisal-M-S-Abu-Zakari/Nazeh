@@ -98,7 +98,7 @@ export default function StaffManagementScreen() {
 
   return (
     <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
-      <ScreenHeader title="إدارة الموظفين" subtitle="الدعوات والأدوار وحالة الحساب" action={<Pressable testID="staff-back" onPress={() => router.back()} style={styles.back}><Ionicons name="arrow-back" size={23} color={colors.primaryForeground} /></Pressable>} />
+      <ScreenHeader title="إدارة الموظفين" subtitle="الدعوات والأدوار وحالة الحساب" action={<Pressable testID="staff-back" onPress={() => router.back()} style={styles.back}><Ionicons name="arrow-back" size={23} color={colors.foreground} /></Pressable>} />
       <KeyboardAwareScrollViewCompat
         contentContainerStyle={styles.content}
         bottomOffset={70}
