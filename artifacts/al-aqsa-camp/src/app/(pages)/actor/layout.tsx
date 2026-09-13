@@ -1,6 +1,7 @@
 import Actor_Navbar from '@/components/actors/common/navbar/actor-navbar';
 import { Burger, Drawer, Text } from '@mantine/core';
 import React from 'react';
+import { NAZEH_LOGO } from '@/assets/common';
 
 export default function ActorLayout({ children }: { children: React.ReactNode }) {
   const [opened, setOpened] = React.useState(false);
@@ -10,10 +11,8 @@ export default function ActorLayout({ children }: { children: React.ReactNode })
       {/* Mobile Header */}
       <header className="fixed inset-x-0 top-[60px] z-40 flex h-16 items-center justify-between border-b border-border bg-card px-4 lg:hidden">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground shadow-sm">
-            أقصى
-          </div>
-          <Text fw={800} className="font-display text-foreground">مخيم الأقصى</Text>
+          <img src={NAZEH_LOGO} alt="نازح" className="h-12 w-auto" />
+          <Text fw={700} fz={11} c="dimmed" className="hidden min-[340px]:block">إدارة المخيمات الإنسانية</Text>
         </div>
         <Burger opened={opened} onClick={() => setOpened(!opened)} aria-label="فتح القائمة الرئيسية" size="sm" color="var(--color-primary)" />
       </header>

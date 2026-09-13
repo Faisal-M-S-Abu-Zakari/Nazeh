@@ -7,6 +7,7 @@ import { GENERAL_ACTOR_ROUTES } from '@/constants/routes';
 import { Activity, Bell, ClipboardList, HandHeart, Home, LogOut, Megaphone, MessageSquareWarning, ShieldCheck, User, UserCog, Users } from 'lucide-react';
 import { clearAuthRole, clearAuthToken, clearAuthUser } from '@/utils/auth/getSession';
 import { USER_RANK_LABELS, UserRank } from '@/constants/userTypes';
+import { NAZEH_LOGO } from '@/assets/common';
 
 interface NavLink {
   label: string;
@@ -103,13 +104,8 @@ export default function Actor_Navbar({ onNavigate }: { onNavigate?: () => void }
     <Box className="flex h-full w-full flex-col text-sidebar-foreground">
       {/* Brand Header */}
       <div className="flex h-16 shrink-0 items-center gap-3 border-b border-sidebar-border px-6 bg-sidebar">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground shadow-sm">
-          أقصى
-        </div>
-        <div>
-          <Text fw={800} fz={17} className="font-display text-foreground leading-tight tracking-tight">مخيم الأقصى</Text>
-          <Text fz={10} c="dimmed" className="leading-tight">المنصة المركزية للعمليات</Text>
-        </div>
+        <img src={NAZEH_LOGO} alt="نازح" className="h-12 w-auto shrink-0" />
+        <Text fz={10} c="dimmed" className="leading-tight">منصة إدارة المخيمات الإنسانية</Text>
       </div>
 
       {/* User Profile Summary */}

@@ -1,11 +1,11 @@
 'use client';
-import { AppShell, Burger, Button, Flex, Group, Paper } from '@mantine/core';
+import { AppShell, Burger, Button, Flex, Group, Text } from '@mantine/core';
 import { Image } from '@/lib/nextjs-mocks';
 import { Link as Link } from '@/lib/nextjs-mocks';
 import { AUTH_ROUTES, LANDING_ROUTES } from '@/constants/routes';
 import { usePathname  } from '@/lib/nextjs-mocks';
 import useAuth from '@/hooks/useAuth';
-import { LOGO } from '@/assets/common';
+import { NAZEH_LOGO } from '@/assets/common';
 import { LogIn } from 'lucide-react';
 import Header_Links from '@/components/common/header/header-links';
 import Header_Avatar from '@/components/common/header/header-avatar';
@@ -26,16 +26,20 @@ export default function HeaderComp({ opened, toggle }: Props) {
       <Flex justify='space-between' align='center' h='100%' px='lg'>
         <Group gap='md'>
           {!isActor && <Burger opened={opened} onClick={toggle} hiddenFrom='lg' size='sm' />}
-          <Link href={LANDING_ROUTES.HOME} className='flex items-center'>
-            <Image
-              src={LOGO}
-              alt='Logo'
-              width={60}
-              height={60}
-              className='hover:opacity-90 rounded-lg transition-opacity'
-              priority
-            />
-          </Link>
+          {isActor ? (
+            <Text fw={700} size='sm' c='dimmed'>مساحة العمل</Text>
+          ) : (
+            <Link href={LANDING_ROUTES.HOME} className='flex items-center'>
+              <Image
+                src={NAZEH_LOGO}
+                alt='نازح — منصة إدارة المخيمات الإنسانية'
+                width={116}
+                height={48}
+                className='h-12 w-auto hover:opacity-90 transition-opacity'
+                priority
+              />
+            </Link>
+          )}
         </Group>
 
         {!isActor && (

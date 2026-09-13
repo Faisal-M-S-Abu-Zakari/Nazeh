@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 150" role="img" aria-labelledby="title desc">
+  <title id="title">نازح</title>
+  <desc id="desc">كلمة نازح بخط عربي واضح مع جناحي عنقاء بألوان علم فلسطين</desc>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M174 59C137 49 110 31 87 10c2 25 17 45 46 59-24-4-45-14-64-29 8 25 29 42 63 50"
+      stroke="#007A3D" stroke-width="10"/>
+    <path d="M186 59c37-10 64-28 87-49-2 25-17 45-46 59 24-4 45-14 64-29-8 25-29 42-63 50"
+      stroke="#111111" stroke-width="10"/>
+    <path d="M180 22c-12 13-16 28-12 45 3 12 7 21 12 29 5-8 9-17 12-29 4-17 0-32-12-45Z"
+      fill="#CE1126" stroke="#CE1126" stroke-width="3"/>
+  </g>
+  <text x="180" y="134" direction="rtl" unicode-bidi="bidi-override" text-anchor="middle"
+    fill="#111111" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="72" font-weight="800"
+    letter-spacing="-3">نازح</text>
+</svg>

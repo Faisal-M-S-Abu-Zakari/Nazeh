@@ -7,3 +7,18 @@ uri = "file://artifacts/al-aqsa-camp-showcase/public/audio/bg_music.mp3"
 type = "audio"
 title = "humanitarian showcase background music"
 description = "Generated music: Cinematic uplifting orchestral instrumental background music scoring a humanitarian Arabic-first brand film. Warm oud-inspired plucked strings, restrained piano, soft frame drums, su…"
+logical_id = "c5cb676a-9212-4ca4-9595-d6731f9b20af"
+
+[[outputs]]
+id = "2rMeXmjDmkZwHD53vU9jn"
+uri = "file://artifacts/al-aqsa-camp/src/assets/common/nazeh-phoenix-wordmark.svg"
+type = "image"
+title = "شعار نازح — العنقاء"
+description = "نسخة SVG متجهية بخط عربي واضح وألوان مستوحاة من علم فلسطين."
+logical_id = "b2e85960-965c-43b7-a2f9-b7c14b1ffe76"
+content_hash = "sha256:43c47f4554a8a5c1d2e2977173cf257eecd8eb5c9d9b6f71c117d4f1f43e1be1"
+size = 992
+mtime_ms = 1789285198496
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:f36bfd94-ea83-442c-818d-c1056b3c4cfe/b2e85960-965c-43b7-a2f9-b7c14b1ffe76/736065e6-231a-4631-9abc-ca833fc7888b"
+storage_version_token = "1789285313060908"
+content_type = "image/svg+xml"
