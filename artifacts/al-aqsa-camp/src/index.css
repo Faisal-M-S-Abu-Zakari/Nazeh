@@ -56,56 +56,56 @@
 }
 
 :root {
-  --background: 60 20% 99%;
-  --foreground: 145 35% 15%;
+  --background: 145 20% 98%;
+  --foreground: 145 40% 12%;
 
   --card: 0 0% 100%;
-  --card-foreground: 145 35% 15%;
-  --card-border: 145 10% 90%;
+  --card-foreground: 145 40% 12%;
+  --card-border: 145 20% 90%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 145 35% 15%;
-  --popover-border: 145 10% 90%;
+  --popover-foreground: 145 40% 12%;
+  --popover-border: 145 20% 90%;
 
-  --primary: 153 60% 28%; /* Bold AL-AQSA Emerald Green */
+  --primary: 153 65% 24%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 42 75% 55%; /* Rich Sand/Gold */
-  --secondary-foreground: 145 40% 10%;
+  --secondary: 42 85% 55%;
+  --secondary-foreground: 145 50% 10%;
 
-  --muted: 145 20% 94%;
-  --muted-foreground: 145 15% 45%;
+  --muted: 145 10% 94%;
+  --muted-foreground: 145 15% 40%;
 
-  --accent: 145 30% 92%;
-  --accent-foreground: 153 60% 28%;
+  --accent: 145 20% 94%;
+  --accent-foreground: 153 65% 24%;
 
-  --destructive: 0 84% 60%;
+  --destructive: 0 75% 50%;
   --destructive-foreground: 0 0% 100%;
 
-  --border: 145 15% 88%;
-  --input: 145 15% 88%;
-  --ring: 153 60% 28%;
+  --border: 145 20% 88%;
+  --input: 145 20% 88%;
+  --ring: 153 65% 24%;
 
-  --sidebar: 153 70% 18%; /* Darker green for sidebar */
-  --sidebar-foreground: 0 0% 100%;
-  --sidebar-border: 153 60% 24%;
+  --sidebar: 145 30% 99%;
+  --sidebar-foreground: 145 40% 15%;
+  --sidebar-border: 145 20% 88%;
 
   --app-font-sans: 'Tajawal', sans-serif;
   --app-font-display: 'Cairo', sans-serif;
-  --radius: 0.75rem; 
+  --radius: 0.5rem; 
 }
 
 .dark {
-  --background: 145 40% 5%;
-  --foreground: 60 20% 95%;
+  --background: 145 30% 6%;
+  --foreground: 145 15% 90%;
 
-  --card: 145 30% 8%;
-  --card-foreground: 60 20% 95%;
-  --card-border: 145 20% 15%;
+  --card: 145 25% 9%;
+  --card-foreground: 145 15% 90%;
+  --card-border: 145 20% 16%;
 
-  --popover: 145 30% 8%;
-  --popover-foreground: 60 20% 95%;
-  --popover-border: 145 20% 15%;
+  --popover: 145 25% 9%;
+  --popover-foreground: 145 15% 90%;
+  --popover-border: 145 20% 16%;
 
   --primary: 153 50% 45%; 
   --primary-foreground: 145 40% 5%;
@@ -113,22 +113,22 @@
   --secondary: 42 65% 50%;
   --secondary-foreground: 145 40% 5%;
 
-  --muted: 145 20% 15%;
+  --muted: 145 20% 14%;
   --muted-foreground: 145 15% 65%;
 
-  --accent: 145 25% 15%;
+  --accent: 145 20% 16%;
   --accent-foreground: 153 50% 45%;
 
   --destructive: 0 70% 50%;
   --destructive-foreground: 0 0% 100%;
 
-  --border: 145 20% 15%;
-  --input: 145 20% 15%;
+  --border: 145 20% 16%;
+  --input: 145 20% 16%;
   --ring: 153 50% 45%;
 
-  --sidebar: 145 40% 6%;
-  --sidebar-foreground: 60 20% 95%;
-  --sidebar-border: 145 20% 15%;
+  --sidebar: 145 25% 7%;
+  --sidebar-foreground: 145 15% 90%;
+  --sidebar-border: 145 20% 16%;
 }
 
 @layer base {
@@ -144,9 +144,22 @@
   }
 }
 
-/* Base custom utilities */
 @layer utilities {
   .rtl-flip {
     transform: scaleX(-1);
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 dark:bg-slate-700 rounded-full;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-400 dark:bg-slate-600;
   }
 }

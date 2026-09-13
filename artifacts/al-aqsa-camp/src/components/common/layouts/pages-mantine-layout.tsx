@@ -5,6 +5,7 @@ import { useDisclosure, useHeadroom } from '@mantine/hooks';
 import { ReactNode } from 'react';
 import HeaderComp from '@/components/common/header/header-comp';
 import Footer_Comp from '@/components/common/footer/footer-comp';
+import { useLocation } from 'wouter';
 
 export default function Pages_Mantine_Layout({
   children,
@@ -13,6 +14,8 @@ export default function Pages_Mantine_Layout({
 }>) {
   const pinned = useHeadroom({ fixedAt: 70 });
   const [opened, { toggle }] = useDisclosure();
+  const [location] = useLocation();
+  const isActorWorkspace = location === '/actor' || location.startsWith('/actor/');
 
   return (
     <AppShell
@@ -33,7 +36,7 @@ export default function Pages_Mantine_Layout({
         {children}
       </AppShell.Main>
 
-      <Footer_Comp />
+      {!isActorWorkspace && <Footer_Comp />}
     </AppShell>
   );
 }

@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useListComplaints, getListComplaintsQueryKey, useUpdateComplaintStatus } from '@workspace/api-client-react';
-import { Link, useLocation } from 'wouter';
-import { Button, Card, Table, Text, Badge, ActionIcon, TextInput, Title, Select, Modal, Textarea } from '@mantine/core';
+import { useLocation } from 'wouter';
+import { Button, Card, Table, Text, Badge, ActionIcon, TextInput, Title, Select, Textarea } from '@mantine/core';
 import { Search, ArrowRight, MessageSquareWarning, Filter, MessageCircle } from 'lucide-react';
 import { LoadingState, ErrorState } from '../shared/ui-states';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ar';
 import { useQueryClient } from '@tanstack/react-query';
+import useAuth from '@/hooks/useAuth';
 
 dayjs.locale('ar');
 
@@ -14,13 +15,16 @@ const statusLabels: Record<string, string> = { OPEN: "جديدة", IN_REVIEW: "�
 const statusColors: Record<string, string> = { OPEN: "orange", IN_REVIEW: "blue", RESOLVED: "teal", REJECTED: "gray" };
 
 export default function ComplaintsSection({ params }: { params?: Record<string, string | undefined> }) {
+  const { isManager, isAdmin, isDelegate } = useAuth();
+  const canManage = isManager || isAdmin || isDelegate;
+
   if (params?.id) {
-    return <ComplaintDetail id={params.id} />;
+    return <ComplaintDetail id={params.id} canManage={canManage} />;
   }
-  return <ComplaintsList />;
+  return <ComplaintsList canManage={canManage} />;
 }
 
-function ComplaintsList() {
+function ComplaintsList({ canManage }: { canManage: boolean }) {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [location, setLocation] = useLocation();
@@ -110,7 +114,7 @@ function ComplaintsList() {
                         radius="md"
                         onClick={() => setLocation(`~/actor/complaints/${complaint.id}`)}
                       >
-                        معالجة
+                        {canManage ? 'معالجة' : 'عرض'}
                       </Button>
                     </Table.Td>
                   </Table.Tr>
@@ -130,7 +134,7 @@ function ComplaintsList() {
   );
 }
 
-function ComplaintDetail({ id }: { id: string }) {
+function ComplaintDetail({ id, canManage }: { id: string; canManage: boolean }) {
   const [location, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const [replyText, setReplyText] = useState('');
@@ -194,26 +198,34 @@ function ComplaintDetail({ id }: { id: string }) {
         <div className="border-t border-border pt-6 space-y-4">
           <Title order={4} className="font-display text-sidebar flex items-center gap-2">
             <MessageCircle size={18} />
-            الرد والمعالجة
+            {canManage ? 'الرد والمعالجة' : 'متابعة المعالجة'}
           </Title>
-          
-          <Textarea 
-            placeholder="اكتب ردك أو الإجراء الذي تم اتخاذه..." 
-            value={replyText || complaint.reply || ''} 
-            onChange={(e) => setReplyText(e.currentTarget.value)}
-            minRows={4}
-            disabled={complaint.status === 'RESOLVED'}
-          />
-          
-          {complaint.status !== 'RESOLVED' && (
+
+          {canManage ? (
+            <Textarea
+              data-testid="input-complaint-reply"
+              placeholder="اكتب ردك أو الإجراء الذي تم اتخاذه..."
+              value={replyText || complaint.reply || ''}
+              onChange={(e) => setReplyText(e.currentTarget.value)}
+              minRows={4}
+              disabled={complaint.status === 'RESOLVED'}
+            />
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <Text size="sm" c="dimmed" mb={4}>رد فريق المتابعة</Text>
+              <Text>{complaint.reply || 'لم يُضف رد على الشكوى حتى الآن.'}</Text>
+            </div>
+          )}
+
+          {canManage && complaint.status !== 'RESOLVED' && (
             <div className="flex flex-wrap gap-3 pt-2">
-              <Button color="blue" onClick={() => handleStatusUpdate('IN_REVIEW')} disabled={complaint.status === 'IN_REVIEW'}>
+              <Button data-testid="button-review-complaint" color="blue" onClick={() => handleStatusUpdate('IN_REVIEW')} disabled={complaint.status === 'IN_REVIEW'}>
                 تغيير إلى قيد المراجعة
               </Button>
-              <Button color="teal" onClick={() => handleStatusUpdate('RESOLVED')} disabled={!replyText && !complaint.reply}>
+              <Button data-testid="button-resolve-complaint" color="teal" onClick={() => handleStatusUpdate('RESOLVED')} disabled={!replyText && !complaint.reply}>
                 إغلاق كـ محلولة
               </Button>
-              <Button variant="light" color="gray" onClick={() => handleStatusUpdate('REJECTED')}>
+              <Button data-testid="button-reject-complaint" variant="light" color="gray" onClick={() => handleStatusUpdate('REJECTED')}>
                 رفض الشكوى
               </Button>
             </div>

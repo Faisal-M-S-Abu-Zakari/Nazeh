@@ -113,6 +113,7 @@ import { parseRequest } from "../lib/validation";
 
 const router: IRouter = Router();
 const recordManagers: StaffRole[] = ["ADMIN", "MANAGER", "DELEGATE"];
+const complaintReaders: StaffRole[] = [...recordManagers, "SECURITY_OFFICER", "SECURITY_MEMBER"];
 const taskManagers: StaffRole[] = ["ADMIN", "MANAGER", "SECURITY_OFFICER"];
 const taskReaders: StaffRole[] = [...taskManagers, "SECURITY_MEMBER"];
 
@@ -333,7 +334,7 @@ router.patch("/people/:personId/archive", allowRoles(...recordManagers), async (
   if (result) res.status(result.statusCode).json(result.responseBody);
 });
 
-router.get("/complaints", allowRoles(...recordManagers), async (_req, res): Promise<void> => {
+router.get("/complaints", allowRoles(...complaintReaders), async (_req, res): Promise<void> => {
   const rows = await db.select().from(complaints).where(isNull(complaints.archivedAt)).orderBy(desc(complaints.createdAt));
   res.json(ListComplaintsResponse.parse(rows));
 });
