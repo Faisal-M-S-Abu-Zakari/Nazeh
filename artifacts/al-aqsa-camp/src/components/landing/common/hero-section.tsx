@@ -23,23 +23,18 @@ export default function Hero_Section({ destination }: Props) {
       ? BLOG_HERO_CONTENT
       : SUCCESS_STORIES_HERO_CONTENT;
 
-  const images = content.map((item) => item.image);
-
-  const autoplay = useRef(Autoplay({ delay: 5000 }));
+  const autoplay = useRef(Autoplay({ delay: 5000, stopOnInteraction: false }));
   const [activeSlide, setActiveSlide] = useState(0);
 
-  const slides = images.map((item, index) => (
-    <Carousel.Slide key={index} w='100%' h='100%'>
-      <Box h={{ base: 350, md: 400 }} style={{ position: 'relative', width: '100%' }}>
+  const slides = content.map((item, index) => (
+    <Carousel.Slide key={item.title} w='100%' h='100%'>
+      <Box h='100%' style={{ position: 'relative', width: '100%', overflow: 'hidden' }}>
         <Image
-          alt={`Slide ${index + 1}`}
-          src={item}
+          alt={item.title}
+          src={item.image}
           fill
           priority={index === 0}
-          style={{
-            objectFit: 'cover',
-            transition: 'transform 0.5s ease',
-          }}
+          className='block h-full w-full object-cover'
         />
       </Box>
     </Carousel.Slide>
@@ -51,8 +46,27 @@ export default function Hero_Section({ destination }: Props) {
         w='100%'
         h='100%'
         withControls={false}
-        controlSize={48}
+        withIndicators
         slideSize='100%'
+        classNames={{
+          root: 'h-full',
+          viewport: 'h-full',
+          container: 'h-full',
+          slide: 'h-full',
+        }}
+        styles={{
+          root: { height: '100%' },
+          viewport: { height: '100%' },
+          container: { height: '100%' },
+          slide: { height: '100%' },
+          indicators: { bottom: 18, zIndex: 20 },
+          indicator: {
+            width: 9,
+            height: 9,
+            border: '1px solid rgba(255,255,255,.8)',
+            backgroundColor: 'rgba(255,255,255,.55)',
+          },
+        }}
         emblaOptions={{
           loop: true,
           align: 'start',
@@ -66,7 +80,7 @@ export default function Hero_Section({ destination }: Props) {
         {slides}
       </Carousel>
       <Overlay
-        gradient='linear-gradient(180deg, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.2) 100%)'
+        gradient='linear-gradient(180deg, rgba(0,0,0,.18) 0%, rgba(0,0,0,.35) 45%, rgba(0,0,0,.78) 100%)'
         zIndex={0}
       />
       <Flex
@@ -74,21 +88,22 @@ export default function Hero_Section({ destination }: Props) {
         justify='center'
         align='start'
         pos='absolute'
-        top={'30%'}
+        bottom={{ base: 48, md: 54 }}
         right={{ base: '5%', md: '8%', lg: '10%' }}
         left={{ base: '5%', md: '8%', lg: '10%' }}
         className='!z-10 transition-all duration-500'
         dir='rtl'
       >
-        <Title order={1} fw={{ base: 600, md: 800 }} fz={{ base: 25, md: 35 }} c='white' ta='right'>
+        <Title order={1} fw={{ base: 700, md: 800 }} fz={{ base: 27, md: 38 }} c='white' ta='right'>
           {content[activeSlide]?.title}
         </Title>
         <Text
-          fz={{ base: 16, md: 22, lg: 25 }}
+          fz={{ base: 15, md: 20, lg: 23 }}
           c='gray.1'
           ta='right'
-          mt={24}
-          className='leading-relaxed'
+          mt={{ base: 8, md: 14 }}
+          maw={820}
+          className='leading-relaxed drop-shadow-sm'
           style={{ whiteSpace: 'pre-line' }}
         >
           {content[activeSlide]?.desc}
