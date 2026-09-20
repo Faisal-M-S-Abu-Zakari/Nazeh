@@ -21,6 +21,12 @@ import Page5 from '@/app/(pages)/(landing)/success-stories/page';
 // Actor Pages & Views
 import OperationsPage from '@/app/(pages)/actor/operations/page';
 import FamilyHeadPage from '@/app/(pages)/actor/family/page';
+import {
+  FamilyAdsPage,
+  FamilyComplaintsPage,
+  FamilyNotificationsPage,
+  FamilyReceivedAidsPage,
+} from '@/components/actors/displaced/family-portal-pages';
 import RoleWorkspacePage from '@/components/actors/workspace/role-workspace-page';
 import Page40 from '@/app/(pages)/actor/staff/page';
 
@@ -57,6 +63,10 @@ const ActorPages = () => (
   <ActorLayout>
     <Switch>
       <Route path="/operations" component={OperationsPage} />
+      <Route path="/family/notifications" component={FamilyNotificationsPage} />
+      <Route path="/family/ads" component={FamilyAdsPage} />
+      <Route path="/family/received-aids" component={FamilyReceivedAidsPage} />
+      <Route path="/family/complaints" component={FamilyComplaintsPage} />
       <Route path="/family" component={FamilyHeadPage} />
       
       {/* Workspace Sections */}

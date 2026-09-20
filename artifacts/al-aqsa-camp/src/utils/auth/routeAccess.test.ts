@@ -97,15 +97,26 @@ test('redirects every legacy staff profile, report, aid and task link with histo
 });
 
 test('keeps the family workspace isolated from legacy staff redirects', () => {
+  const familyPaths = [
+    '/actor/family',
+    '/actor/family/notifications',
+    '/actor/family/ads',
+    '/actor/family/received-aids',
+    '/actor/family/complaints',
+  ];
   assert.equal(getLegacyActorRedirectTarget('/actor/family'), null);
   assert.equal(getLegacyActorRedirectTarget('/actor/family/'), null);
-  assert.equal(canAccessActorPath('/actor/family', users.displaced), true);
+  for (const path of familyPaths) {
+    assert.equal(canAccessActorPath(path, users.displaced), true);
+  }
 
   for (const staffUser of [users.admin, users.manager, users.delegate, users.officer, users.member]) {
-    assert.equal(
-      canAccessActorPath('/actor/family', staffUser),
-      false,
-      `${staffUser.role} must not access the family workspace`,
-    );
+    for (const path of familyPaths) {
+      assert.equal(
+        canAccessActorPath(path, staffUser),
+        false,
+        `${staffUser.role} must not access ${path}`,
+      );
+    }
   }
 });

@@ -73,7 +73,7 @@ export function canAccessActorPath(pathname: string, user: RouteAccessUser): boo
   const path = pathname.replace(/\/+$/, '') || '/actor';
   const role = user.role;
 
-  if (path === '/actor/family') return role === 'displaced';
+  if (path === '/actor/family' || path.startsWith('/actor/family/')) return role === 'displaced';
   if (path === '/actor' || path === '/actor/operations') return hasRole(role, allStaffRoles);
   if (path === '/actor/profile' || path === '/actor/reports' || path === '/actor/notifications') return hasRole(role, allStaffRoles);
   

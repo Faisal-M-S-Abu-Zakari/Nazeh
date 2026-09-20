@@ -1367,7 +1367,7 @@ return
 }
 const[c]=await db.insert(complaintsTable).values(
 {
-authorUserId:profile.userId,type:"GENERAL",subject:b.subject,body:b.message
+authorUserId:profile.userId,type:"GENERAL",subject:b.subject,body:b.description
 }
 ).returning()
 ;

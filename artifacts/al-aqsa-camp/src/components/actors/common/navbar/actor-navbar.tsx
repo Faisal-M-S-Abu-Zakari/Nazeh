@@ -26,10 +26,18 @@ export default function Actor_Navbar({ onNavigate }: { onNavigate?: () => void }
 
   const navGroups = useMemo<NavGroup[]>(() => {
     if (isDisplaced) {
-      return [{
-        title: 'بوابة المستفيد',
-        links: [{ label: 'ملف الأسرة وطلباتها', href: GENERAL_ACTOR_ROUTES.FAMILY, icon: Home }]
-      }];
+      return [
+        {
+          title: 'مساحة النازح',
+          links: [
+            { label: 'صفحة النازح', href: GENERAL_ACTOR_ROUTES.FAMILY, icon: Home },
+            { label: 'إشعارات النازح', href: GENERAL_ACTOR_ROUTES.FAMILY_NOTIFICATIONS, icon: Bell },
+            { label: 'إعلانات النازح', href: GENERAL_ACTOR_ROUTES.FAMILY_ADS, icon: Megaphone },
+            { label: 'المساعدات المستلمة', href: GENERAL_ACTOR_ROUTES.FAMILY_RECEIVED_AIDS, icon: HandHeart },
+            { label: 'الشكاوى', href: GENERAL_ACTOR_ROUTES.FAMILY_COMPLAINTS, icon: MessageSquareWarning },
+          ],
+        },
+      ];
     }
 
     const groups: NavGroup[] = [];
