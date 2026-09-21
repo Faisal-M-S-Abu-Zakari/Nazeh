@@ -1,9 +1,15 @@
 import React, { useRef, useState } from 'react';
 import { useListNeeds, useGetFamily, getListNeedsQueryKey, useUpdateNeed, useListFamilies, useCreateNeed } from '@workspace/api-client-react';
+import type { NeedInput } from '@workspace/api-client-react';
 import { Link, useLocation } from 'wouter';
 import { Alert, Button, Card, Table, Text, Badge, ActionIcon, TextInput, Title, Select, Modal, Textarea } from '@mantine/core';
 import { Search, Eye, Filter, ArrowRight, CheckCircle2, Clock, XCircle, AlertCircle, PlayCircle } from 'lucide-react';
 import { LoadingState, ErrorState } from '../shared/ui-states';
+import {
+  NEED_SUBMISSION_ERROR_MESSAGE,
+  NEED_SUBMISSION_ERROR_TITLE,
+  submitNeed,
+} from './needs-submission';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ar';
 import { useQueryClient } from '@tanstack/react-query';
@@ -291,26 +297,21 @@ function NeedForm() {
   const [submitError, setSubmitError] = useState(false);
   
   const handleSubmit = () => {
-    if (!familyId || !category || !title || !description || !priority) return;
+    const values: NeedInput = {
+      familyId: familyId || '',
+      category: category as NeedInput['category'],
+      priority: priority as NeedInput['priority'],
+      title,
+      description,
+    };
 
-    setSubmitError(false);
-    createNeed.mutate({
-      data: {
-        familyId,
-        category: category as any,
-        priority: priority as any,
-        title,
-        description
-      }
-    }, {
-      onSuccess: () => {
-        setSubmitError(false);
-        queryClient.invalidateQueries({ queryKey: getListNeedsQueryKey() });
-        setLocation('/needs');
+    submitNeed(values, {
+      mutate: (variables, callbacks) => createNeed.mutate(variables, callbacks),
+      setSubmitError,
+      invalidateNeeds: () => {
+        void queryClient.invalidateQueries({ queryKey: getListNeedsQueryKey() });
       },
-      onError: () => {
-        setSubmitError(true);
-      }
+      navigate: setLocation,
     });
   };
 
@@ -364,9 +365,9 @@ function NeedForm() {
            value={description}
            onChange={(e) => setDescription(e.currentTarget.value)}
          />
-          {submitError && (
-            <Alert color="red" icon={<AlertCircle size={18} />} title="تعذر حفظ الاحتياج">
-              لم نتمكن من إرسال طلب الاحتياج. بقيت بياناتك كما هي؛ راجعها وحاول مرة أخرى.
+           {submitError && (
+             <Alert color="red" icon={<AlertCircle size={18} />} title={NEED_SUBMISSION_ERROR_TITLE}>
+               {NEED_SUBMISSION_ERROR_MESSAGE}
             </Alert>
           )}
          <div className="flex justify-end gap-3 pt-4 border-t border-border mt-6">
