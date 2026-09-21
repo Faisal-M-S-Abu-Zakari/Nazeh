@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useListAids, getListAidsQueryKey, useCreateAid, useListAidDistributions, getListAidDistributionsQueryKey, useListNeeds, getListNeedsQueryKey, useListFamilies, getListFamiliesQueryKey, useCreateAidDistribution, useReceiveAidDistribution } from '@workspace/api-client-react';
 import { Link, useLocation } from 'wouter';
-import { Button, Card, Table, Text, Badge, ActionIcon, TextInput, Title, Select, NumberInput } from '@mantine/core';
-import { Search, ArrowRight, Package, Box, Filter, Plus, Calendar as CalendarIcon, CheckCircle2 } from 'lucide-react';
+import { Alert, Button, Card, Table, Text, Badge, ActionIcon, TextInput, Title, Select, NumberInput } from '@mantine/core';
+import { Search, ArrowRight, Package, Box, Filter, Plus, Calendar as CalendarIcon, CheckCircle2, AlertCircle } from 'lucide-react';
 import { LoadingState, ErrorState } from '../shared/ui-states';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ar';
@@ -175,6 +175,8 @@ function AidDetail({ id }: { id: string }) {
   const [targetFamilyId, setTargetFamilyId] = useState<string | null>(null);
   const [targetNeedId, setTargetNeedId] = useState<string | null>(null);
   const [assignQty, setAssignQty] = useState<number | ''>(1);
+  const [assignmentError, setAssignmentError] = useState(false);
+  const [receiveError, setReceiveError] = useState(false);
   
   // Mutations
   const createDist = useCreateAidDistribution();
@@ -191,6 +193,7 @@ function AidDetail({ id }: { id: string }) {
 
   const handleAssign = () => {
     if (!targetFamilyId || !targetNeedId || !assignQty || assignQty <= 0) return;
+    setAssignmentError(false);
     createDist.mutate({
       aidId: id,
       data: {
@@ -200,18 +203,27 @@ function AidDetail({ id }: { id: string }) {
       }
     }, {
       onSuccess: () => {
+        setAssignmentError(false);
         setTargetFamilyId(null);
         setTargetNeedId(null);
         setAssignQty(1);
         queryClient.invalidateQueries({ queryKey: getListAidDistributionsQueryKey(id) });
+      },
+      onError: () => {
+        setAssignmentError(true);
       }
     });
   };
 
   const handleReceive = (distId: string) => {
+    setReceiveError(false);
     receiveDist.mutate({ distributionId: distId, data: {} }, {
       onSuccess: () => {
+        setReceiveError(false);
         queryClient.invalidateQueries({ queryKey: getListAidDistributionsQueryKey(id) });
+      },
+      onError: () => {
+        setReceiveError(true);
       }
     });
   };
@@ -281,10 +293,20 @@ function AidDetail({ id }: { id: string }) {
                 </Button>
               </div>
             </div>
+            {assignmentError && (
+              <Alert color="red" icon={<AlertCircle size={18} />} title="تعذر تخصيص المساعدة" className="mt-4">
+                لم يتم حفظ التخصيص، وبقيت المدخلات كما هي؛ راجعها وحاول مرة أخرى.
+              </Alert>
+            )}
           </div>
           
           <div>
              <Title order={4} className="font-display mb-4 text-sidebar">سجل التوزيع الحالي</Title>
+             {receiveError && (
+               <Alert color="red" icon={<AlertCircle size={18} />} title="تعذر تأكيد التسليم" className="mb-4">
+                 لم يتم تأكيد تسليم المساعدة. لم يتغير سجل التوزيع؛ حاول مرة أخرى.
+               </Alert>
+             )}
              <div className="space-y-3">
                {dists.length > 0 ? dists.map(dist => (
                  <div key={dist.id} className="flex justify-between items-center p-3 rounded-lg border border-border">

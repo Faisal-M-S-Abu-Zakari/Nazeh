@@ -155,6 +155,7 @@ function NeedDetail({ id }: { id: string }) {
   const [updateModalOpen, setUpdateModalOpen] = useState(false);
   const [updateNote, setUpdateNote] = useState('');
   const [newStatus, setNewStatus] = useState<string>('');
+  const [updateError, setUpdateError] = useState(false);
   
   const { data: needs, isLoading } = useListNeeds({ 
     query: { queryKey: getListNeedsQueryKey() } 
@@ -169,13 +170,18 @@ function NeedDetail({ id }: { id: string }) {
 
   const handleStatusUpdate = () => {
     if (!newStatus) return;
+    setUpdateError(false);
     updateNeed.mutate({ 
       needId: need.id, 
       data: { status: newStatus as any, note: updateNote, expectedVersion: need.version } 
     }, {
       onSuccess: () => {
+         setUpdateError(false);
         setUpdateModalOpen(false);
         queryClient.invalidateQueries({ queryKey: getListNeedsQueryKey() });
+       },
+       onError: () => {
+         setUpdateError(true);
       }
     });
   };
@@ -183,6 +189,7 @@ function NeedDetail({ id }: { id: string }) {
   const openStatusUpdate = (status: string) => {
     setNewStatus(status);
     setUpdateNote('');
+    setUpdateError(false);
     setUpdateModalOpen(true);
   };
 
@@ -244,6 +251,11 @@ function NeedDetail({ id }: { id: string }) {
 
       <Modal opened={updateModalOpen} onClose={() => setUpdateModalOpen(false)} title="تحديث حالة الطلب" centered dir="rtl">
         <div className="space-y-4">
+          {updateError && (
+            <Alert color="red" icon={<AlertCircle size={18} />} title="تعذر تحديث حالة الطلب">
+              لم تتغير حالة الطلب. بقيت البيانات كما هي؛ راجعها وحاول مرة أخرى.
+            </Alert>
+          )}
           <Text>هل أنت متأكد من تغيير حالة الطلب إلى <Badge color={statusColors[newStatus]}>{statusLabels[newStatus]}</Badge>؟</Text>
           <Textarea 
             label="ملاحظات (اختياري)" 
