@@ -8,7 +8,8 @@
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
     "test:task10": "pnpm --filter @workspace/al-aqsa-camp-mobile test && pnpm --filter @workspace/al-aqsa-camp test && pnpm --filter @workspace/api-server test",
-    "test:task10:browser": "playwright test --config playwright.task10.config.ts"
+    "test:task10:browser": "playwright test --config playwright.task10.config.ts",
+    "test:task48:browser": "playwright test --config playwright.task48.config.ts"
   },
   "private": true,
   "dependencies": {
