@@ -83,8 +83,14 @@ export function canAccessActorPath(pathname: string, user: RouteAccessUser): boo
   if (path === '/actor/aids' || path.startsWith('/actor/aids/')) {
     return hasRole(role, [Role.ADMIN, Role.MANAGER, Role.DELEGATE]);
   }
+  if (path === '/actor/needs/new') {
+    return hasRole(role, [Role.ADMIN, Role.MANAGER, Role.DELEGATE]);
+  }
   if (path === '/actor/needs' || path.startsWith('/actor/needs/')) {
     return hasRole(role, [Role.ADMIN, Role.MANAGER, Role.DELEGATE, Role.SECURITY_OFFICER]);
+  }
+  if (path === '/actor/tasks/new') {
+    return hasRole(role, [Role.ADMIN, Role.MANAGER, Role.SECURITY_OFFICER]);
   }
   if (path === '/actor/tasks' || path.startsWith('/actor/tasks/')) {
     return hasRole(role, [Role.ADMIN, Role.MANAGER, Role.SECURITY_OFFICER, Role.SECURITY_MEMBER]);

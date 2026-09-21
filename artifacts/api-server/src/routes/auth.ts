@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { Router, type IRouter } from "express";
 import bcrypt from "bcrypt";
-import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, notInArray, or, sql } from "drizzle-orm";
 import {
   CompleteCredentialBody,
   CreateStaffBody,
@@ -156,6 +156,7 @@ router.post("/auth/complete-credential", async (req, res) => {
       .where(eq(staffUsers.id, claimed.userId)).limit(1);
     if (
       !user ||
+      (claimed.kind === "INVITE" && (user.role === "ADMIN" || user.role === "MANAGER")) ||
       (process.env.NODE_ENV === "production" &&
         (user.isDevelopmentDemo || isKnownDevelopmentDemo(user.id, user.email)))
     ) return false;
@@ -180,13 +181,23 @@ router.post("/auth/complete-credential", async (req, res) => {
 });
 
 router.get("/staff", requireAuth, allowRoles("ADMIN", "MANAGER"), async (_req, res) => {
-  const users = await db.select().from(staffUsers).orderBy(desc(staffUsers.createdAt));
+  const currentManagerId = res.locals["staff"].id as string;
+  const users = await db.select().from(staffUsers)
+    .where(or(
+      notInArray(staffUsers.role, ["ADMIN", "MANAGER"]),
+      eq(staffUsers.id, currentManagerId),
+    ))
+    .orderBy(desc(staffUsers.createdAt));
   res.json({ items: users.map(publicStaff) });
 });
 
 router.post("/staff", requireAuth, allowRoles("ADMIN", "MANAGER"), async (req, res) => {
   const body = parseRequest(CreateStaffBody, req.body, res);
   if (!body) return;
+  if (body.role === "ADMIN" || body.role === "MANAGER") {
+    res.status(400).json({ error: "ADMIN and MANAGER staff accounts cannot be created through this endpoint" });
+    return;
+  }
   const email = body.email.trim().toLowerCase();
   try {
     const passwordHash = await bcrypt.hash(randomBytes(48).toString("base64url"), 12);
@@ -220,6 +231,10 @@ router.post("/staff/:staffId/invite", requireAuth, allowRoles("ADMIN", "MANAGER"
     .where(eq(staffUsers.id, params.staffId)).limit(1);
   if (!user) {
     res.status(404).json({ error: "Staff account not found" });
+    return;
+  }
+  if (user.role === "ADMIN" || user.role === "MANAGER") {
+    res.status(409).json({ error: "Manager accounts cannot be activated through staff invitations" });
     return;
   }
   if (user.passwordSetAt || user.active) {
@@ -272,6 +287,10 @@ router.patch("/staff/:staffId", requireAuth, allowRoles("ADMIN", "MANAGER"), asy
   if (!params) return;
   const body = parseRequest(UpdateStaffBody, req.body, res);
   if (!body) return;
+  if (body.role === "ADMIN" || body.role === "MANAGER") {
+    res.status(400).json({ error: "ADMIN and MANAGER staff roles cannot be assigned through this endpoint" });
+    return;
+  }
   if (Object.keys(body).length === 0) {
     res.status(400).json({ error: "At least one staff field must be provided" });
     return;
@@ -284,6 +303,13 @@ router.patch("/staff/:staffId", requireAuth, allowRoles("ADMIN", "MANAGER"), asy
     const [existing] = await tx.select().from(staffUsers)
       .where(eq(staffUsers.id, params.staffId)).limit(1);
     if (!existing) return { kind: "notFound" as const };
+    if (
+      body.active === true &&
+      !existing.active &&
+      (existing.role === "ADMIN" || existing.role === "MANAGER")
+    ) {
+      return { kind: "privilegedActivation" as const };
+    }
     if (body.active === false && existing.id === res.locals["staff"].id) {
       return { kind: "selfDeactivate" as const };
     }
@@ -323,6 +349,10 @@ router.patch("/staff/:staffId", requireAuth, allowRoles("ADMIN", "MANAGER"), asy
   });
   if (result.kind === "notFound") {
     res.status(404).json({ error: "Staff account not found" });
+    return;
+  }
+  if (result.kind === "privilegedActivation") {
+    res.status(409).json({ error: "Inactive manager accounts cannot be reactivated" });
     return;
   }
   if (result.kind === "selfDeactivate") {

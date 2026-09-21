@@ -57,7 +57,7 @@ function TasksList() {
           <Text className="text-muted-foreground mt-1">إدارة وتتبع المهام المسندة للفريق الأمني</Text>
         </div>
         {canCreate && (
-          <Link href="/actor/tasks/new" className="no-underline">
+          <Link href="/tasks/new" className="no-underline">
             <Button leftSection={<Plus size={18} />} size="md" radius="md" className="bg-primary hover:bg-primary/90">
               إضافة مهمة جديدة
             </Button>
@@ -136,7 +136,7 @@ function TasksList() {
                         color="primary" 
                         size="xs" 
                         radius="md"
-                        onClick={() => setLocation(`/actor/tasks/${task.id}`)}
+                        onClick={() => setLocation(`/tasks/${task.id}`)}
                       >
                         إدارة المهمة
                       </Button>
@@ -205,7 +205,7 @@ function TaskDetail({ id }: { id: string }) {
   return (
     <div className="space-y-6 animate-in fade-in max-w-4xl mx-auto">
       <div className="flex items-center gap-4 mb-6">
-        <ActionIcon variant="light" size="lg" radius="md" onClick={() => setLocation('/actor/tasks')}>
+        <ActionIcon variant="light" size="lg" radius="md" onClick={() => setLocation('/tasks')}>
           <ArrowRight size={20} />
         </ActionIcon>
         <div>
@@ -322,7 +322,7 @@ function TaskForm() {
     }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
-        setLocation('/actor/tasks');
+        setLocation('/tasks');
       }
     });
   };
@@ -330,7 +330,7 @@ function TaskForm() {
   return (
     <div className="space-y-6 max-w-2xl mx-auto animate-in fade-in">
       <div className="flex items-center gap-4 mb-6">
-        <ActionIcon variant="light" size="lg" radius="md" onClick={() => setLocation('/actor/tasks')}>
+        <ActionIcon variant="light" size="lg" radius="md" onClick={() => setLocation('/tasks')}>
           <ArrowRight size={20} />
         </ActionIcon>
         <Title order={2} className="text-3xl font-display text-primary">إسناد مهمة أمنية</Title>
@@ -389,7 +389,7 @@ function TaskForm() {
          />
          
          <div className="flex justify-end gap-3 pt-4 border-t border-border mt-6">
-          <Button variant="outline" color="gray" onClick={() => setLocation('/actor/tasks')} radius="md">
+          <Button variant="outline" color="gray" onClick={() => setLocation('/tasks')} radius="md">
             إلغاء
           </Button>
           <Button 

@@ -3,7 +3,6 @@ import { Badge, Button, Card, Tabs, Text, Textarea, TextInput, Title, Select, Lo
 import { AlertCircle, Home, MapPin, Send, Users, WifiOff, PackageOpen, ClipboardList, Info, HeartPulse, Clock, CheckCircle2, XCircle } from "lucide-react";
 import useAuth from "@/hooks/useAuth";
 import { useFamilyHead } from "@/hooks/useFamilyHead";
-import { GENERAL_ACTOR_ROUTES } from "@/constants/routes";
 import { cn } from "@/utils/cn";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -46,7 +45,7 @@ export default function FamilyHeadPage() {
          <AlertCircle className="text-red-500" size={64} strokeWidth={1.5} />
          <Title order={2} className="font-display">هذه الشاشة مخصصة لرب الأسرة</Title>
          <Text c="dimmed" className="mb-4 max-w-md">لا تملك صلاحية رب الأسرة لعرض هذه الصفحة المخصصة للاحتياجات المباشرة.</Text>
-         <Button component="a" href={GENERAL_ACTOR_ROUTES.OPERATIONS} size="md" color="teal">العودة للوحة العمليات</Button>
+         <Button component="a" href="/operations" size="md" color="teal">العودة للوحة العمليات</Button>
       </div>
     );
   }

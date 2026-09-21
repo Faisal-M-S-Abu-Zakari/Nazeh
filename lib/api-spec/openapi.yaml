@@ -2331,7 +2331,7 @@ components:
         description: { type: ["string", "null"] }
         priority: { $ref: "#/components/schemas/NeedPriority" }
         status: { $ref: "#/components/schemas/NeedStatus" }
-        createdById: { type: string, format: uuid }
+        createdById: { type: ["string", "null"], format: uuid }
         assignedToId: { type: ["string", "null"], format: uuid }
         fulfilledAt: { type: ["string", "null"], format: date-time }
         archivedAt: { type: ["string", "null"], format: date-time }

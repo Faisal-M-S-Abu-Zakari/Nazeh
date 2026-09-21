@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { aidRecipientsTable, aidsTable, complaintsTable, contentPostsTable, db, displacedPersonsTable, familiesTable, notificationsTable, securityTaskAssigneesTable, securityTasksTable, usersTable } from "@workspace/db";
 import { hashPassword } from "./security";
 import { logger } from "./logger";
@@ -124,11 +124,18 @@ export function seedDevelopmentData(): Promise<void> {
       return (await db.insert(contentPostsTable).values({ ...values, authorUserId }).returning())[0];
     };
 
+    // Keep the legacy demo manager singleton stable.  In particular, don't
+    // call addUser for the old second manager: doing so would reactivate it on
+    // every development seed.
+    await db.update(usersTable).set({ active: false }).where(or(
+      eq(usersTable.email, "manager2@local.invalid"),
+      eq(usersTable.identity, "dev-manager-2"),
+    ));
     const manager = await addUser("أحمد الخطيب", "staff@alaqsa.local", "MANAGER", "dev-manager", {
       phoneNumber: "0590000101", gender: "MALE", nationality: "فلسطيني", education: "إدارة الأزمات",
-    });
-    await addUser("أحمد الخطيب", "manager2@local.invalid", "MANAGER", "dev-manager-2", {
-      phoneNumber: "0590000106", gender: "MALE", nationality: "فلسطيني", education: "إدارة الأزمات",
+      // Staff now authenticate through staff_users. Keep this legacy row only
+      // as an inactive foreign-key owner for historical legacy content.
+      active: false,
     });
     const delegate = await addUser("سارة النجار", "delegate@local.invalid", "DELEGATE", "dev-delegate", {
       phoneNumber: "0590000102", gender: "FEMALE", nationality: "فلسطينية", education: "الخدمة الاجتماعية",

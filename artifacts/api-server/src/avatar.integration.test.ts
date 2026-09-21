@@ -39,14 +39,14 @@ test("staff avatar routes update only the authenticated staff account", async ()
         email: `avatar-staff-${staffId}@example.invalid`,
         name: "Avatar staff",
         passwordHash: "not-used",
-        role: "MANAGER",
+        role: "DELEGATE",
       },
       {
         id: otherStaffId,
         email: `avatar-other-staff-${otherStaffId}@example.invalid`,
         name: "Other avatar staff",
         passwordHash: "not-used",
-        role: "MANAGER",
+        role: "DELEGATE",
       },
     ]);
     await db.insert(sessions).values([

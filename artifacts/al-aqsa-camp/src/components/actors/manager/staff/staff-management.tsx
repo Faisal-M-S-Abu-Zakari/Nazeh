@@ -34,12 +34,10 @@ import useAuth from '@/hooks/useAuth';
 import { AUTH_ROUTES } from '@/constants/routes';
 
 const roles = [
-  { value: Role.MANAGER, label: 'مدير' },
   { value: Role.DELEGATE, label: 'مندوب' },
   { value: Role.SECURITY_OFFICER, label: 'مسؤول أمن' },
   { value: Role.SECURITY_MEMBER, label: 'فرد أمن' },
 ];
-const employeeRoles = roles.filter(({ value }) => value !== Role.MANAGER);
 
 function errorMessage(error: unknown) {
   if (error && typeof error === 'object' && 'data' in error) {
@@ -184,15 +182,21 @@ export default function StaffManagement() {
                   <Table.Tr key={person.id} data-testid={`staff-row-${person.id}`}>
                     <Table.Td><Text fw={600}>{person.name}</Text><Text size='sm' c='dimmed' dir='ltr'>{person.email}</Text></Table.Td>
                     <Table.Td>
-                      <Select
-                        aria-label={`صلاحية ${person.name}`}
-                        data-testid={`staff-role-${person.id}`}
-                        data={roles}
-                        value={person.role}
-                        onChange={(value) => changeRole(person, value)}
-                        disabled={busy || person.role === Role.ADMIN || person.role === Role.MANAGER}
-                        w={160}
-                      />
+                      {person.role === Role.ADMIN || person.role === Role.MANAGER ? (
+                        <Text fw={600} data-testid={`staff-role-${person.id}`}>
+                          {person.role === Role.ADMIN ? 'مدير النظام' : 'مدير'}
+                        </Text>
+                      ) : (
+                        <Select
+                          aria-label={`صلاحية ${person.name}`}
+                          data-testid={`staff-role-${person.id}`}
+                          data={roles}
+                          value={person.role}
+                          onChange={(value) => changeRole(person, value)}
+                          disabled={busy}
+                          w={160}
+                        />
+                      )}
                     </Table.Td>
                     <Table.Td><Badge color={person.active ? 'green' : 'gray'}>{person.active ? 'نشط' : 'معطل'}</Badge></Table.Td>
                     <Table.Td><Badge variant='light' color={person.passwordSet ? 'blue' : 'orange'}>{person.passwordSet ? 'تم التعيين' : 'بانتظار القبول'}</Badge></Table.Td>
@@ -244,7 +248,7 @@ export default function StaffManagement() {
         <Stack>
           <TextInput label='الاسم' value={name} onChange={(event) => setName(event.currentTarget.value)} required data-testid='create-staff-name' />
           <TextInput label='البريد الإلكتروني' type='email' dir='ltr' value={email} onChange={(event) => setEmail(event.currentTarget.value)} required data-testid='create-staff-email' />
-          <Select label='الصلاحية' data={employeeRoles} value={role} onChange={(value) => value && setRole(value as Role)} data-testid='create-staff-role' />
+           <Select label='الصلاحية' data={roles} value={role} onChange={(value) => value && setRole(value as Role)} data-testid='create-staff-role' />
           <Button onClick={submitCreate} disabled={name.trim().length < 2 || !email.trim()} loading={create.isPending} data-testid='create-staff-submit'>
             إنشاء وإصدار الدعوة
           </Button>

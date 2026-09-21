@@ -49,6 +49,31 @@ async function verifySchema() {
     );
   }
 
+  const { rows: managerInvariantRows } = await pool.query<{
+    active_privileged_count: string;
+    index_present: boolean;
+  }>(
+    `SELECT
+       (
+         SELECT count(*)::text
+         FROM staff_users
+         WHERE active = true AND role IN ('ADMIN', 'MANAGER')
+       ) AS active_privileged_count,
+       EXISTS (
+         SELECT 1
+         FROM pg_indexes
+         WHERE schemaname = 'public'
+           AND tablename = 'staff_users'
+           AND indexname = 'staff_users_single_active_manager'
+       ) AS index_present`,
+  );
+  const managerInvariant = managerInvariantRows[0];
+  if (!managerInvariant?.index_present || Number(managerInvariant.active_privileged_count) > 1) {
+    throw new Error(
+      "Database manager isolation is not ready. Apply drizzle/0003_single_active_manager.sql before starting the API.",
+    );
+  }
+
   console.log("Database schema verified");
 }
 

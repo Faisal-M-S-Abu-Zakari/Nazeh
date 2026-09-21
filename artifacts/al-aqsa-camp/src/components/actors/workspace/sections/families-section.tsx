@@ -60,7 +60,7 @@ function FamilyList() {
           <Title order={2} className="text-3xl font-display text-primary">إدارة الأسر والنازحين</Title>
           <Text className="text-muted-foreground mt-1">عرض وتحديث بيانات العائلات ووحدات الإيواء المرتبطة</Text>
         </div>
-        <Link href="/actor/families/new" className="no-underline">
+        <Link href="/families/new" className="no-underline">
           <Button leftSection={<Plus size={18} />} size="md" radius="md" className="bg-primary hover:bg-primary/90">
             إضافة أسرة جديدة
           </Button>
@@ -129,7 +129,7 @@ function FamilyList() {
                         color="teal" 
                         size="lg" 
                         radius="md"
-                        onClick={() => setLocation(`/actor/families/${family.id}`)}
+                        onClick={() => setLocation(`/families/${family.id}`)}
                         className="opacity-0 group-hover:opacity-100 transition-opacity"
                       >
                         <Eye size={18} />
@@ -170,7 +170,7 @@ function FamilyDetail({ id }: { id: string }) {
   return (
     <div className="space-y-6 animate-in fade-in">
       <div className="flex items-center gap-4 mb-6">
-        <ActionIcon variant="light" size="lg" radius="md" onClick={() => setLocation('/actor/families')}>
+        <ActionIcon variant="light" size="lg" radius="md" onClick={() => setLocation('/families')}>
           <ArrowRight size={20} />
         </ActionIcon>
         <div>
@@ -325,7 +325,7 @@ function FamilyForm() {
     }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListFamiliesQueryKey() });
-        setLocation('/actor/families');
+        setLocation('/families');
       }
     });
   };
@@ -336,7 +336,7 @@ function FamilyForm() {
   return (
     <div className="space-y-6 max-w-3xl mx-auto animate-in fade-in">
       <div className="flex items-center gap-4 mb-6">
-        <ActionIcon variant="light" size="lg" radius="md" onClick={() => setLocation('/actor/families')}>
+        <ActionIcon variant="light" size="lg" radius="md" onClick={() => setLocation('/families')}>
           <ArrowRight size={20} />
         </ActionIcon>
         <Title order={2} className="text-3xl font-display text-primary">تسجيل أسرة جديدة</Title>
@@ -409,7 +409,7 @@ function FamilyForm() {
         </div>
 
         <div className="flex justify-end gap-3 pt-4 border-t border-border">
-          <Button variant="outline" color="gray" onClick={() => setLocation('/actor/families')} radius="md">
+          <Button variant="outline" color="gray" onClick={() => setLocation('/families')} radius="md">
             إلغاء
           </Button>
           <Button 

@@ -11,6 +11,7 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 export const userRoleEnum = pgEnum("user_role", [
@@ -103,24 +104,32 @@ export const staffRole = pgEnum("staff_role", [
 
 export type StaffRole = (typeof staffRole.enumValues)[number];
 
-export const staffUsers = pgTable("staff_users", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  email: text("email").notNull().unique(),
-  name: text("name").notNull(),
-  passwordHash: text("password_hash").notNull(),
-  role: staffRole("role").notNull(),
-  profileImage: text("profile_image"),
-  active: boolean("active").notNull().default(true),
-  // defaultNow preserves existing password-bearing accounts when this column is
-  // introduced; invite creation explicitly stores null until setup completes.
-  passwordSetAt: timestamp("password_set_at", { withTimezone: true }).defaultNow(),
-  isDevelopmentDemo: boolean("is_development_demo").notNull().default(false),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => new Date()),
-});
+export const staffUsers = pgTable(
+  "staff_users",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    email: text("email").notNull().unique(),
+    name: text("name").notNull(),
+    passwordHash: text("password_hash").notNull(),
+    role: staffRole("role").notNull(),
+    profileImage: text("profile_image"),
+    active: boolean("active").notNull().default(true),
+    // defaultNow preserves existing password-bearing accounts when this column is
+    // introduced; invite creation explicitly stores null until setup completes.
+    passwordSetAt: timestamp("password_set_at", { withTimezone: true }).defaultNow(),
+    isDevelopmentDemo: boolean("is_development_demo").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("staff_users_single_active_manager")
+      .on(table.active)
+      .where(sql`${table.active} = true AND ${table.role} IN ('ADMIN', 'MANAGER')`),
+  ],
+);
 
 export const sessions = pgTable(
   "staff_sessions",

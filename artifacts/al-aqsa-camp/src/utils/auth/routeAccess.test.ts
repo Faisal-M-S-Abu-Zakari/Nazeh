@@ -7,6 +7,16 @@ import {
   navigateWithHistoryReplacement,
 } from './routeAccess';
 import { GENERAL_ACTOR_ROUTES } from '@/constants/routes';
+import { actorNestedPath, normalizeActorPath } from './actorRouting';
+
+test('normalizes nested actor locations for authorization and strips the actor prefix for navigation', () => {
+  assert.equal(normalizeActorPath('/operations'), '/actor/operations');
+  assert.equal(normalizeActorPath('/families/123'), '/actor/families/123');
+  assert.equal(normalizeActorPath('/actor/families/123'), '/actor/families/123');
+  assert.equal(actorNestedPath('/actor/families/123'), '/families/123');
+  assert.equal(actorNestedPath('/actor/operations'), '/operations');
+  assert.equal(actorNestedPath('/actor/actor/operations'), '/actor/operations');
+});
 
 const users = {
   admin: { id: '10000000-0000-4000-8000-000000000001', role: Role.ADMIN },
@@ -46,13 +56,15 @@ test('exposes the modern fixed workspace routes only to appropriate roles', () =
   assert.equal(canAccessActorPath('/actor/families/12345', users.manager), true);
 
   assert.equal(canAccessActorPath('/actor/needs', users.officer), true);
-  assert.equal(canAccessActorPath('/actor/needs/new', users.officer), true);
+  assert.equal(canAccessActorPath('/actor/needs/new', users.officer), false);
+  assert.equal(canAccessActorPath('/actor/needs/new', users.delegate), true);
 
   assert.equal(canAccessActorPath('/actor/aids', users.delegate), true);
   assert.equal(canAccessActorPath('/actor/aids/123', users.manager), true);
 
   assert.equal(canAccessActorPath('/actor/tasks', users.member), true);
   assert.equal(canAccessActorPath('/actor/tasks/new', users.officer), true);
+  assert.equal(canAccessActorPath('/actor/tasks/new', users.member), false);
 
   assert.equal(canAccessActorPath('/actor/complaints', users.member), true);
   assert.equal(canAccessActorPath('/actor/complaints/123', users.delegate), true);

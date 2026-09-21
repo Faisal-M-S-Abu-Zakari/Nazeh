@@ -8,6 +8,7 @@ import { Activity, Bell, ClipboardList, HandHeart, Home, LogOut, Megaphone, Mess
 import { clearAuthRole, clearAuthToken, clearAuthUser } from '@/utils/auth/getSession';
 import { USER_RANK_LABELS, UserRank } from '@/constants/userTypes';
 import { NAZEH_LOGO } from '@/assets/common';
+import { actorNestedPath, normalizeActorPath } from '@/utils/auth/actorRouting';
 
 interface NavLink {
   label: string;
@@ -92,9 +93,7 @@ export default function Actor_Navbar({ onNavigate }: { onNavigate?: () => void }
     return groups;
   }, [isDelegate, isDisplaced, isManager, isSecurity, isSecurityOfficer]);
 
-  const fullLocation = location.startsWith('/actor')
-    ? location
-    : `/actor${location === '/' ? '' : location}`;
+  const fullLocation = normalizeActorPath(location);
 
   const isLinkActive = (href: string) =>
     fullLocation === href || fullLocation.startsWith(`${href}/`);
@@ -147,7 +146,7 @@ export default function Actor_Navbar({ onNavigate }: { onNavigate?: () => void }
                 {group.links.map((link, lIdx) => {
                   const isActive = isLinkActive(link.href);
                   return (
-                    <Link key={lIdx} href={link.href} onClick={onNavigate}>
+                    <Link key={lIdx} href={actorNestedPath(link.href)} onClick={onNavigate}>
                       <UnstyledButton
                         className={cn(
                           'group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-right transition-all duration-200 ease-in-out',

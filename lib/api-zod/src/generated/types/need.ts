@@ -18,7 +18,8 @@ export interface Need {
   description?: string | null;
   priority: NeedPriority;
   status: NeedStatus;
-  createdById: string;
+  /** @nullable */
+  createdById: string | null;
   /** @nullable */
   assignedToId?: string | null;
   /** @nullable */

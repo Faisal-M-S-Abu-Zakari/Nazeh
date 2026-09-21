@@ -39,6 +39,7 @@ import Page39 from '@/app/auth/otp/page';
 import useAuth from '@/hooks/useAuth';
 import { AUTH_ROUTES } from '@/constants/routes';
 import { canAccessActorPath } from '@/utils/auth/routeAccess';
+import { normalizeActorPath } from '@/utils/auth/actorRouting';
 
 function RoutedErrorBoundary({ children }: { children: ReactNode }) {
   const [location] = useLocation();
@@ -145,9 +146,7 @@ function ProtectedActorPages() {
   const { isAuthenticated, isLoading, role, user } = useAuth();
   
   // Wouter matches path exactly. Actor pages base is /actor
-  const actorPath = location === '/actor' || location.startsWith('/actor/')
-    ? location
-    : `/actor${location.startsWith('/') ? location : `/${location}`}`;
+  const actorPath = normalizeActorPath(location);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {

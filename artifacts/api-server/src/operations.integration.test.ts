@@ -36,22 +36,21 @@ test("idempotent response-loss retries and optimistic status conflicts", async (
   const address = server.address();
   assert(address && typeof address === "object");
   const baseUrl = `http://127.0.0.1:${address.port}/api`;
-  const userId = randomUUID();
+  const [manager] = await db.select().from(staffUsers)
+    .where(eq(staffUsers.email, "manager@alaqsa.local")).limit(1);
+  assert(manager?.active);
+  const userId = manager.id;
   const token = `task10-${randomUUID()}`;
+  const tokenHash = hashToken(token);
   const title = `task10-aid-${randomUUID()}`;
   let complaintId: string | undefined;
   let taskId: string | undefined;
+  let aidId: string | undefined;
+  let idempotencyKey: string | undefined;
 
-  await db.insert(staffUsers).values({
-    id: userId,
-    email: `task10-${randomUUID()}@example.invalid`,
-    name: "Task 10 integration",
-    passwordHash: "not-used",
-    role: "ADMIN",
-  });
   await db.insert(sessions).values({
     userId,
-    tokenHash: hashToken(token),
+    tokenHash,
     expiresAt: new Date(Date.now() + 60_000),
   });
   const headers = {
@@ -61,6 +60,7 @@ test("idempotent response-loss retries and optimistic status conflicts", async (
 
   try {
     const key = randomUUID();
+    idempotencyKey = key;
     const body = JSON.stringify({
       title,
       type: "FOOD",
@@ -80,6 +80,7 @@ test("idempotent response-loss retries and optimistic status conflicts", async (
       headers: { ...headers, "Idempotency-Key": key },
       body,
     });
+    aidId = (await retry.clone().json() as { id: string }).id;
     assert.equal(retry.status, 201);
     const created = await db.select().from(aids).where(and(eq(aids.createdById, userId), eq(aids.title, title)));
     assert.equal(created.length, 1, "same idempotency key creates exactly one aid");
@@ -137,11 +138,12 @@ test("idempotent response-loss retries and optimistic status conflicts", async (
   } finally {
     if (complaintId) await db.delete(complaints).where(eq(complaints.id, complaintId));
     if (taskId) await db.delete(tasks).where(eq(tasks.id, taskId));
-    await db.delete(idempotencyKeys).where(eq(idempotencyKeys.userId, userId));
-    await db.delete(aids).where(eq(aids.createdById, userId));
-    await db.delete(sessions).where(eq(sessions.userId, userId));
-    await db.delete(syncAuditEvents).where(eq(syncAuditEvents.actorStaffId, userId));
-    await db.delete(staffUsers).where(eq(staffUsers.id, userId));
+    if (idempotencyKey) await db.delete(idempotencyKeys).where(eq(idempotencyKeys.key, idempotencyKey));
+    if (aidId) await db.delete(syncAuditEvents).where(eq(syncAuditEvents.entityId, aidId));
+    if (complaintId) await db.delete(syncAuditEvents).where(eq(syncAuditEvents.entityId, complaintId));
+    if (taskId) await db.delete(syncAuditEvents).where(eq(syncAuditEvents.entityId, taskId));
+    if (aidId) await db.delete(aids).where(eq(aids.id, aidId));
+    await db.delete(sessions).where(eq(sessions.tokenHash, tokenHash));
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
 });
@@ -152,8 +154,11 @@ test("family workflow stays isolated and security completion requires approval",
   const address = server.address();
   assert(address && typeof address === "object");
   const baseUrl = `http://127.0.0.1:${address.port}/api`;
+  const [canonicalManager] = await db.select().from(staffUsers)
+    .where(eq(staffUsers.email, "manager@alaqsa.local")).limit(1);
+  assert(canonicalManager?.active);
   const ids = {
-    manager: randomUUID(), delegateOne: randomUUID(), delegateTwo: randomUUID(),
+    manager: canonicalManager.id, delegateOne: randomUUID(), delegateTwo: randomUUID(),
     securityOfficer: randomUUID(), securityMember: randomUUID(), family: randomUUID(), task: randomUUID(),
   };
   const tokens = Object.fromEntries(Object.entries(ids).map(([key]) => [key, `${key}-${randomUUID()}`]));
@@ -163,8 +168,13 @@ test("family workflow stays isolated and security completion requires approval",
     authorization: `Bearer ${tokens[key]}`,
     "content-type": "application/json",
   });
+  const idempotencyKeyValues: string[] = [];
+  const nextIdempotencyKey = () => {
+    const key = randomUUID();
+    idempotencyKeyValues.push(key);
+    return key;
+  };
   const staff = [
-    [ids.manager, "manager", "MANAGER"],
     [ids.delegateOne, "delegate-one", "DELEGATE"],
     [ids.delegateTwo, "delegate-two", "DELEGATE"],
     [ids.securityOfficer, "security-officer", "SECURITY_OFFICER"],
@@ -182,7 +192,7 @@ test("family workflow stays isolated and security completion requires approval",
     }
     const created = await fetch(`${baseUrl}/sync/families`, {
       method: "POST",
-      headers: { ...headers("delegateOne"), "Idempotency-Key": randomUUID() },
+      headers: { ...headers("delegateOne"), "Idempotency-Key": nextIdempotencyKey() },
       body: JSON.stringify({
         campId, sectorId, headName: "أسرة اختبار العزل", delegateId: ids.delegateOne,
         members: [{ fullName: "عضو اختبار", gender: "OTHER", relationship: "رب الأسرة", criticalCase: true }],
@@ -196,23 +206,23 @@ test("family workflow stays isolated and security completion requires approval",
     assert.equal(hidden.status, 200);
     assert(!(await hidden.text()).includes(family.id), "delegate must not see another delegate's family");
     const approved = await fetch(`${baseUrl}/sync/families/${family.id}/approve`, {
-      method: "PATCH", headers: { ...headers("manager"), "Idempotency-Key": randomUUID() }, body: "{}",
+      method: "PATCH", headers: { ...headers("manager"), "Idempotency-Key": nextIdempotencyKey() }, body: "{}",
     });
     assert.equal(approved.status, 200);
     const need = await fetch(`${baseUrl}/sync/needs`, {
-      method: "POST", headers: { ...headers("delegateOne"), "Idempotency-Key": randomUUID() },
+      method: "POST", headers: { ...headers("delegateOne"), "Idempotency-Key": nextIdempotencyKey() },
       body: JSON.stringify({ familyId: family.id, category: "MEDICAL", title: "احتياج اختبار", priority: "CRITICAL" }),
     });
     assert.equal(need.status, 201);
     const needRecord = await need.json() as { id: string; version: number };
     needId = needRecord.id;
     const archivedNeed = await fetch(`${baseUrl}/sync/needs/${needRecord.id}/archive`, {
-      method: "PATCH", headers: { ...headers("manager"), "Idempotency-Key": randomUUID() },
+      method: "PATCH", headers: { ...headers("manager"), "Idempotency-Key": nextIdempotencyKey() },
       body: JSON.stringify({ expectedVersion: needRecord.version }),
     });
     assert.equal(archivedNeed.status, 200);
     const deniedNeed = await fetch(`${baseUrl}/sync/needs`, {
-      method: "POST", headers: { ...headers("delegateTwo"), "Idempotency-Key": randomUUID() },
+      method: "POST", headers: { ...headers("delegateTwo"), "Idempotency-Key": nextIdempotencyKey() },
       body: JSON.stringify({ familyId: family.id, category: "FOOD", title: "تسريب اختبار", priority: "LOW" }),
     });
     assert.equal(deniedNeed.status, 404);
@@ -220,7 +230,7 @@ test("family workflow stays isolated and security completion requires approval",
     assert.equal(hiddenFamiliesForSecurity.status, 403);
     const shelterCode = `IT-${randomUUID().slice(0, 8)}`;
     const createdShelter = await fetch(`${baseUrl}/sync/shelters`, {
-      method: "POST", headers: { ...headers("manager"), "Idempotency-Key": randomUUID() },
+      method: "POST", headers: { ...headers("manager"), "Idempotency-Key": nextIdempotencyKey() },
       body: JSON.stringify({ sectorId, code: shelterCode, capacity: 2 }),
     });
     assert.equal(createdShelter.status, 201);
@@ -244,12 +254,12 @@ test("family workflow stays isolated and security completion requires approval",
     assert.equal(memberTasks.status, 200);
     assert((await memberTasks.text()).includes(ids.task));
     const submitted = await fetch(`${baseUrl}/sync/tasks/${ids.task}/submit`, {
-      method: "PATCH", headers: { ...headers("securityMember"), "Idempotency-Key": randomUUID() },
+      method: "PATCH", headers: { ...headers("securityMember"), "Idempotency-Key": nextIdempotencyKey() },
       body: JSON.stringify({ result: "تم التنفيذ", expectedVersion: 1 }),
     });
     assert.equal(submitted.status, 200);
     const completion = await fetch(`${baseUrl}/sync/tasks/${ids.task}/approve`, {
-      method: "PATCH", headers: { ...headers("securityOfficer"), "Idempotency-Key": randomUUID() },
+      method: "PATCH", headers: { ...headers("securityOfficer"), "Idempotency-Key": nextIdempotencyKey() },
       body: JSON.stringify({ expectedVersion: 2 }),
     });
     assert.equal(completion.status, 200);
@@ -263,11 +273,19 @@ test("family workflow stays isolated and security completion requires approval",
     }
     if (shelterId) await db.delete(shelterUnitsTable).where(eq(shelterUnitsTable.id, shelterId));
     await db.delete(tasks).where(eq(tasks.id, ids.task));
+    if (idempotencyKeyValues.length) {
+      await db.delete(idempotencyKeys).where(inArray(idempotencyKeys.key, idempotencyKeyValues));
+    }
+    const entityIds = [familyId, needId, shelterId, ids.task].filter((id): id is string => Boolean(id));
+    if (entityIds.length) {
+      await db.delete(syncAuditEvents).where(inArray(syncAuditEvents.entityId, entityIds));
+    }
+    await db.delete(sessions).where(inArray(
+      sessions.tokenHash,
+      Object.values(tokens).map((token) => hashToken(token)),
+    ));
     for (const id of Object.values(ids)) {
-      if (id === ids.family || id === ids.task) continue;
-      await db.delete(idempotencyKeys).where(eq(idempotencyKeys.userId, id));
-      await db.delete(sessions).where(eq(sessions.userId, id));
-      await db.delete(syncAuditEvents).where(eq(syncAuditEvents.actorStaffId, id));
+      if (id === ids.manager || id === ids.family || id === ids.task) continue;
       await db.delete(staffUsers).where(eq(staffUsers.id, id));
     }
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
@@ -280,7 +298,10 @@ test("aid distributions link approved needs, prevent duplicate delivery, and rec
   const address = server.address();
   assert(address && typeof address === "object");
   const baseUrl = `http://127.0.0.1:${address.port}/api`;
-  const managerId = randomUUID();
+  const [manager] = await db.select().from(staffUsers)
+    .where(eq(staffUsers.email, "manager@alaqsa.local")).limit(1);
+  assert(manager?.active);
+  const managerId = manager.id;
   const delegateId = randomUUID();
   const familyId = randomUUID();
   const approvedNeedId = randomUUID();
@@ -296,7 +317,6 @@ test("aid distributions link approved needs, prevent duplicate delivery, and rec
   });
   try {
     await db.insert(staffUsers).values([
-      { id: managerId, email: `${managerId}@example.invalid`, name: "Distribution manager", passwordHash: "not-used", role: "MANAGER" },
       { id: delegateId, email: `${delegateId}@example.invalid`, name: "Distribution delegate", passwordHash: "not-used", role: "DELEGATE" },
     ]);
     await db.insert(sessions).values([
@@ -381,7 +401,7 @@ test("aid distributions link approved needs, prevent duplicate delivery, and rec
     await db.delete(familiesTable).where(eq(familiesTable.id, familyId));
     await db.delete(campSectorsTable).where(eq(campSectorsTable.id, sectorId));
     await db.delete(campsTable).where(eq(campsTable.id, campId));
-    await db.delete(staffUsers).where(inArray(staffUsers.id, [managerId, delegateId]));
+    await db.delete(staffUsers).where(eq(staffUsers.id, delegateId));
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
 });

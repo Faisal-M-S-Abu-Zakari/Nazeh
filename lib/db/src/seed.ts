@@ -1,5 +1,5 @@
 import bcrypt from "bcrypt";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { db, pool } from "./index";
 import {
   aids,
@@ -38,8 +38,14 @@ async function seed() {
     throw new Error("Development seed requires NODE_ENV=development");
   }
   const passwordHash = await bcrypt.hash("CampDemo2025!", 12);
+  // Historical administrator rows may still be referenced by audit or
+  // operational records. Retire them instead of deleting them, then keep the
+  // single canonical manager below active.
+  await db.update(staffUsers).set({ active: false }).where(and(
+    inArray(staffUsers.role, ["ADMIN", "MANAGER"]),
+    ne(staffUsers.id, ids.manager),
+  ));
   const demoStaff: Array<typeof staffUsers.$inferInsert> = [
-    { id: ids.admin, email: "admin@alaqsa.local", name: "مدير النظام", role: "ADMIN", passwordHash, active: true, passwordSetAt: new Date(), isDevelopmentDemo: true },
     { id: ids.manager, email: "manager@alaqsa.local", name: "أحمد الخطيب", role: "MANAGER", passwordHash, active: true, passwordSetAt: new Date(), isDevelopmentDemo: true },
     { id: ids.delegate, email: "delegate@alaqsa.local", name: "سارة النجار", role: "DELEGATE", passwordHash, active: true, passwordSetAt: new Date(), isDevelopmentDemo: true },
     { id: ids.security, email: "security@alaqsa.local", name: "محمود سالم", role: "SECURITY_OFFICER", passwordHash, active: true, passwordSetAt: new Date(), isDevelopmentDemo: true },
