@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { useListNeeds, useGetFamily, getListNeedsQueryKey, useUpdateNeed, useListFamilies, useCreateNeed } from '@workspace/api-client-react';
+import { useListNeeds, useGetFamily, getListNeedsQueryKey, useUpdateNeed, useListFamilies, getListFamiliesQueryKey, useCreateNeed } from '@workspace/api-client-react';
 import type { NeedInput } from '@workspace/api-client-react';
 import { Link, useLocation } from 'wouter';
 import { Alert, Button, Card, Table, Text, Badge, ActionIcon, TextInput, Title, Select, Modal, Textarea } from '@mantine/core';
@@ -10,6 +10,11 @@ import {
   NEED_SUBMISSION_ERROR_TITLE,
   submitNeed,
 } from './needs-submission';
+import {
+  FAMILY_LIST_LOAD_ERROR_MESSAGE,
+  FAMILY_LIST_LOAD_ERROR_TITLE,
+  canSubmitNeed,
+} from './needs-family-state';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ar';
 import { useQueryClient } from '@tanstack/react-query';
@@ -286,7 +291,15 @@ function NeedForm() {
   const [location, setLocation] = useLocation();
   const queryClient = useQueryClient();
   
-  const { data: families, isLoading: familiesLoading } = useListFamilies();
+  const {
+    data: families,
+    isLoading: familiesLoading,
+    isError: familiesError,
+    refetch: refetchFamilies,
+    isFetching: familiesFetching,
+  } = useListFamilies({
+    query: { queryKey: getListFamiliesQueryKey() },
+  });
   const createNeed = useCreateNeed();
   
   const [familyId, setFamilyId] = useState<string | null>(null);
@@ -297,6 +310,15 @@ function NeedForm() {
   const [submitError, setSubmitError] = useState(false);
   
   const handleSubmit = () => {
+    if (!canSubmitNeed({
+      familyId,
+      familiesLoading,
+      familiesError,
+      familyCount: families?.length ?? 0,
+    })) {
+      return;
+    }
+
     const values: NeedInput = {
       familyId: familyId || '',
       category: category as NeedInput['category'],
@@ -324,6 +346,27 @@ function NeedForm() {
         <Title order={2} className="text-3xl font-display text-primary">تسجيل طلب جديد</Title>
       </div>
       <Card withBorder shadow="sm" radius="lg" p="xl" className="space-y-6">
+         {familiesError && (
+           <Alert color="red" icon={<AlertCircle size={18} />} title={FAMILY_LIST_LOAD_ERROR_TITLE}>
+             <div className="space-y-3">
+               <Text size="sm">{FAMILY_LIST_LOAD_ERROR_MESSAGE}</Text>
+               <Button
+                 variant="light"
+                 color="red"
+                 size="sm"
+                 onClick={() => void refetchFamilies()}
+                 loading={familiesFetching}
+               >
+                 إعادة تحميل قائمة الأسر
+               </Button>
+             </div>
+           </Alert>
+         )}
+         {!familiesError && !familiesLoading && (families || []).length === 0 && (
+           <Alert color="yellow" icon={<AlertCircle size={18} />} title="لا توجد أسر مستفيدة">
+             لا يمكن تسجيل طلب احتياج قبل توفر أسرة مستفيدة. أعد تحميل القائمة بعد إضافة الأسرة.
+           </Alert>
+         )}
          <Select 
            label="الأسرة المستفيدة" 
            placeholder="ابحث عن اسم أو رقم الأسرة..." 
@@ -332,7 +375,7 @@ function NeedForm() {
            searchable
            value={familyId}
            onChange={setFamilyId}
-           disabled={familiesLoading}
+           disabled={familiesLoading || familiesError || (families || []).length === 0}
          />
          <Select 
            label="فئة الطلب" 
@@ -378,7 +421,19 @@ function NeedForm() {
             className="bg-primary hover:bg-primary/90" 
             radius="md"
             onClick={handleSubmit}
-            disabled={!familyId || !category || !title || !description || !priority || createNeed.isPending}
+            disabled={
+              !canSubmitNeed({
+                familyId,
+                familiesLoading,
+                familiesError,
+                familyCount: families?.length ?? 0,
+              }) ||
+              !category ||
+              !title ||
+              !description ||
+              !priority ||
+              createNeed.isPending
+            }
             loading={createNeed.isPending}
           >
             إرسال الطلب
