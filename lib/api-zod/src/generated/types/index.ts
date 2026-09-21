@@ -130,6 +130,7 @@ export * from './notification';
 export * from './notificationList';
 export * from './notificationPage';
 export * from './notificationReadUpdate';
+export * from './operationErrorCode';
 export * from './optionalIdempotencyKeyParameter';
 export * from './pageParameter';
 export * from './pagination';

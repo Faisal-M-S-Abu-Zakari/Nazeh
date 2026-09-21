@@ -4,3 +4,4 @@
 - [Legacy and staff auth schemas](legacy-staff-auth-schemas.md) — shared generated auth names can collide; keep legacy login validation distinct from UUID staff auth.
 - [Wouter nested actor paths](wouter-nested-actor-paths.md) — nested actor routes expose relative locations; normalize them before applying full-path access policy.
 - [Unified manager compatibility](unified-manager-compatibility.md) — ADMIN and MANAGER remain internal aliases, but the product exposes one manager role with full platform access.
+- [Safe operation error contract](operation-error-contract.md) — use public reason codes and localized client messages instead of exposing raw mutation errors.

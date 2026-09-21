@@ -6,9 +6,11 @@
  * OpenAPI spec version: 0.2.0
  */
 import type { ConflictResponseCurrentRecord } from './conflictResponseCurrentRecord';
+import type { OperationErrorCode } from './operationErrorCode';
 
 export interface ConflictResponse {
   error: string;
+  code?: OperationErrorCode;
   /** @minimum 1 */
   currentVersion: number;
   currentRecord?: ConflictResponseCurrentRecord;

@@ -201,8 +201,24 @@ export interface Pagination {
   totalPages: number;
 }
 
+export type OperationErrorCode = typeof OperationErrorCode[keyof typeof OperationErrorCode];
+
+
+export const OperationErrorCode = {
+  VERSION_CONFLICT: 'VERSION_CONFLICT',
+  PERMISSION_DENIED: 'PERMISSION_DENIED',
+  NEED_NOT_FOUND: 'NEED_NOT_FOUND',
+  AID_NOT_FOUND: 'AID_NOT_FOUND',
+  NEED_NOT_APPROVED: 'NEED_NOT_APPROVED',
+  AID_STOCK_INSUFFICIENT: 'AID_STOCK_INSUFFICIENT',
+  AID_DISTRIBUTION_DUPLICATE: 'AID_DISTRIBUTION_DUPLICATE',
+  AID_DISTRIBUTION_NOT_FOUND: 'AID_DISTRIBUTION_NOT_FOUND',
+  AID_DISTRIBUTION_ALREADY_RECEIVED: 'AID_DISTRIBUTION_ALREADY_RECEIVED',
+} as const;
+
 export interface ErrorResponse {
   error: string;
+  code?: OperationErrorCode;
 }
 
 export type LoginInputRole = typeof LoginInputRole[keyof typeof LoginInputRole];
@@ -1388,6 +1404,7 @@ export type ConflictResponseCurrentRecord = { [key: string]: unknown };
 
 export interface ConflictResponse {
   error: string;
+  code?: OperationErrorCode;
   /** @minimum 1 */
   currentVersion: number;
   currentRecord?: ConflictResponseCurrentRecord;

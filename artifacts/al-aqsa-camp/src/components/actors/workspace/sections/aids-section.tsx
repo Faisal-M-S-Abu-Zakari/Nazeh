@@ -7,6 +7,7 @@ import { LoadingState, ErrorState } from '../shared/ui-states';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ar';
 import { useQueryClient } from '@tanstack/react-query';
+import { getOperationErrorMessage } from '@/utils/operationErrorMessage';
 
 dayjs.locale('ar');
 
@@ -175,8 +176,8 @@ function AidDetail({ id }: { id: string }) {
   const [targetFamilyId, setTargetFamilyId] = useState<string | null>(null);
   const [targetNeedId, setTargetNeedId] = useState<string | null>(null);
   const [assignQty, setAssignQty] = useState<number | ''>(1);
-  const [assignmentError, setAssignmentError] = useState(false);
-  const [receiveError, setReceiveError] = useState(false);
+  const [assignmentError, setAssignmentError] = useState<string | null>(null);
+  const [receiveError, setReceiveError] = useState<string | null>(null);
   
   // Mutations
   const createDist = useCreateAidDistribution();
@@ -193,7 +194,7 @@ function AidDetail({ id }: { id: string }) {
 
   const handleAssign = () => {
     if (!targetFamilyId || !targetNeedId || !assignQty || assignQty <= 0) return;
-    setAssignmentError(false);
+    setAssignmentError(null);
     createDist.mutate({
       aidId: id,
       data: {
@@ -203,27 +204,27 @@ function AidDetail({ id }: { id: string }) {
       }
     }, {
       onSuccess: () => {
-        setAssignmentError(false);
+        setAssignmentError(null);
         setTargetFamilyId(null);
         setTargetNeedId(null);
         setAssignQty(1);
         queryClient.invalidateQueries({ queryKey: getListAidDistributionsQueryKey(id) });
       },
-      onError: () => {
-        setAssignmentError(true);
+      onError: (error) => {
+        setAssignmentError(getOperationErrorMessage(error, 'aid-assignment'));
       }
     });
   };
 
   const handleReceive = (distId: string) => {
-    setReceiveError(false);
+    setReceiveError(null);
     receiveDist.mutate({ distributionId: distId, data: {} }, {
       onSuccess: () => {
-        setReceiveError(false);
+        setReceiveError(null);
         queryClient.invalidateQueries({ queryKey: getListAidDistributionsQueryKey(id) });
       },
-      onError: () => {
-        setReceiveError(true);
+      onError: (error) => {
+        setReceiveError(getOperationErrorMessage(error, 'aid-receipt'));
       }
     });
   };
@@ -295,7 +296,7 @@ function AidDetail({ id }: { id: string }) {
             </div>
             {assignmentError && (
               <Alert color="red" icon={<AlertCircle size={18} />} title="تعذر تخصيص المساعدة" className="mt-4">
-                لم يتم حفظ التخصيص، وبقيت المدخلات كما هي؛ راجعها وحاول مرة أخرى.
+                {assignmentError}
               </Alert>
             )}
           </div>
@@ -304,7 +305,7 @@ function AidDetail({ id }: { id: string }) {
              <Title order={4} className="font-display mb-4 text-sidebar">سجل التوزيع الحالي</Title>
              {receiveError && (
                <Alert color="red" icon={<AlertCircle size={18} />} title="تعذر تأكيد التسليم" className="mb-4">
-                 لم يتم تأكيد تسليم المساعدة. لم يتغير سجل التوزيع؛ حاول مرة أخرى.
+                {receiveError}
                </Alert>
              )}
              <div className="space-y-3">

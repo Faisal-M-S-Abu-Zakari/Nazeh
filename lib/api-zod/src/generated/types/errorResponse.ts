@@ -5,7 +5,9 @@
  * AL-AQSA Camp persistent staff operations API
  * OpenAPI spec version: 0.2.0
  */
+import type { OperationErrorCode } from './operationErrorCode';
 
 export interface ErrorResponse {
   error: string;
+  code?: OperationErrorCode;
 }

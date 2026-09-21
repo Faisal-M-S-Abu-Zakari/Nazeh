@@ -124,7 +124,7 @@ export function allowRoles(...roles: StaffRole[]) {
   return (_req: Request, res: Response, next: NextFunction) => {
     const staff = res.locals["staff"] as { role: StaffRole } | undefined;
     if (!staff || !roles.includes(staff.role)) {
-      res.status(403).json({ error: "Insufficient permissions" });
+      res.status(403).json({ error: "Insufficient permissions", code: "PERMISSION_DENIED" });
       return;
     }
     next();

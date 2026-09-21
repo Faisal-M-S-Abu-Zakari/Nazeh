@@ -21,6 +21,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import useAuth from '@/hooks/useAuth';
 
 dayjs.locale('ar');
+import { getOperationErrorMessage } from '@/utils/operationErrorMessage';
 
 const categoryLabels: Record<string, string> = { FOOD: "غذاء", WATER: "ماء", MEDICAL: "رعاية طبية", SHELTER: "مأوى", HYGIENE: "نظافة", OTHER: "أخرى" };
 const statusLabels: Record<string, string> = { REQUIRED: "مطلوب", APPROVED: "تمت الموافقة", IN_PROGRESS: "قيد التنفيذ", FULFILLED: "مكتمل", CANCELLED: "ملغى" };
@@ -166,7 +167,7 @@ function NeedDetail({ id }: { id: string }) {
   const [updateModalOpen, setUpdateModalOpen] = useState(false);
   const [updateNote, setUpdateNote] = useState('');
   const [newStatus, setNewStatus] = useState<string>('');
-  const [updateError, setUpdateError] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
   
   const { data: needs, isLoading } = useListNeeds({ 
     query: { queryKey: getListNeedsQueryKey() } 
@@ -181,18 +182,18 @@ function NeedDetail({ id }: { id: string }) {
 
   const handleStatusUpdate = () => {
     if (!newStatus) return;
-    setUpdateError(false);
+    setUpdateError(null);
     updateNeed.mutate({ 
       needId: need.id, 
       data: { status: newStatus as any, note: updateNote, expectedVersion: need.version } 
     }, {
       onSuccess: () => {
-         setUpdateError(false);
+         setUpdateError(null);
         setUpdateModalOpen(false);
         queryClient.invalidateQueries({ queryKey: getListNeedsQueryKey() });
        },
-       onError: () => {
-         setUpdateError(true);
+       onError: (error) => {
+         setUpdateError(getOperationErrorMessage(error, 'need-status'));
       }
     });
   };
@@ -200,7 +201,7 @@ function NeedDetail({ id }: { id: string }) {
   const openStatusUpdate = (status: string) => {
     setNewStatus(status);
     setUpdateNote('');
-    setUpdateError(false);
+    setUpdateError(null);
     setUpdateModalOpen(true);
   };
 
@@ -264,7 +265,7 @@ function NeedDetail({ id }: { id: string }) {
         <div className="space-y-4">
           {updateError && (
             <Alert color="red" icon={<AlertCircle size={18} />} title="تعذر تحديث حالة الطلب">
-              لم تتغير حالة الطلب. بقيت البيانات كما هي؛ راجعها وحاول مرة أخرى.
+              {updateError}
             </Alert>
           )}
           <Text>هل أنت متأكد من تغيير حالة الطلب إلى <Badge color={statusColors[newStatus]}>{statusLabels[newStatus]}</Badge>؟</Text>

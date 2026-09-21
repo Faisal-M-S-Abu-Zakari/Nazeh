@@ -2466,11 +2466,25 @@ components:
       type: object
       properties:
         error: { type: string }
+        code: { $ref: "#/components/schemas/OperationErrorCode" }
       required: [error]
+    OperationErrorCode:
+      type: string
+      enum:
+        - VERSION_CONFLICT
+        - PERMISSION_DENIED
+        - NEED_NOT_FOUND
+        - AID_NOT_FOUND
+        - NEED_NOT_APPROVED
+        - AID_STOCK_INSUFFICIENT
+        - AID_DISTRIBUTION_DUPLICATE
+        - AID_DISTRIBUTION_NOT_FOUND
+        - AID_DISTRIBUTION_ALREADY_RECEIVED
     ConflictResponse:
       type: object
       properties:
         error: { type: string }
+        code: { $ref: "#/components/schemas/OperationErrorCode" }
         currentVersion: { type: integer, minimum: 1 }
         currentRecord:
           type: object

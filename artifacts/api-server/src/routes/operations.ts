@@ -139,8 +139,8 @@ const conflict = (label: string, current: { version: number }) => ({
   statusCode: 409,
   responseBody: {
     error: `${label} has been updated; refresh and retry with the current version`,
+    code: "VERSION_CONFLICT",
     currentVersion: current.version,
-    currentRecord: current,
   },
 });
 
@@ -866,7 +866,7 @@ router.patch("/needs/:needId", allowRoles(...familyManagers, ...securityLeads), 
     }).from(familyNeedsTable).innerJoin(familiesTable, eq(familyNeedsTable.familyId, familiesTable.id))
       .where(eq(familyNeedsTable.id, params.needId)).limit(1);
     if (!current || (staff.role === "DELEGATE" && current.family.delegateId !== actorId)) {
-      return { statusCode: 404, responseBody: { error: "Need not found" } };
+      return { statusCode: 404, responseBody: { error: "Need not found", code: "NEED_NOT_FOUND" } };
     }
     const [updated] = await tx.update(familyNeedsTable).set({
       ...(body.status !== undefined ? { status: body.status, ...(body.status === "FULFILLED" ? { fulfilledAt: new Date() } : {}) } : {}),
@@ -877,7 +877,7 @@ router.patch("/needs/:needId", allowRoles(...familyManagers, ...securityLeads), 
     }).where(and(eq(familyNeedsTable.id, params.needId), eq(familyNeedsTable.version, body.expectedVersion), isNull(familyNeedsTable.archivedAt))).returning();
     if (!updated) {
       const [latest] = await tx.select().from(familyNeedsTable).where(eq(familyNeedsTable.id, params.needId)).limit(1);
-      return latest ? conflict("Need", latest) : { statusCode: 404, responseBody: { error: "Need not found" } };
+      return latest ? conflict("Need", latest) : { statusCode: 404, responseBody: { error: "Need not found", code: "NEED_NOT_FOUND" } };
     }
     if (body.status && body.status !== current.need.status) {
       await tx.insert(needStatusHistoryTable).values({
@@ -947,7 +947,7 @@ router.post("/aids/:aidId/distributions", allowRoles(...familyManagers), async (
       .from(aids)
       .where(and(eq(aids.id, params.aidId), isNull(aids.archivedAt)))
       .limit(1);
-    if (!aid) return { statusCode: 404, responseBody: { error: "Aid not found" } };
+    if (!aid) return { statusCode: 404, responseBody: { error: "Aid not found", code: "AID_NOT_FOUND" } };
     const [need] = await tx
       .select({ need: familyNeedsTable, family: familiesTable })
       .from(familyNeedsTable)
@@ -961,12 +961,12 @@ router.post("/aids/:aidId/distributions", allowRoles(...familyManagers), async (
         isNull(familyNeedsTable.archivedAt),
       ))
       .limit(1);
-    if (!need) return { statusCode: 404, responseBody: { error: "Active family or need not found" } };
+    if (!need) return { statusCode: 404, responseBody: { error: "Active family or need not found", code: "NEED_NOT_FOUND" } };
     if (need.need.status !== "APPROVED") {
-      return { statusCode: 400, responseBody: { error: "Only approved needs can receive an aid distribution" } };
+      return { statusCode: 400, responseBody: { error: "Only approved needs can receive an aid distribution", code: "NEED_NOT_APPROVED" } };
     }
     if (staff.role === "DELEGATE" && need.family.delegateId !== actorId) {
-      return { statusCode: 404, responseBody: { error: "Active family or need not found" } };
+      return { statusCode: 404, responseBody: { error: "Active family or need not found", code: "NEED_NOT_FOUND" } };
     }
 
     const [existing] = await tx
@@ -985,7 +985,7 @@ router.post("/aids/:aidId/distributions", allowRoles(...familyManagers), async (
       });
       return {
         statusCode: 409,
-        responseBody: { error: "This family already has a distribution in this aid cycle", distributionId: existing.id },
+        responseBody: { error: "This family already has a distribution in this aid cycle", code: "AID_DISTRIBUTION_DUPLICATE", distributionId: existing.id },
       };
     }
 
@@ -998,7 +998,7 @@ router.post("/aids/:aidId/distributions", allowRoles(...familyManagers), async (
       ));
     const assignedQuantity = Number(assigned?.quantity ?? 0);
     if (assignedQuantity + body.quantity > aid.quantity) {
-      return { statusCode: 400, responseBody: { error: "Aid quantity is insufficient for this distribution" } };
+      return { statusCode: 400, responseBody: { error: "Aid quantity is insufficient for this distribution", code: "AID_STOCK_INSUFFICIENT" } };
     }
 
     const [created] = await tx.insert(aidDistributionsTable).values({
@@ -1024,7 +1024,7 @@ router.post("/aids/:aidId/distributions", allowRoles(...familyManagers), async (
           concurrent: true,
         });
       }
-      return { statusCode: 409, responseBody: { error: "This family already has a distribution in this aid cycle" } };
+      return { statusCode: 409, responseBody: { error: "This family already has a distribution in this aid cycle", code: "AID_DISTRIBUTION_DUPLICATE" } };
     }
     await audit(tx, actorId, "ASSIGN", "AID_DISTRIBUTION", created.id, {
       aidId: params.aidId,
@@ -1052,16 +1052,16 @@ router.post("/distributions/:distributionId/receive", allowRoles(...familyManage
       .where(eq(aidDistributionsTable.id, params.distributionId))
       .limit(1);
     if (!current || current.family.status !== "ACTIVE" || current.family.archivedAt) {
-      return { statusCode: 404, responseBody: { error: "Distribution not found" } };
+      return { statusCode: 404, responseBody: { error: "Distribution not found", code: "AID_DISTRIBUTION_NOT_FOUND" } };
     }
     if (staff.role === "DELEGATE" && current.family.delegateId !== actorId) {
-      return { statusCode: 404, responseBody: { error: "Distribution not found" } };
+      return { statusCode: 404, responseBody: { error: "Distribution not found", code: "AID_DISTRIBUTION_NOT_FOUND" } };
     }
     if (current.distribution.status !== "ASSIGNED") {
       await audit(tx, actorId, "DUPLICATE_RECEIVE_ATTEMPT", "AID_DISTRIBUTION", current.distribution.id, {
         currentStatus: current.distribution.status,
       });
-      return { statusCode: 409, responseBody: { error: "This distribution has already been processed", status: current.distribution.status } };
+      return { statusCode: 409, responseBody: { error: "This distribution has already been processed", code: "AID_DISTRIBUTION_ALREADY_RECEIVED", status: current.distribution.status } };
     }
 
     const [updated] = await tx.update(aidDistributionsTable).set({
@@ -1074,7 +1074,7 @@ router.post("/distributions/:distributionId/receive", allowRoles(...familyManage
       eq(aidDistributionsTable.status, "ASSIGNED"),
     )).returning();
     if (!updated) {
-      return { statusCode: 409, responseBody: { error: "This distribution has already been processed" } };
+      return { statusCode: 409, responseBody: { error: "This distribution has already been processed", code: "AID_DISTRIBUTION_ALREADY_RECEIVED" } };
     }
     if (current.need.status !== "FULFILLED" && current.need.status !== "CANCELLED") {
       const [fulfilledNeed] = await tx.update(familyNeedsTable).set({
