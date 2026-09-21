@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useListNeeds, useGetFamily, getListNeedsQueryKey, useUpdateNeed, useListFamilies, useCreateNeed } from '@workspace/api-client-react';
 import { Link, useLocation } from 'wouter';
-import { Button, Card, Table, Text, Badge, ActionIcon, TextInput, Title, Select, Modal, Textarea } from '@mantine/core';
+import { Alert, Button, Card, Table, Text, Badge, ActionIcon, TextInput, Title, Select, Modal, Textarea } from '@mantine/core';
 import { Search, Eye, Filter, ArrowRight, CheckCircle2, Clock, XCircle, AlertCircle, PlayCircle } from 'lucide-react';
 import { LoadingState, ErrorState } from '../shared/ui-states';
 import dayjs from 'dayjs';
@@ -276,10 +276,12 @@ function NeedForm() {
   const [priority, setPriority] = useState<string>('MEDIUM');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [submitError, setSubmitError] = useState(false);
   
   const handleSubmit = () => {
     if (!familyId || !category || !title || !description || !priority) return;
-    
+
+    setSubmitError(false);
     createNeed.mutate({
       data: {
         familyId,
@@ -290,8 +292,12 @@ function NeedForm() {
       }
     }, {
       onSuccess: () => {
+        setSubmitError(false);
         queryClient.invalidateQueries({ queryKey: getListNeedsQueryKey() });
         setLocation('/needs');
+      },
+      onError: () => {
+        setSubmitError(true);
       }
     });
   };
@@ -346,6 +352,11 @@ function NeedForm() {
            value={description}
            onChange={(e) => setDescription(e.currentTarget.value)}
          />
+          {submitError && (
+            <Alert color="red" icon={<AlertCircle size={18} />} title="تعذر حفظ الاحتياج">
+              لم نتمكن من إرسال طلب الاحتياج. بقيت بياناتك كما هي؛ راجعها وحاول مرة أخرى.
+            </Alert>
+          )}
          <div className="flex justify-end gap-3 pt-4 border-t border-border mt-6">
           <Button variant="outline" color="gray" onClick={() => setLocation('/needs')} radius="md">
             إلغاء

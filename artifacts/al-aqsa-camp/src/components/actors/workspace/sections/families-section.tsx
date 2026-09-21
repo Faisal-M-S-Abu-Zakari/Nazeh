@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useListFamilies, useGetFamily, getListFamiliesQueryKey, useListCamps, useListSectors, useListShelters, useListDelegates, useCreateFamily, useListNeeds, useListAidDistributions } from '@workspace/api-client-react';
 import { Link, useLocation } from 'wouter';
-import { Button, Card, Table, Text, Badge, ActionIcon, Group, TextInput, Select, Title, Tabs } from '@mantine/core';
-import { Search, Plus, ArrowRight, Eye, User, Home, Users, ClipboardList, Package } from 'lucide-react';
+import { Alert, Button, Card, Table, Text, Badge, ActionIcon, Group, TextInput, Select, Title, Tabs } from '@mantine/core';
+import { Search, Plus, ArrowRight, Eye, User, Home, Users, ClipboardList, Package, AlertCircle } from 'lucide-react';
 import { LoadingState, ErrorState } from '../shared/ui-states';
 import { cn } from '@/utils/cn';
 import dayjs from 'dayjs';
@@ -306,12 +306,14 @@ function FamilyForm() {
   const [sectorId, setSectorId] = useState<string | null>(null);
   const [shelterId, setShelterId] = useState<string | null>(null);
   const [delegateId, setDelegateId] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState(false);
   
   const createFamily = useCreateFamily();
 
   const handleSubmit = () => {
     if (!headName || !campId || !sectorId) return;
-    
+
+    setSubmitError(false);
     createFamily.mutate({
       data: {
         headName,
@@ -324,8 +326,12 @@ function FamilyForm() {
       }
     }, {
       onSuccess: () => {
+        setSubmitError(false);
         queryClient.invalidateQueries({ queryKey: getListFamiliesQueryKey() });
         setLocation('/families');
+      },
+      onError: () => {
+        setSubmitError(true);
       }
     });
   };
@@ -407,6 +413,12 @@ function FamilyForm() {
             />
           </div>
         </div>
+
+        {submitError && (
+          <Alert color="red" icon={<AlertCircle size={18} />} title="تعذر حفظ الأسرة">
+            لم نتمكن من حفظ بيانات الأسرة. بقيت بياناتك كما هي؛ راجعها وحاول مرة أخرى.
+          </Alert>
+        )}
 
         <div className="flex justify-end gap-3 pt-4 border-t border-border">
           <Button variant="outline" color="gray" onClick={() => setLocation('/families')} radius="md">
