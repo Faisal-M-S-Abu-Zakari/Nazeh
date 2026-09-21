@@ -54,7 +54,7 @@ export default function useAuth() {
     identity: String(legacyUser?.id ?? me.data?.id ?? storedFamilyUser?.id ?? ''),
     phone_number: legacyUser?.phone ?? storedFamilyUser?.phone ?? '',
     created_at: new Date(),
-    profile_image: '',
+    profile_image: legacyUser?.profileImage ?? me.data?.profileImage ?? '',
     role: uiRole,
      rank: isDisplaced ? USER_RANK.DISPLACED : (role === Role.SECURITY_OFFICER || role === Role.SECURITY_MEMBER) ? USER_RANK.SECURITY_OFFICER : uiRole,
   } : null;

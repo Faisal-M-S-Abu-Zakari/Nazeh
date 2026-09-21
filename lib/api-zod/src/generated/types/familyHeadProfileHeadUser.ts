@@ -14,5 +14,7 @@ export type FamilyHeadProfileHeadUser = {
   role: FamilyHeadProfileHeadUserRole;
   /** @nullable */
   phone?: string | null;
+  /** @nullable */
+  profileImage?: string | null;
   createdAt: Date;
 };

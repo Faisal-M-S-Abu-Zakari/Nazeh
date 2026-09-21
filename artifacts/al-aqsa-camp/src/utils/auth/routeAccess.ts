@@ -93,10 +93,10 @@ export function canAccessActorPath(pathname: string, user: RouteAccessUser): boo
     return hasRole(role, allStaffRoles);
   }
   if (path === '/actor/content' || path.startsWith('/actor/content/')) {
-    return hasRole(role, [Role.ADMIN, Role.MANAGER, Role.DELEGATE]);
+    return hasRole(role, managerRoles);
   }
   
-  if (path === '/actor/staff') return role === Role.ADMIN;
+  if (path === '/actor/staff') return hasRole(role, managerRoles);
 
   if (
     /^\/actor\/delegates\/[^/]+\/(aids-management|profile|reports)$/.test(path) ||

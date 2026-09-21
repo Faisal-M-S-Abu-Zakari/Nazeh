@@ -12,6 +12,8 @@ export interface StaffUser {
   email: string;
   name: string;
   role: Role;
+  /** @nullable */
+  profileImage?: string | null;
   active: boolean;
   passwordSet: boolean;
   createdAt: Date;

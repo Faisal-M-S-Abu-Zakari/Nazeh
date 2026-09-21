@@ -41,6 +41,42 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+  /family/me/avatar/upload-url:
+    post:
+      operationId: requestFamilyAvatarUpload
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AvatarUploadRequest" }
+      responses:
+        "200": { description: Presigned avatar upload, content: { application/json: { schema: { $ref: "#/components/schemas/AvatarUploadResponse" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /family/me/avatar:
+    patch:
+      operationId: updateFamilyAvatar
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AvatarUpdateInput" }
+      responses:
+        "200":
+          description: Updated family-head avatar
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [profileImage]
+                properties:
+                  profileImage: { type: ["string", "null"] }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
   /family/me/needs:
     get:
       operationId: getFamilyMeNeeds
@@ -416,6 +452,38 @@ paths:
                 $ref: "#/components/schemas/StaffUser"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /auth/avatar/upload-url:
+    post:
+      operationId: requestStaffAvatarUpload
+      tags: [auth]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AvatarUploadRequest" }
+      responses:
+        "200":
+          description: Presigned avatar upload
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AvatarUploadResponse" }
+  /auth/avatar:
+    patch:
+      operationId: updateStaffAvatar
+      tags: [auth]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AvatarUpdateInput" }
+      responses:
+        "200":
+          description: Updated staff profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StaffUser" }
   /auth/logout:
     post:
       operationId: logout
@@ -1772,11 +1840,32 @@ components:
         email: { type: string, format: email }
         name: { type: string }
         role: { $ref: "#/components/schemas/Role" }
+        profileImage: { type: ["string", "null"] }
         active: { type: boolean }
         passwordSet: { type: boolean }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
       required: [id, email, name, role, active, passwordSet, createdAt, updatedAt]
+    AvatarUploadRequest:
+      type: object
+      additionalProperties: false
+      required: [name, size, contentType]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        size: { type: integer, minimum: 1, maximum: 5242880 }
+        contentType: { type: string, enum: [image/jpeg, image/png, image/webp] }
+    AvatarUploadResponse:
+      type: object
+      required: [uploadUrl, objectPath]
+      properties:
+        uploadUrl: { type: string, format: uri }
+        objectPath: { type: string }
+    AvatarUpdateInput:
+      type: object
+      additionalProperties: false
+      required: [objectPath]
+      properties:
+        objectPath: { type: ["string", "null"] }
     LoginRequest:
       type: object
       additionalProperties: false
@@ -2349,6 +2438,7 @@ components:
             email: { type: string, format: email }
             role: { type: string, enum: [displaced] }
             phone: { type: ["string", "null"] }
+            profileImage: { type: ["string", "null"] }
             createdAt: { type: string, format: date-time }
         members: { type: array, items: { $ref: "#/components/schemas/FamilyMember" } }
     SecurityMember:

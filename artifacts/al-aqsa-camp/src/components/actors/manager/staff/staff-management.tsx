@@ -34,11 +34,12 @@ import useAuth from '@/hooks/useAuth';
 import { AUTH_ROUTES } from '@/constants/routes';
 
 const roles = [
-  { value: Role.ADMIN, label: 'مسؤول النظام' },
   { value: Role.MANAGER, label: 'مدير' },
   { value: Role.DELEGATE, label: 'مندوب' },
   { value: Role.SECURITY_OFFICER, label: 'مسؤول أمن' },
+  { value: Role.SECURITY_MEMBER, label: 'فرد أمن' },
 ];
+const employeeRoles = roles.filter(({ value }) => value !== Role.MANAGER);
 
 function errorMessage(error: unknown) {
   if (error && typeof error === 'object' && 'data' in error) {
@@ -49,7 +50,7 @@ function errorMessage(error: unknown) {
 }
 
 export default function StaffManagement() {
-  const { isAdmin, isLoading: authLoading } = useAuth();
+  const { isManager, isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [invite, setInvite] = useState<{ token: string; expiresAt: string; kind: 'invite' | 'reset' } | null>(null);
@@ -57,7 +58,7 @@ export default function StaffManagement() {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<Role>(Role.DELEGATE);
 
-  const staff = useListStaff({ query: { queryKey: getListStaffQueryKey(), enabled: isAdmin } });
+  const staff = useListStaff({ query: { queryKey: getListStaffQueryKey(), enabled: isManager } });
   const refresh = () => queryClient.invalidateQueries({ queryKey: getListStaffQueryKey() });
   const create = useCreateStaff();
   const update = useUpdateStaff();
@@ -133,10 +134,10 @@ export default function StaffManagement() {
     : '';
 
   if (authLoading) return <Stack p='xl'><LoadingOverlay visible /></Stack>;
-  if (!isAdmin) {
+  if (!isManager) {
     return (
       <Alert m='xl' color='red' icon={<AlertCircle />} title='غير مصرح' data-testid='staff-access-denied'>
-        إدارة حسابات الموظفين متاحة لمسؤولي النظام فقط.
+        إدارة حسابات الموظفين متاحة للمدير فقط.
       </Alert>
     );
   }
@@ -189,7 +190,7 @@ export default function StaffManagement() {
                         data={roles}
                         value={person.role}
                         onChange={(value) => changeRole(person, value)}
-                        disabled={busy}
+                        disabled={busy || person.role === Role.ADMIN || person.role === Role.MANAGER}
                         w={160}
                       />
                     </Table.Td>
@@ -243,7 +244,7 @@ export default function StaffManagement() {
         <Stack>
           <TextInput label='الاسم' value={name} onChange={(event) => setName(event.currentTarget.value)} required data-testid='create-staff-name' />
           <TextInput label='البريد الإلكتروني' type='email' dir='ltr' value={email} onChange={(event) => setEmail(event.currentTarget.value)} required data-testid='create-staff-email' />
-          <Select label='الصلاحية' data={roles} value={role} onChange={(value) => value && setRole(value as Role)} data-testid='create-staff-role' />
+          <Select label='الصلاحية' data={employeeRoles} value={role} onChange={(value) => value && setRole(value as Role)} data-testid='create-staff-role' />
           <Button onClick={submitCreate} disabled={name.trim().length < 2 || !email.trim()} loading={create.isPending} data-testid='create-staff-submit'>
             إنشاء وإصدار الدعوة
           </Button>

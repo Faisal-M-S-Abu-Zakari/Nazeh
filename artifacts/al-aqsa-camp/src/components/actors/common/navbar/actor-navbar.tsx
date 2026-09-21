@@ -21,7 +21,7 @@ interface NavGroup {
 }
 
 export default function Actor_Navbar({ onNavigate }: { onNavigate?: () => void }) {
-  const { isDelegate, isDisplaced, isSecurity, isSecurityOfficer, isManager, isAdmin, user } = useAuth();
+  const { isDelegate, isDisplaced, isSecurity, isSecurityOfficer, isManager, user } = useAuth();
   const [location] = useLocation();
 
   const navGroups = useMemo<NavGroup[]>(() => {
@@ -81,10 +81,8 @@ export default function Actor_Navbar({ onNavigate }: { onNavigate?: () => void }
     
     // الإدارة
     const adminLinks: NavLink[] = [];
-    if (isManager || isAdmin || isDelegate) {
+    if (isManager) {
       adminLinks.push({ label: 'المحتوى', href: '/actor/content', icon: Megaphone });
-    }
-    if (isAdmin) {
       adminLinks.push({ label: 'الموظفين', href: GENERAL_ACTOR_ROUTES.STAFF, icon: UserCog });
     }
     if (adminLinks.length > 0) {
@@ -92,7 +90,7 @@ export default function Actor_Navbar({ onNavigate }: { onNavigate?: () => void }
     }
 
     return groups;
-  }, [isAdmin, isDelegate, isDisplaced, isManager, isSecurity, isSecurityOfficer]);
+  }, [isDelegate, isDisplaced, isManager, isSecurity, isSecurityOfficer]);
 
   const fullLocation = location.startsWith('/actor')
     ? location
@@ -149,7 +147,7 @@ export default function Actor_Navbar({ onNavigate }: { onNavigate?: () => void }
                 {group.links.map((link, lIdx) => {
                   const isActive = isLinkActive(link.href);
                   return (
-                    <Link key={lIdx} href={`~${link.href}`} onClick={onNavigate}>
+                    <Link key={lIdx} href={link.href} onClick={onNavigate}>
                       <UnstyledButton
                         className={cn(
                           'group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-right transition-all duration-200 ease-in-out',

@@ -17,7 +17,7 @@ export const USER_RANK = {
 export type UserRank = (typeof USER_RANK)[keyof typeof USER_RANK];
 
 export const USER_RANK_LABELS: Record<UserRank, string> = {
-    [USER_RANK.ADMIN]: 'مدير النظام',
+    [USER_RANK.ADMIN]: 'مدير',
     [USER_RANK.DISPLACED]: 'نازح',
     [USER_RANK.DELEGATE]: 'مندوب',
     [USER_RANK.MANAGER]: 'مدير',

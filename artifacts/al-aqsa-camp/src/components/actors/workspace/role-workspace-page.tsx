@@ -47,7 +47,7 @@ export default function RoleWorkspacePage({ section, params }: RoleWorkspacePage
       case 'notifications':
         return <NotificationsSection params={params} />;
       case 'content':
-        return (isManager || isDelegate) ? <ContentSection params={params} /> : <ForbiddenSection section="المحتوى" />;
+        return isManager ? <ContentSection params={params} /> : <ForbiddenSection section="المحتوى" />;
       default:
         return <ForbiddenSection section="القسم" />;
     }

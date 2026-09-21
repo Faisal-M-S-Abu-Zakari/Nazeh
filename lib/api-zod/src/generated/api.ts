@@ -61,6 +61,7 @@ export const GetFamilyMeResponse = zod.object({
   "email": zod.email(),
   "role": zod.enum(['displaced']),
   "phone": zod.string().nullish(),
+  "profileImage": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 }),
   "members": zod.array(zod.object({
@@ -76,6 +77,33 @@ export const GetFamilyMeResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }))
+})
+
+
+export const requestFamilyAvatarUploadBodyNameMax = 255;
+
+export const requestFamilyAvatarUploadBodySizeMax = 5242880;
+
+
+
+export const RequestFamilyAvatarUploadBody = zod.object({
+  "name": zod.string().min(1).max(requestFamilyAvatarUploadBodyNameMax),
+  "size": zod.int().min(1).max(requestFamilyAvatarUploadBodySizeMax),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp'])
+})
+
+export const RequestFamilyAvatarUploadResponse = zod.object({
+  "uploadUrl": zod.url(),
+  "objectPath": zod.string()
+})
+
+
+export const UpdateFamilyAvatarBody = zod.object({
+  "objectPath": zod.string().nullable()
+})
+
+export const UpdateFamilyAvatarResponse = zod.object({
+  "profileImage": zod.string().nullable()
 })
 
 
@@ -974,6 +1002,7 @@ export const LoginResponse = zod.object({
   "email": zod.email(),
   "name": zod.string(),
   "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER', 'SECURITY_MEMBER']),
+  "profileImage": zod.string().nullish(),
   "active": zod.boolean(),
   "passwordSet": zod.boolean(),
   "createdAt": zod.coerce.date(),
@@ -990,6 +1019,42 @@ export const GetCurrentUserResponse = zod.object({
   "email": zod.email(),
   "name": zod.string(),
   "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER', 'SECURITY_MEMBER']),
+  "profileImage": zod.string().nullish(),
+  "active": zod.boolean(),
+  "passwordSet": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+export const requestStaffAvatarUploadBodyNameMax = 255;
+
+export const requestStaffAvatarUploadBodySizeMax = 5242880;
+
+
+
+export const RequestStaffAvatarUploadBody = zod.object({
+  "name": zod.string().min(1).max(requestStaffAvatarUploadBodyNameMax),
+  "size": zod.int().min(1).max(requestStaffAvatarUploadBodySizeMax),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp'])
+})
+
+export const RequestStaffAvatarUploadResponse = zod.object({
+  "uploadUrl": zod.url(),
+  "objectPath": zod.string()
+})
+
+
+export const UpdateStaffAvatarBody = zod.object({
+  "objectPath": zod.string().nullable()
+})
+
+export const UpdateStaffAvatarResponse = zod.object({
+  "id": zod.uuid(),
+  "email": zod.email(),
+  "name": zod.string(),
+  "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER', 'SECURITY_MEMBER']),
+  "profileImage": zod.string().nullish(),
   "active": zod.boolean(),
   "passwordSet": zod.boolean(),
   "createdAt": zod.coerce.date(),
@@ -1031,6 +1096,7 @@ export const ListStaffResponse = zod.object({
   "email": zod.email(),
   "name": zod.string(),
   "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER', 'SECURITY_MEMBER']),
+  "profileImage": zod.string().nullish(),
   "active": zod.boolean(),
   "passwordSet": zod.boolean(),
   "createdAt": zod.coerce.date(),
@@ -1064,6 +1130,7 @@ export const CreateStaffResponse = zod.object({
   "email": zod.email(),
   "name": zod.string(),
   "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER', 'SECURITY_MEMBER']),
+  "profileImage": zod.string().nullish(),
   "active": zod.boolean(),
   "passwordSet": zod.boolean(),
   "createdAt": zod.coerce.date(),
@@ -1095,6 +1162,7 @@ export const UpdateStaffResponse = zod.object({
   "email": zod.email(),
   "name": zod.string(),
   "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER', 'SECURITY_MEMBER']),
+  "profileImage": zod.string().nullish(),
   "active": zod.boolean(),
   "passwordSet": zod.boolean(),
   "createdAt": zod.coerce.date(),
@@ -1854,6 +1922,7 @@ export const ListSecurityOfficersResponseItem = zod.object({
   "email": zod.email(),
   "name": zod.string(),
   "role": zod.enum(['ADMIN', 'MANAGER', 'DELEGATE', 'SECURITY_OFFICER', 'SECURITY_MEMBER']),
+  "profileImage": zod.string().nullish(),
   "active": zod.boolean(),
   "passwordSet": zod.boolean(),
   "createdAt": zod.coerce.date(),

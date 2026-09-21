@@ -503,10 +503,45 @@ export interface StaffUser {
   email: string;
   name: string;
   role: Role;
+  /** @nullable */
+  profileImage?: string | null;
   active: boolean;
   passwordSet: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export type AvatarUploadRequestContentType = typeof AvatarUploadRequestContentType[keyof typeof AvatarUploadRequestContentType];
+
+
+export const AvatarUploadRequestContentType = {
+  'image/jpeg': 'image/jpeg',
+  'image/png': 'image/png',
+  'image/webp': 'image/webp',
+} as const;
+
+export interface AvatarUploadRequest {
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  name: string;
+  /**
+     * @minimum 1
+     * @maximum 5242880
+     */
+  size: number;
+  contentType: AvatarUploadRequestContentType;
+}
+
+export interface AvatarUploadResponse {
+  uploadUrl: string;
+  objectPath: string;
+}
+
+export interface AvatarUpdateInput {
+  /** @nullable */
+  objectPath: string | null;
 }
 
 export interface LoginRequest {
@@ -1282,6 +1317,8 @@ export type FamilyHeadProfileHeadUser = {
   role: FamilyHeadProfileHeadUserRole;
   /** @nullable */
   phone?: string | null;
+  /** @nullable */
+  profileImage?: string | null;
   createdAt: string;
 };
 
@@ -1437,6 +1474,11 @@ export type IdempotencyKeyParameter = string;
  * Optional caller-generated retry key (1–200 characters). Replays the original completed mutation response.
  */
 export type OptionalIdempotencyKeyParameter = string;
+
+export type UpdateFamilyAvatar200 = {
+  /** @nullable */
+  profileImage: string | null;
+};
 
 export type ListDelegatesParams = {
 /**

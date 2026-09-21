@@ -288,17 +288,17 @@ export default function OperationsDashboard() {
   return (
     <main dir="rtl" className="min-h-screen w-full bg-slate-50 px-4 py-6 sm:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <header className="rounded-2xl bg-gradient-to-l from-sidebar to-primary p-6 text-white shadow-lg">
+        <header className="rounded-2xl border border-primary/20 border-r-4 border-r-primary bg-white p-6 text-slate-900 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="mb-2 text-sm text-teal-200">مركز العمليات الإنسانية</p>
+              <p className="mb-2 text-sm font-semibold text-primary">مركز العمليات الإنسانية</p>
               <h1 className="text-2xl font-bold sm:text-3xl">سجل الأسر والإيواء والاحتياجات</h1>
-              <p className="mt-2 max-w-2xl text-sm text-slate-200">دورة موحّدة تبدأ من الأسرة وتنتهي بتنفيذ الاحتياج، مع صلاحيات واضحة وسجل تغييرات قابل للتدقيق.</p>
+              <p className="mt-2 max-w-2xl text-sm text-slate-600">دورة موحّدة تبدأ من الأسرة وتنتهي بتنفيذ الاحتياج، مع صلاحيات واضحة وسجل تغييرات قابل للتدقيق.</p>
             </div>
-            <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm">
-              <span className="text-slate-300">الحساب الحالي</span>
+            <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+              <span className="text-slate-600">الحساب الحالي</span>
               <div className="mt-1 font-semibold">{user?.name ?? 'مستخدم مصرح'}</div>
-              <div className="text-teal-200">{role === 'SECURITY_MEMBER' ? 'فرد أمن' : role === 'SECURITY_OFFICER' ? 'مسؤول أمن' : role === 'DELEGATE' ? 'مندوب' : 'مدير'}</div>
+              <div className="text-primary">{role === 'SECURITY_MEMBER' ? 'فرد أمن' : role === 'SECURITY_OFFICER' ? 'مسؤول أمن' : role === 'DELEGATE' ? 'مندوب' : 'مدير'}</div>
             </div>
           </div>
         </header>

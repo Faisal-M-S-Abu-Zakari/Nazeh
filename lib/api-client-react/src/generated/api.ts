@@ -33,6 +33,9 @@ import type {
   AidUpdate,
   ArchiveRecord,
   AuthSessionResponse,
+  AvatarUpdateInput,
+  AvatarUploadRequest,
+  AvatarUploadResponse,
   BadRequestResponse,
   CampList,
   Complaint,
@@ -117,6 +120,7 @@ import type {
   TaskSubmission,
   TaskUpdate,
   UnauthorizedResponse,
+  UpdateFamilyAvatar200,
   UpdateStaffRequest
 } from './api.schemas';
 
@@ -288,6 +292,136 @@ export function useGetFamilyMe<TData = Awaited<ReturnType<typeof getFamilyMe>>, 
 
 
 
+
+export const getRequestFamilyAvatarUploadUrl = () => {
+
+
+
+
+  return `/api/family/me/avatar/upload-url`
+}
+
+export const requestFamilyAvatarUpload = async (avatarUploadRequest: AvatarUploadRequest, options?: Parameters<typeof customFetch>[1]): Promise<AvatarUploadResponse> => {
+
+  return customFetch<AvatarUploadResponse>(getRequestFamilyAvatarUploadUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(avatarUploadRequest)
+  }
+);}
+
+
+
+
+
+export const getRequestFamilyAvatarUploadMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestFamilyAvatarUpload>>, TError,{data: BodyType<AvatarUploadRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestFamilyAvatarUpload>>, TError,{data: BodyType<AvatarUploadRequest>}, TContext> => {
+
+const mutationKey = ['requestFamilyAvatarUpload'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestFamilyAvatarUpload>>, {data: BodyType<AvatarUploadRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestFamilyAvatarUpload(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestFamilyAvatarUploadMutationResult = NonNullable<Awaited<ReturnType<typeof requestFamilyAvatarUpload>>>
+    export type RequestFamilyAvatarUploadMutationBody = BodyType<AvatarUploadRequest>
+    export type RequestFamilyAvatarUploadMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse>
+
+    export const useRequestFamilyAvatarUpload = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestFamilyAvatarUpload>>, TError,{data: BodyType<AvatarUploadRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestFamilyAvatarUpload>>,
+        TError,
+        {data: BodyType<AvatarUploadRequest>},
+        TContext
+      > => {
+      return useMutation(getRequestFamilyAvatarUploadMutationOptions(options));
+    }
+
+export const getUpdateFamilyAvatarUrl = () => {
+
+
+
+
+  return `/api/family/me/avatar`
+}
+
+export const updateFamilyAvatar = async (avatarUpdateInput: AvatarUpdateInput, options?: Parameters<typeof customFetch>[1]): Promise<UpdateFamilyAvatar200> => {
+
+  return customFetch<UpdateFamilyAvatar200>(getUpdateFamilyAvatarUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(avatarUpdateInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateFamilyAvatarMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateFamilyAvatar>>, TError,{data: BodyType<AvatarUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateFamilyAvatar>>, TError,{data: BodyType<AvatarUpdateInput>}, TContext> => {
+
+const mutationKey = ['updateFamilyAvatar'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateFamilyAvatar>>, {data: BodyType<AvatarUpdateInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateFamilyAvatar(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateFamilyAvatarMutationResult = NonNullable<Awaited<ReturnType<typeof updateFamilyAvatar>>>
+    export type UpdateFamilyAvatarMutationBody = BodyType<AvatarUpdateInput>
+    export type UpdateFamilyAvatarMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse>
+
+    export const useUpdateFamilyAvatar = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateFamilyAvatar>>, TError,{data: BodyType<AvatarUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateFamilyAvatar>>,
+        TError,
+        {data: BodyType<AvatarUpdateInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateFamilyAvatarMutationOptions(options));
+    }
 
 export const getGetFamilyMeNeedsUrl = () => {
 
@@ -2814,6 +2948,136 @@ export function useGetCurrentUser<TData = Awaited<ReturnType<typeof getCurrentUs
 
 
 
+
+export const getRequestStaffAvatarUploadUrl = () => {
+
+
+
+
+  return `/api/auth/avatar/upload-url`
+}
+
+export const requestStaffAvatarUpload = async (avatarUploadRequest: AvatarUploadRequest, options?: Parameters<typeof customFetch>[1]): Promise<AvatarUploadResponse> => {
+
+  return customFetch<AvatarUploadResponse>(getRequestStaffAvatarUploadUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(avatarUploadRequest)
+  }
+);}
+
+
+
+
+
+export const getRequestStaffAvatarUploadMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestStaffAvatarUpload>>, TError,{data: BodyType<AvatarUploadRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestStaffAvatarUpload>>, TError,{data: BodyType<AvatarUploadRequest>}, TContext> => {
+
+const mutationKey = ['requestStaffAvatarUpload'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestStaffAvatarUpload>>, {data: BodyType<AvatarUploadRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestStaffAvatarUpload(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestStaffAvatarUploadMutationResult = NonNullable<Awaited<ReturnType<typeof requestStaffAvatarUpload>>>
+    export type RequestStaffAvatarUploadMutationBody = BodyType<AvatarUploadRequest>
+    export type RequestStaffAvatarUploadMutationError = ErrorType<unknown>
+
+    export const useRequestStaffAvatarUpload = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestStaffAvatarUpload>>, TError,{data: BodyType<AvatarUploadRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestStaffAvatarUpload>>,
+        TError,
+        {data: BodyType<AvatarUploadRequest>},
+        TContext
+      > => {
+      return useMutation(getRequestStaffAvatarUploadMutationOptions(options));
+    }
+
+export const getUpdateStaffAvatarUrl = () => {
+
+
+
+
+  return `/api/auth/avatar`
+}
+
+export const updateStaffAvatar = async (avatarUpdateInput: AvatarUpdateInput, options?: Parameters<typeof customFetch>[1]): Promise<StaffUser> => {
+
+  return customFetch<StaffUser>(getUpdateStaffAvatarUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(avatarUpdateInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateStaffAvatarMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffAvatar>>, TError,{data: BodyType<AvatarUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateStaffAvatar>>, TError,{data: BodyType<AvatarUpdateInput>}, TContext> => {
+
+const mutationKey = ['updateStaffAvatar'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateStaffAvatar>>, {data: BodyType<AvatarUpdateInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateStaffAvatar(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateStaffAvatarMutationResult = NonNullable<Awaited<ReturnType<typeof updateStaffAvatar>>>
+    export type UpdateStaffAvatarMutationBody = BodyType<AvatarUpdateInput>
+    export type UpdateStaffAvatarMutationError = ErrorType<unknown>
+
+    export const useUpdateStaffAvatar = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffAvatar>>, TError,{data: BodyType<AvatarUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateStaffAvatar>>,
+        TError,
+        {data: BodyType<AvatarUpdateInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateStaffAvatarMutationOptions(options));
+    }
 
 export const getLogoutUrl = () => {
 

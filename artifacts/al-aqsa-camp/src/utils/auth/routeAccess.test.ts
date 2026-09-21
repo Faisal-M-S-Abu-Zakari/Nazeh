@@ -18,7 +18,7 @@ const users = {
 } as const;
 
 test('requires a session for every actor screen and limits staff management to admins', () => {
-  assert.equal(canAccessActorPath('/actor/staff', users.manager), false);
+  assert.equal(canAccessActorPath('/actor/staff', users.manager), true);
   assert.equal(canAccessActorPath('/actor/staff', users.admin), true);
   assert.equal(canAccessActorPath('/actor/operations', users.member), true);
 });
@@ -57,7 +57,7 @@ test('exposes the modern fixed workspace routes only to appropriate roles', () =
   assert.equal(canAccessActorPath('/actor/complaints', users.member), true);
   assert.equal(canAccessActorPath('/actor/complaints/123', users.delegate), true);
 
-  assert.equal(canAccessActorPath('/actor/content', users.delegate), true);
+  assert.equal(canAccessActorPath('/actor/content', users.delegate), false);
   assert.equal(canAccessActorPath('/actor/content/new', users.manager), true);
   assert.equal(canAccessActorPath('/actor/content/123', users.member), false);
 

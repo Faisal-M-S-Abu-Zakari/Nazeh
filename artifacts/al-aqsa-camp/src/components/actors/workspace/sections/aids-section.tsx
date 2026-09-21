@@ -52,7 +52,7 @@ function AidsList() {
           <Title order={2} className="text-3xl font-display text-primary">المساعدات والتسليم</Title>
           <Text className="text-muted-foreground mt-1">إدارة المخزون وتخصيص المساعدات للأسر المستحقة</Text>
         </div>
-        <Link href="~/actor/aids/new" className="no-underline">
+        <Link href="/actor/aids/new" className="no-underline">
           <Button leftSection={<Plus size={18} />} size="md" radius="md" className="bg-primary hover:bg-primary/90">
             إضافة مورد جديد
           </Button>
@@ -133,7 +133,7 @@ function AidsList() {
                         color="primary" 
                         size="xs" 
                         radius="md"
-                        onClick={() => setLocation(`~/actor/aids/${aid.id}`)}
+                        onClick={() => setLocation(`/actor/aids/${aid.id}`)}
                       >
                         إدارة التوزيع
                       </Button>
@@ -219,7 +219,7 @@ function AidDetail({ id }: { id: string }) {
   return (
     <div className="space-y-6 animate-in fade-in max-w-5xl mx-auto">
       <div className="flex items-center gap-4 mb-6">
-        <ActionIcon variant="light" size="lg" radius="md" onClick={() => setLocation('~/actor/aids')}>
+        <ActionIcon variant="light" size="lg" radius="md" onClick={() => setLocation('/actor/aids')}>
           <ArrowRight size={20} />
         </ActionIcon>
         <div>
@@ -378,7 +378,7 @@ function AidForm() {
     }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListAidsQueryKey() });
-        setLocation('~/actor/aids');
+        setLocation('/actor/aids');
       }
     });
   };
@@ -386,7 +386,7 @@ function AidForm() {
   return (
     <div className="space-y-6 max-w-2xl mx-auto animate-in fade-in">
       <div className="flex items-center gap-4 mb-6">
-        <ActionIcon variant="light" size="lg" radius="md" onClick={() => setLocation('~/actor/aids')}>
+        <ActionIcon variant="light" size="lg" radius="md" onClick={() => setLocation('/actor/aids')}>
           <ArrowRight size={20} />
         </ActionIcon>
         <Title order={2} className="text-3xl font-display text-primary">تسجيل مورد مساعدة جديد</Title>
@@ -412,7 +412,7 @@ function AidForm() {
          </div>
          
          <div className="flex justify-end gap-3 pt-4 border-t border-border mt-6">
-          <Button variant="outline" color="gray" onClick={() => setLocation('~/actor/aids')} radius="md">
+          <Button variant="outline" color="gray" onClick={() => setLocation('/actor/aids')} radius="md">
             إلغاء
           </Button>
           <Button 
@@ -425,6 +425,9 @@ function AidForm() {
             إضافة للمخزون
           </Button>
         </div>
+         {createAid.isError && (
+           <Text c="red" size="sm">تعذر إضافة المورد. راجع البيانات وحاول مرة أخرى.</Text>
+         )}
       </Card>
     </div>
   );

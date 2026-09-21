@@ -17,7 +17,7 @@ export default function ForbiddenSection({ section }: { section: string }) {
       </Text>
       
       <div className="pt-6">
-        <Link href="~/actor/profile" className="no-underline">
+        <Link href="/actor/profile" className="no-underline">
           <Button variant="light" color="gray" leftSection={<ArrowRight size={16} />}>
             العودة لملف الحساب
           </Button>

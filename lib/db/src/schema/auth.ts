@@ -109,6 +109,7 @@ export const staffUsers = pgTable("staff_users", {
   name: text("name").notNull(),
   passwordHash: text("password_hash").notNull(),
   role: staffRole("role").notNull(),
+  profileImage: text("profile_image"),
   active: boolean("active").notNull().default(true),
   // defaultNow preserves existing password-bearing accounts when this column is
   // introduced; invite creation explicitly stores null until setup completes.

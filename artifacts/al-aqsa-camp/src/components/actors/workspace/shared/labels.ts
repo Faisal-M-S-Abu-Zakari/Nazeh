@@ -13,7 +13,7 @@ export const Labels: Record<string, string> = {
   HIGH: 'عالي',
   MEDIUM: 'متوسط',
   LOW: 'منخفض',
-  MANAGER: 'مدير النظام',
+  MANAGER: 'مدير',
   DELEGATE: 'مندوب ميداني',
   SECURITY_OFFICER: 'مسؤول أمن',
   SECURITY_MEMBER: 'فرد أمن',

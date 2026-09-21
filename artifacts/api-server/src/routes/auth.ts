@@ -34,6 +34,12 @@ import {
   createPostgresLoginRateLimitStore,
   loginAttemptKeys,
 } from "../lib/loginRateLimit";
+import { z } from "zod";
+import {
+  createAvatarUpload,
+  isAvatarObjectPath,
+  validateAvatarMetadata,
+} from "../lib/avatarStorage";
 
 const router: IRouter = Router();
 const loginRateLimit = createLoginRateLimit(createPostgresLoginRateLimitStore(db));
@@ -46,6 +52,7 @@ const publicStaff = (user: typeof staffUsers.$inferSelect) => ({
   email: user.email,
   name: user.name,
   role: user.role,
+  profileImage: user.profileImage,
   active: user.active,
   passwordSet: Boolean(user.passwordSetAt),
   createdAt: user.createdAt,
@@ -172,12 +179,12 @@ router.post("/auth/complete-credential", async (req, res) => {
   res.status(204).end();
 });
 
-router.get("/staff", requireAuth, allowRoles("ADMIN"), async (_req, res) => {
+router.get("/staff", requireAuth, allowRoles("ADMIN", "MANAGER"), async (_req, res) => {
   const users = await db.select().from(staffUsers).orderBy(desc(staffUsers.createdAt));
   res.json({ items: users.map(publicStaff) });
 });
 
-router.post("/staff", requireAuth, allowRoles("ADMIN"), async (req, res) => {
+router.post("/staff", requireAuth, allowRoles("ADMIN", "MANAGER"), async (req, res) => {
   const body = parseRequest(CreateStaffBody, req.body, res);
   if (!body) return;
   const email = body.email.trim().toLowerCase();
@@ -206,7 +213,7 @@ router.post("/staff", requireAuth, allowRoles("ADMIN"), async (req, res) => {
   }
 });
 
-router.post("/staff/:staffId/invite", requireAuth, allowRoles("ADMIN"), async (req, res) => {
+router.post("/staff/:staffId/invite", requireAuth, allowRoles("ADMIN", "MANAGER"), async (req, res) => {
   const params = parseRequest(RenewStaffInviteParams, req.params, res);
   if (!params) return;
   const [user] = await db.select().from(staffUsers)
@@ -226,7 +233,7 @@ router.post("/staff/:staffId/invite", requireAuth, allowRoles("ADMIN"), async (r
 router.post(
   "/staff/:staffId/password-reset",
   requireAuth,
-  allowRoles("ADMIN"),
+  allowRoles("ADMIN", "MANAGER"),
   async (req, res) => {
     const params = parseRequest(IssueStaffPasswordResetParams, req.params, res);
     if (!params) return;
@@ -260,7 +267,7 @@ router.post(
   },
 );
 
-router.patch("/staff/:staffId", requireAuth, allowRoles("ADMIN"), async (req, res) => {
+router.patch("/staff/:staffId", requireAuth, allowRoles("ADMIN", "MANAGER"), async (req, res) => {
   const params = parseRequest(UpdateStaffParams, req.params, res);
   if (!params) return;
   const body = parseRequest(UpdateStaffBody, req.body, res);
@@ -343,6 +350,41 @@ router.patch("/staff/:staffId", requireAuth, allowRoles("ADMIN"), async (req, re
 
 router.get("/auth/me", requireAuth, (_req, res) => {
   res.json(res.locals["staff"]);
+});
+
+const AvatarUploadBody = z.object({
+  name: z.string().min(1).max(255),
+  size: z.number().int().positive(),
+  contentType: z.string().min(1),
+});
+const AvatarUpdateBody = z.object({ objectPath: z.string().nullable() });
+
+router.post("/auth/avatar/upload-url", requireAuth, async (req, res) => {
+  const parsed = AvatarUploadBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid avatar metadata" });
+    return;
+  }
+  const validationError = validateAvatarMetadata(parsed.data);
+  if (validationError) {
+    res.status(400).json({ error: validationError });
+    return;
+  }
+  res.json(await createAvatarUpload());
+});
+
+router.patch("/auth/avatar", requireAuth, async (req, res) => {
+  const parsed = AvatarUpdateBody.safeParse(req.body);
+  if (!parsed.success || (parsed.data.objectPath && !isAvatarObjectPath(parsed.data.objectPath))) {
+    res.status(400).json({ error: "Invalid avatar object path" });
+    return;
+  }
+  const staff = res.locals["staff"] as { id: string };
+  const [updated] = await db.update(staffUsers)
+    .set({ profileImage: parsed.data.objectPath })
+    .where(eq(staffUsers.id, staff.id))
+    .returning();
+  res.json(publicStaff(updated));
 });
 
 router.post("/auth/logout", requireAuth, async (_req, res) => {

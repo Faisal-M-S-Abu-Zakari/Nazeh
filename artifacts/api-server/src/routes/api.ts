@@ -49,6 +49,12 @@ import {
   createPostgresLoginRateLimitStore,
   loginAttemptKeys,
 } from "../lib/loginRateLimit";
+import {
+  createAvatarUpload,
+  createAvatarReadUrl,
+  isAvatarObjectPath,
+  validateAvatarMetadata,
+} from "../lib/avatarStorage";
 
 
 const router: IRouter = Router()
@@ -73,6 +79,12 @@ const LegacyLoginResponse = z.object({
   expiresAt: z.coerce.date(),
 })
 ;
+const AvatarUploadBody = z.object({
+  name: z.string().min(1).max(255),
+  size: z.number().int().positive(),
+  contentType: z.string().min(1),
+});
+const AvatarUpdateBody = z.object({ objectPath: z.string().nullable() });
 
 router.use(optionalAuth)
 ;
@@ -244,10 +256,48 @@ router.get("/family/me", requireRoles("displaced"), async (req, res): Promise<vo
       email: req.authUser!.email,
       role: "displaced",
       phone: req.authUser!.phoneNumber,
+      profileImage: req.authUser!.profileImage,
       createdAt: req.authUser!.createdAt,
     },
     members,
   });
+});
+
+router.post("/family/me/avatar/upload-url", requireRoles("displaced"), async (req, res): Promise<void> => {
+  const parsed = AvatarUploadBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid avatar metadata" });
+    return;
+  }
+  const validationError = validateAvatarMetadata(parsed.data);
+  if (validationError) {
+    res.status(400).json({ error: validationError });
+    return;
+  }
+  res.json(await createAvatarUpload());
+});
+
+router.patch("/family/me/avatar", requireRoles("displaced"), async (req, res): Promise<void> => {
+  const parsed = AvatarUpdateBody.safeParse(req.body);
+  if (!parsed.success || (parsed.data.objectPath && !isAvatarObjectPath(parsed.data.objectPath))) {
+    res.status(400).json({ error: "Invalid avatar object path" });
+    return;
+  }
+  await db.update(usersTable)
+    .set({ profileImage: parsed.data.objectPath })
+    .where(eq(usersTable.id, req.authUser!.id));
+  res.json({ profileImage: parsed.data.objectPath });
+});
+
+router.get("/storage/objects/*path", async (req, res): Promise<void> => {
+  const raw = req.params.path;
+  const path = Array.isArray(raw) ? raw.join("/") : raw;
+  const objectPath = `/objects/${path}`;
+  if (!isAvatarObjectPath(objectPath)) {
+    res.status(404).json({ error: "Object not found" });
+    return;
+  }
+  res.redirect(302, await createAvatarReadUrl(objectPath));
 });
 
 router.get("/family/me/needs", requireRoles("displaced"), async (req, res): Promise<void> => {
