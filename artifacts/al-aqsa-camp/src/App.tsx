@@ -74,22 +74,30 @@ const ActorPages = () => (
       <Route path="/profile">{(params) => <RoleWorkspacePage section="profile" params={params} />}</Route>
       
       {/* Families */}
-      <Route path="/families/new">{(params) => <RoleWorkspacePage section="families" params={params} />}</Route>
+      <Route path="/families/new">
+        <RoleWorkspacePage section="families" params={{ id: 'new' }} />
+      </Route>
       <Route path="/families/:id">{(params) => <RoleWorkspacePage section="families" params={params} />}</Route>
       <Route path="/families">{(params) => <RoleWorkspacePage section="families" params={params} />}</Route>
       
       {/* Needs */}
-      <Route path="/needs/new">{(params) => <RoleWorkspacePage section="needs" params={params} />}</Route>
+      <Route path="/needs/new">
+        <RoleWorkspacePage section="needs" params={{ id: 'new' }} />
+      </Route>
       <Route path="/needs/:id">{(params) => <RoleWorkspacePage section="needs" params={params} />}</Route>
       <Route path="/needs">{(params) => <RoleWorkspacePage section="needs" params={params} />}</Route>
       
       {/* Aids */}
-      <Route path="/aids/new">{(params) => <RoleWorkspacePage section="aids" params={params} />}</Route>
+      <Route path="/aids/new">
+        <RoleWorkspacePage section="aids" params={{ id: 'new' }} />
+      </Route>
       <Route path="/aids/:id">{(params) => <RoleWorkspacePage section="aids" params={params} />}</Route>
       <Route path="/aids">{(params) => <RoleWorkspacePage section="aids" params={params} />}</Route>
       
       {/* Tasks */}
-      <Route path="/tasks/new">{(params) => <RoleWorkspacePage section="tasks" params={params} />}</Route>
+      <Route path="/tasks/new">
+        <RoleWorkspacePage section="tasks" params={{ id: 'new' }} />
+      </Route>
       <Route path="/tasks/:id">{(params) => <RoleWorkspacePage section="tasks" params={params} />}</Route>
       <Route path="/tasks">{(params) => <RoleWorkspacePage section="tasks" params={params} />}</Route>
       
@@ -100,7 +108,9 @@ const ActorPages = () => (
       <Route path="/complaints/:id">{(params) => <RoleWorkspacePage section="complaints" params={params} />}</Route>
       <Route path="/complaints">{(params) => <RoleWorkspacePage section="complaints" params={params} />}</Route>
       <Route path="/notifications">{(params) => <RoleWorkspacePage section="notifications" params={params} />}</Route>
-      <Route path="/content/new">{(params) => <RoleWorkspacePage section="content" params={params} />}</Route>
+      <Route path="/content/new">
+        <RoleWorkspacePage section="content" params={{ id: 'new' }} />
+      </Route>
       <Route path="/content/:id">{(params) => <RoleWorkspacePage section="content" params={params} />}</Route>
       <Route path="/content">{(params) => <RoleWorkspacePage section="content" params={params} />}</Route>
 
