@@ -4,6 +4,9 @@ export type NeedDraft = Pick<NeedInput, 'familyId' | 'category' | 'priority' | '
   description: string;
 };
 
+export const NEED_DRAFT_RETENTION_MS = 24 * 60 * 60 * 1000;
+export const NEED_DRAFT_RETENTION_LABEL = '24 ساعة';
+
 export const DEFAULT_NEED_DRAFT: NeedDraft = {
   familyId: '',
   category: 'FOOD',
@@ -41,11 +44,11 @@ export function hasNeedDraftContent(draft: NeedDraft): boolean {
   );
 }
 
-function parseNeedDraft(value: string | null): NeedDraft | null {
+function parseNeedDraft(value: string | null, now: number): NeedDraft | null {
   if (!value) return null;
 
   try {
-    const parsed = JSON.parse(value) as Partial<NeedDraft>;
+    const parsed = JSON.parse(value) as Partial<NeedDraft> & { lastModifiedAt?: unknown };
     if (!parsed || typeof parsed !== 'object') return null;
 
     const category = parsed.category;
@@ -54,11 +57,16 @@ function parseNeedDraft(value: string | null): NeedDraft | null {
       typeof parsed.familyId !== 'string' ||
       typeof parsed.title !== 'string' ||
       typeof parsed.description !== 'string' ||
+      typeof parsed.lastModifiedAt !== 'number' ||
+      !Number.isFinite(parsed.lastModifiedAt) ||
+      parsed.lastModifiedAt < 0 ||
       !NEED_CATEGORIES.includes(category as (typeof NEED_CATEGORIES)[number]) ||
       !NEED_PRIORITIES.includes(priority as (typeof NEED_PRIORITIES)[number])
     ) {
       return null;
     }
+
+    if (now - parsed.lastModifiedAt >= NEED_DRAFT_RETENTION_MS) return null;
 
     return {
       familyId: parsed.familyId,
@@ -72,10 +80,17 @@ function parseNeedDraft(value: string | null): NeedDraft | null {
   }
 }
 
-export function readNeedDraft(storageKey: string, storage: DraftStorage | null = getLocalStorage()): NeedDraft | null {
+export function readNeedDraft(
+  storageKey: string,
+  storage: DraftStorage | null = getLocalStorage(),
+  now = Date.now(),
+): NeedDraft | null {
   if (!storage) return null;
   try {
-    return parseNeedDraft(storage.getItem(storageKey));
+    const rawValue = storage.getItem(storageKey);
+    const draft = parseNeedDraft(rawValue, now);
+    if (rawValue && !draft) storage.removeItem(storageKey);
+    return draft;
   } catch {
     return null;
   }
@@ -85,10 +100,11 @@ export function saveNeedDraft(
   storageKey: string,
   draft: NeedDraft,
   storage: DraftStorage | null = getLocalStorage(),
+  lastModifiedAt = Date.now(),
 ): void {
   if (!storage) return;
   try {
-    storage.setItem(storageKey, JSON.stringify(draft));
+    storage.setItem(storageKey, JSON.stringify({ ...draft, lastModifiedAt }));
   } catch {
     // A blocked or full browser storage must not interrupt form entry.
   }

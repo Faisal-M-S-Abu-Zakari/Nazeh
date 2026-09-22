@@ -22,6 +22,7 @@ import {
   DEFAULT_NEED_DRAFT,
   getNeedDraftStorageKey,
   hasNeedDraftContent,
+  NEED_DRAFT_RETENTION_LABEL,
   readNeedDraft,
   saveNeedDraft,
   type NeedDraft,
@@ -423,6 +424,9 @@ function NeedForm() {
         <Title order={2} className="text-3xl font-display text-primary">تسجيل طلب جديد</Title>
       </div>
       <Card withBorder shadow="sm" radius="lg" p="xl" className="space-y-6">
+        <Text size="xs" c="dimmed">
+          تُحفظ المسودة محليًا على هذا الجهاز وتُحذف تلقائيًا بعد {NEED_DRAFT_RETENTION_LABEL} من آخر تعديل.
+        </Text>
          {hasSavedDraft && (
            <Alert color="blue" icon={<AlertCircle size={18} />} title="تم استعادة مسودة محفوظة">
              <div className="flex flex-wrap items-center justify-between gap-3">
