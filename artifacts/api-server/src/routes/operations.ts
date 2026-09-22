@@ -1074,7 +1074,22 @@ router.post("/distributions/:distributionId/receive", allowRoles(...familyManage
       eq(aidDistributionsTable.status, "ASSIGNED"),
     )).returning();
     if (!updated) {
-      return { statusCode: 409, responseBody: { error: "This distribution has already been processed", code: "AID_DISTRIBUTION_ALREADY_RECEIVED" } };
+      const [processed] = await tx
+        .select({ status: aidDistributionsTable.status })
+        .from(aidDistributionsTable)
+        .where(eq(aidDistributionsTable.id, params.distributionId))
+        .limit(1);
+      await audit(tx, actorId, "DUPLICATE_RECEIVE_ATTEMPT", "AID_DISTRIBUTION", params.distributionId, {
+        currentStatus: processed?.status ?? "UNKNOWN",
+      });
+      return {
+        statusCode: 409,
+        responseBody: {
+          error: "This distribution has already been processed",
+          code: "AID_DISTRIBUTION_ALREADY_RECEIVED",
+          status: processed?.status,
+        },
+      };
     }
     if (current.need.status !== "FULFILLED" && current.need.status !== "CANCELLED") {
       const [fulfilledNeed] = await tx.update(familyNeedsTable).set({

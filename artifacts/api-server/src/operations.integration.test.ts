@@ -368,16 +368,50 @@ test("aid distributions link approved needs, prevent duplicate delivery, and rec
     assert.equal(visibleToDelegate.status, 200);
     assert.equal((await visibleToDelegate.json() as unknown[]).length, 1);
 
-    const received = await fetch(`${baseUrl}/sync/distributions/${distribution.id}/receive`, {
-      method: "POST",
-      headers: { ...headers(delegateToken), "Idempotency-Key": randomUUID() },
-      body: "{}",
-    });
-    assert.equal(received.status, 200);
-    const receivedBody = await received.json() as { status: string; deliveredById: string; deliveredAt: string | null };
-    assert.equal(receivedBody.status, "RECEIVED");
-    assert.equal(receivedBody.deliveredById, delegateId);
-    assert(receivedBody.deliveredAt);
+    const concurrentReceipts = await Promise.all([
+      fetch(`${baseUrl}/sync/distributions/${distribution.id}/receive`, {
+        method: "POST",
+        headers: { ...headers(managerToken), "Idempotency-Key": randomUUID() },
+        body: JSON.stringify({ deliveredAt: "2030-01-01T09:00:00.000Z" }),
+      }),
+      fetch(`${baseUrl}/sync/distributions/${distribution.id}/receive`, {
+        method: "POST",
+        headers: { ...headers(delegateToken), "Idempotency-Key": randomUUID() },
+        body: JSON.stringify({ deliveredAt: "2030-01-01T09:01:00.000Z" }),
+      }),
+    ]);
+    assert.deepEqual(
+      concurrentReceipts.map((response) => response.status).sort(),
+      [200, 409],
+      "concurrent delivery confirmations must have exactly one winner",
+    );
+    const winningResponse = concurrentReceipts.find((response) => response.status === 200);
+    assert(winningResponse);
+    const winningBody = await winningResponse.json() as {
+      id: string;
+      status: string;
+      deliveredById: string | null;
+      deliveredAt: string | null;
+    };
+    assert.equal(winningBody.id, distribution.id);
+    assert.equal(winningBody.status, "RECEIVED");
+    assert(winningBody.deliveredById);
+    assert(winningBody.deliveredAt);
+
+    const [storedDistribution] = await db.select().from(aidDistributionsTable)
+      .where(eq(aidDistributionsTable.id, distribution.id));
+    assert(storedDistribution);
+    assert.equal(storedDistribution.status, "RECEIVED");
+    assert.equal(storedDistribution.deliveredById, winningBody.deliveredById);
+    assert.equal(
+      storedDistribution.deliveredAt?.toISOString(),
+      new Date(winningBody.deliveredAt).toISOString(),
+    );
+    const receiveAuditRows = await db.select().from(syncAuditEvents).where(and(
+      eq(syncAuditEvents.entityId, distribution.id),
+      eq(syncAuditEvents.action, "RECEIVE"),
+    ));
+    assert.equal(receiveAuditRows.length, 1, "concurrent confirmations must create one receipt audit");
 
     const repeatedReceipt = await fetch(`${baseUrl}/sync/distributions/${distribution.id}/receive`, {
       method: "POST",
