@@ -29,6 +29,16 @@ function getLocalStorage(): DraftStorage | null {
   }
 }
 
+export function isNeedDraftStorageAvailable(storage: DraftStorage | null = getLocalStorage()): boolean {
+  if (!storage) return false;
+  try {
+    storage.getItem('__aqsa_need_draft_storage_probe__');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function getNeedDraftStorageKey(ownerId: string | number | null | undefined): string | null {
   if (ownerId === null || ownerId === undefined || String(ownerId).trim() === '') return null;
   return `aqsa-need-draft:${encodeURIComponent(String(ownerId))}`;
@@ -101,20 +111,24 @@ export function saveNeedDraft(
   draft: NeedDraft,
   storage: DraftStorage | null = getLocalStorage(),
   lastModifiedAt = Date.now(),
-): void {
-  if (!storage) return;
+): boolean {
+  if (!storage) return false;
   try {
     storage.setItem(storageKey, JSON.stringify({ ...draft, lastModifiedAt }));
+    return true;
   } catch {
     // A blocked or full browser storage must not interrupt form entry.
+    return false;
   }
 }
 
-export function clearNeedDraft(storageKey: string, storage: DraftStorage | null = getLocalStorage()): void {
-  if (!storage) return;
+export function clearNeedDraft(storageKey: string, storage: DraftStorage | null = getLocalStorage()): boolean {
+  if (!storage) return false;
   try {
     storage.removeItem(storageKey);
+    return true;
   } catch {
     // A blocked browser storage must not interrupt form reset or navigation.
+    return false;
   }
 }

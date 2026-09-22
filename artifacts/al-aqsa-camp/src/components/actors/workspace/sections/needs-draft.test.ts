@@ -6,6 +6,7 @@ import {
   clearNeedDraft,
   getNeedDraftStorageKey,
   hasNeedDraftContent,
+  isNeedDraftStorageAvailable,
   readNeedDraft,
   saveNeedDraft,
   type NeedDraft,
@@ -38,13 +39,27 @@ test('saves, restores, and clears a valid need draft', () => {
     description: 'جرعة أسبوعية',
   };
 
-  saveNeedDraft(key, draft, storage, 1_000);
+  assert.equal(saveNeedDraft(key, draft, storage, 1_000), true);
   assert.deepEqual(readNeedDraft(key, storage, 1_000 + NEED_DRAFT_RETENTION_MS - 1), draft);
   assert.deepEqual(JSON.parse(storage.getItem(key)!), { ...draft, lastModifiedAt: 1_000 });
   assert.equal(hasNeedDraftContent(draft), true);
 
-  clearNeedDraft(key, storage);
+  assert.equal(clearNeedDraft(key, storage), true);
   assert.equal(readNeedDraft(key, storage), null);
+});
+
+test('reports when browser storage cannot be used without throwing', () => {
+  const blockedStorage = {
+    getItem: () => { throw new Error('blocked'); },
+    setItem: () => { throw new Error('blocked'); },
+    removeItem: () => { throw new Error('blocked'); },
+  };
+  const draft: NeedDraft = { ...DEFAULT_NEED_DRAFT, title: 'طلب' };
+  const key = getNeedDraftStorageKey('MANAGER:42')!;
+
+  assert.equal(isNeedDraftStorageAvailable(blockedStorage), false);
+  assert.equal(saveNeedDraft(key, draft, blockedStorage), false);
+  assert.equal(clearNeedDraft(key, blockedStorage), false);
 });
 
 test('removes drafts that have exceeded the retention period', () => {

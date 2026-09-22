@@ -22,6 +22,7 @@ import {
   DEFAULT_NEED_DRAFT,
   getNeedDraftStorageKey,
   hasNeedDraftContent,
+  isNeedDraftStorageAvailable,
   NEED_DRAFT_RETENTION_LABEL,
   readNeedDraft,
   saveNeedDraft,
@@ -311,6 +312,8 @@ function NeedDetail({ id }: { id: string }) {
 }
 
 function NeedForm() {
+  type DraftSaveStatus = 'idle' | 'saved' | 'cleared' | 'unavailable';
+
   const [location, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -334,6 +337,7 @@ function NeedForm() {
   const [submitError, setSubmitError] = useState(false);
   const [draftScope, setDraftScope] = useState<string | null>(null);
   const [hasSavedDraft, setHasSavedDraft] = useState(false);
+  const [draftSaveStatus, setDraftSaveStatus] = useState<DraftSaveStatus>('idle');
 
   const ownerIdentity = user?.identity || (user?.id && user.id > 0 ? String(user.id) : '');
   const draftStorageKey = ownerIdentity
@@ -344,6 +348,7 @@ function NeedForm() {
     if (!draftStorageKey) {
       setDraftScope(null);
       setHasSavedDraft(false);
+      setDraftSaveStatus('idle');
       setFamilyId(DEFAULT_NEED_DRAFT.familyId || null);
       setCategory(DEFAULT_NEED_DRAFT.category);
       setPriority(DEFAULT_NEED_DRAFT.priority);
@@ -353,6 +358,8 @@ function NeedForm() {
     }
 
     setDraftScope(null);
+    setDraftSaveStatus('idle');
+    const storageAvailable = isNeedDraftStorageAvailable();
     const draft = readNeedDraft(draftStorageKey);
     const nextDraft = draft ?? DEFAULT_NEED_DRAFT;
     setFamilyId(nextDraft.familyId || null);
@@ -361,6 +368,7 @@ function NeedForm() {
     setTitle(nextDraft.title);
     setDescription(nextDraft.description);
     setHasSavedDraft(Boolean(draft));
+    setDraftSaveStatus(!storageAvailable ? 'unavailable' : draft ? 'saved' : 'idle');
     setDraftScope(draftStorageKey);
   }, [draftStorageKey]);
 
@@ -376,16 +384,22 @@ function NeedForm() {
     };
 
     if (hasNeedDraftContent(draft)) {
-      saveNeedDraft(draftStorageKey, draft);
+      const saved = saveNeedDraft(draftStorageKey, draft);
       setHasSavedDraft(true);
+      setDraftSaveStatus(saved ? 'saved' : 'unavailable');
     } else {
-      clearNeedDraft(draftStorageKey);
+      const cleared = clearNeedDraft(draftStorageKey);
       setHasSavedDraft(false);
+      if (!cleared) {
+        setDraftSaveStatus('unavailable');
+      } else {
+        setDraftSaveStatus((current) => current === 'idle' ? 'idle' : 'cleared');
+      }
     }
-  }, [category, description, draftScope, draftStorageKey, familyId, priority, title]);
+  }, [category, description, draftSaveStatus, draftScope, draftStorageKey, familyId, priority, title]);
 
   const handleClearDraft = () => {
-    if (draftStorageKey) clearNeedDraft(draftStorageKey);
+    const cleared = draftStorageKey ? clearNeedDraft(draftStorageKey) : false;
     setFamilyId(null);
     setCategory(DEFAULT_NEED_DRAFT.category);
     setPriority(DEFAULT_NEED_DRAFT.priority);
@@ -393,6 +407,7 @@ function NeedForm() {
     setDescription('');
     setSubmitError(false);
     setHasSavedDraft(false);
+    setDraftSaveStatus(cleared ? 'cleared' : 'unavailable');
   };
   
   const handleSubmit = () => {
@@ -439,6 +454,28 @@ function NeedForm() {
         <Text size="xs" c="dimmed">
           تُحفظ المسودة محليًا على هذا الجهاز وتُحذف تلقائيًا بعد {NEED_DRAFT_RETENTION_LABEL} من آخر تعديل.
         </Text>
+          {draftSaveStatus !== 'idle' && (
+            <div
+              role="status"
+              aria-live="polite"
+              className={`flex items-start gap-2 rounded-md px-3 py-2 text-sm ${
+                draftSaveStatus === 'saved'
+                  ? 'bg-teal-50 text-teal-700'
+                  : draftSaveStatus === 'cleared'
+                    ? 'bg-gray-50 text-gray-600'
+                    : 'bg-amber-50 text-amber-700'
+              }`}
+            >
+              {draftSaveStatus === 'saved' ? <CheckCircle2 size={18} className="mt-0.5 shrink-0" /> : <AlertCircle size={18} className="mt-0.5 shrink-0" />}
+              <span>
+                {draftSaveStatus === 'saved'
+                  ? 'تم حفظ مسودة الاحتياج تلقائيًا على هذا الجهاز.'
+                  : draftSaveStatus === 'cleared'
+                    ? 'تم مسح مسودة الاحتياج من هذا الجهاز.'
+                    : 'تعذر حفظ المسودة تلقائيًا على هذا الجهاز. يمكنك متابعة إدخال البيانات، لكن لن تُستعاد بعد مغادرة الصفحة.'}
+              </span>
+            </div>
+          )}
          {hasSavedDraft && (
            <Alert color="blue" icon={<AlertCircle size={18} />} title="تم استعادة مسودة محفوظة">
              <div className="flex flex-wrap items-center justify-between gap-3">
