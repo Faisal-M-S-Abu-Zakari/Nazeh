@@ -626,7 +626,7 @@ test('shows a delivery failure on only the affected distribution and retries it 
   await context.close();
 });
 
-test('keeps concurrent delivery confirmations tied to their own distribution rows', async ({
+test('retries a failed delivery without clearing another pending delivery', async ({
   browser,
 }) => {
   const context = await browser.newContext();
@@ -657,23 +657,48 @@ test('keeps concurrent delivery confirmations tied to their own distribution row
   const successfulButton = successfulRow.getByRole('button', { name: 'تأكيد التسليم' });
   const failedAlert = failedRow.getByText('تعذر تأكيد التسليم', { exact: true });
 
+  const failedRequestStarted = page.waitForRequest(
+    (request) =>
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname ===
+        `/api/sync/distributions/${distributionId}/receive`,
+  );
   await failedButton.click();
+  await failedRequestStarted;
+
+  const successfulRequestStarted = page.waitForRequest(
+    (request) =>
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname ===
+        `/api/sync/distributions/${secondDistributionId}/receive`,
+  );
   await successfulButton.click();
+  await successfulRequestStarted;
   await expect.poll(() => state.receiveAttempts).toBe(2);
   await expect(failedButton).toBeDisabled();
   await expect(successfulButton).toBeDisabled();
-  await expect(failedAlert).toHaveCount(0);
-
-  releaseSuccessfulResponse();
-  await expect(successfulRow.getByText('تم التسليم', { exact: true })).toBeVisible();
-  await expect(failedButton).toBeDisabled();
+  await expect(successfulButton.locator('[aria-hidden="true"]')).toBeVisible();
   await expect(failedAlert).toHaveCount(0);
 
   releaseFailedResponse();
   await expect(failedAlert).toBeVisible();
   await expect(failedButton).toBeEnabled();
+  await expect(successfulButton).toBeDisabled();
+  await expect(successfulButton.locator('[aria-hidden="true"]')).toBeVisible();
+
+  await failedButton.click();
+  await expect(failedRow.getByText('تم التسليم', { exact: true })).toBeVisible();
+  await expect(failedAlert).toHaveCount(0);
+  await expect(successfulButton).toBeDisabled();
+  await expect(successfulButton.locator('[aria-hidden="true"]')).toBeVisible();
+  await expect(successfulRow.getByText('مُخصص للتسليم', { exact: true })).toBeVisible();
+  await expect(successfulRow.getByText('تم التسليم', { exact: true })).toHaveCount(0);
+  expect(state.receiveAttemptsById[distributionId]).toBe(2);
+
+  releaseSuccessfulResponse();
   await expect(successfulRow.getByText('تم التسليم', { exact: true })).toBeVisible();
   await expect(successfulRow.getByText('تعذر تأكيد التسليم', { exact: true })).toHaveCount(0);
+  expect(state.receiveAttemptsById[secondDistributionId]).toBe(1);
 
   await context.close();
 });
