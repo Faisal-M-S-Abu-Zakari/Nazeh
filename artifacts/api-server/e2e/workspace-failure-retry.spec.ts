@@ -11,7 +11,9 @@ const email = `task53-browser-${randomUUID()}@example.invalid`;
 
 const familyId = 'family-task53';
 const needId = 'need-task53';
+const alternateNeedId = 'need-task63-other';
 const aidId = 'aid-task53';
+const alternateAidId = 'aid-task63-other';
 const distributionId = 'distribution-task53';
 
 const family = {
@@ -50,6 +52,13 @@ const baseNeed = {
   updatedAt: '2026-09-21T08:00:00.000Z',
 };
 
+const alternateNeed = {
+  ...baseNeed,
+  id: alternateNeedId,
+  title: 'مياه للشرب',
+  description: 'احتياج آخر للاختبار',
+};
+
 const aid = {
   id: aidId,
   title: 'طرود غذائية',
@@ -67,6 +76,14 @@ const aid = {
   version: 1,
   distributionCount: 1,
   receivedDistributionCount: 0,
+};
+
+const alternateAid = {
+  ...aid,
+  id: alternateAidId,
+  title: 'بطانيات شتوية',
+  location: 'المستودع الفرعي',
+  distributionCount: 0,
 };
 
 const assignedDistribution = {
@@ -116,16 +133,21 @@ async function mockWorkspaceApi(page: Page, state: WorkspaceState) {
     }
 
     if (request.method() === 'GET' && url.pathname === '/api/sync/aids') {
-      await json(route, 200, [aid]);
+      await json(route, 200, [aid, alternateAid]);
       return;
     }
 
-    if (
-      request.method() === 'GET' &&
-      url.pathname === `/api/sync/aids/${aidId}/distributions`
-    ) {
-      await json(route, 200, state.distributions);
-      return;
+    if (request.method() === 'GET' && url.pathname.startsWith('/api/sync/aids/')) {
+      if (url.pathname.endsWith('/distributions')) {
+        await json(
+          route,
+          200,
+          url.pathname === `/api/sync/aids/${aidId}/distributions`
+            ? state.distributions
+            : [],
+        );
+        return;
+      }
     }
 
     if (
@@ -201,7 +223,7 @@ function newWorkspaceState(
   overrides: Partial<WorkspaceState> = {},
 ): WorkspaceState {
   return {
-    needs: [baseNeed],
+    needs: [baseNeed, alternateNeed],
     distributions: [],
     updateNeedAttempts: 0,
     assignAttempts: 0,
@@ -260,6 +282,28 @@ test('failed need status update keeps the dialog, note, and selected status', as
   await context.close();
 });
 
+test('failed need status update is hidden after navigating to another need', async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const state = newWorkspaceState();
+  await mockWorkspaceApi(page, state);
+  await login(page);
+
+  await page.goto(`${webUrl}/actor/needs/${needId}`);
+  await page.getByRole('button', { name: 'موافقة مبدئية' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'تأكيد التحديث' }).click();
+  await expect(dialog.getByText('تعذر تحديث حالة الطلب', { exact: true })).toBeVisible();
+
+  await page.goto(`${webUrl}/actor/needs/${alternateNeedId}`);
+  await expect(page.getByText('مياه للشرب', { exact: true })).toBeVisible();
+  await expect(page.getByText('تعذر تحديث حالة الطلب', { exact: true })).toHaveCount(0);
+
+  await context.close();
+});
+
 test('failed aid assignment keeps the family, need, and quantity inputs', async ({
   browser,
 }) => {
@@ -299,6 +343,32 @@ test('failed aid assignment keeps the family, need, and quantity inputs', async 
   await context.close();
 });
 
+test('failed aid assignment is hidden after navigating to another aid', async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const state = newWorkspaceState();
+  await mockWorkspaceApi(page, state);
+  await login(page);
+
+  await page.goto(`${webUrl}/actor/aids/${aidId}`);
+  const familySelect = page.getByRole('textbox', { name: 'الأسرة' });
+  await familySelect.click();
+  await page.getByRole('option', { name: 'أسرة النور' }).click();
+  const needSelect = page.getByRole('textbox', { name: 'طلب الاحتياج' });
+  await needSelect.click();
+  await page.getByRole('option', { name: 'حليب أطفال' }).click();
+  await page.getByRole('button', { name: 'حفظ التخصيص' }).click();
+  await expect(page.getByText('تعذر تخصيص المساعدة', { exact: true })).toBeVisible();
+
+  await page.goto(`${webUrl}/actor/aids/${alternateAidId}`);
+  await expect(page.getByRole('heading', { name: 'بطانيات شتوية' })).toBeVisible();
+  await expect(page.getByText('تعذر تخصيص المساعدة', { exact: true })).toHaveCount(0);
+
+  await context.close();
+});
+
 test('failed delivery confirmation clears its alert after a successful retry', async ({
   browser,
 }) => {
@@ -319,6 +389,26 @@ test('failed delivery confirmation clears its alert after a successful retry', a
   await expect(receiveAlert).toHaveCount(0);
   await expect(page.getByText('تم التسليم', { exact: true })).toBeVisible();
   expect(state.receiveAttempts).toBe(2);
+
+  await context.close();
+});
+
+test('failed delivery confirmation is hidden after navigating to another aid', async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const state = newWorkspaceState({ distributions: [assignedDistribution] });
+  await mockWorkspaceApi(page, state);
+  await login(page);
+
+  await page.goto(`${webUrl}/actor/aids/${aidId}`);
+  await page.getByRole('button', { name: 'تأكيد التسليم' }).click();
+  await expect(page.getByText('تعذر تأكيد التسليم', { exact: true })).toBeVisible();
+
+  await page.goto(`${webUrl}/actor/aids/${alternateAidId}`);
+  await expect(page.getByRole('heading', { name: 'بطانيات شتوية' })).toBeVisible();
+  await expect(page.getByText('تعذر تأكيد التسليم', { exact: true })).toHaveCount(0);
 
   await context.close();
 });

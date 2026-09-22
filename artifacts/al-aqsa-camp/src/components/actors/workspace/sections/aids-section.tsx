@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useListAids, getListAidsQueryKey, useCreateAid, useListAidDistributions, getListAidDistributionsQueryKey, useListNeeds, getListNeedsQueryKey, useListFamilies, getListFamiliesQueryKey, useCreateAidDistribution, useReceiveAidDistribution } from '@workspace/api-client-react';
 import { Link, useLocation } from 'wouter';
 import { Alert, Button, Card, Table, Text, Badge, ActionIcon, TextInput, Title, Select, NumberInput } from '@mantine/core';
@@ -178,11 +178,18 @@ function AidDetail({ id }: { id: string }) {
   const [assignQty, setAssignQty] = useState<number | ''>(1);
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
   const [receiveError, setReceiveError] = useState<string | null>(null);
+  const activeAidIdRef = useRef(id);
   
   // Mutations
   const createDist = useCreateAidDistribution();
   const receiveDist = useReceiveAidDistribution();
   
+  useEffect(() => {
+    activeAidIdRef.current = id;
+    setAssignmentError(null);
+    setReceiveError(null);
+  }, [id]);
+
   const aid = (aidsList || []).find(a => a.id === id);
 
   if (aidsLoading || distsLoading) return <LoadingState message="جاري تحميل التفاصيل..." />;
@@ -195,6 +202,7 @@ function AidDetail({ id }: { id: string }) {
   const handleAssign = () => {
     if (!targetFamilyId || !targetNeedId || !assignQty || assignQty <= 0) return;
     setAssignmentError(null);
+    const requestAidId = id;
     createDist.mutate({
       aidId: id,
       data: {
@@ -204,6 +212,7 @@ function AidDetail({ id }: { id: string }) {
       }
     }, {
       onSuccess: () => {
+        if (activeAidIdRef.current !== requestAidId) return;
         setAssignmentError(null);
         setTargetFamilyId(null);
         setTargetNeedId(null);
@@ -211,6 +220,7 @@ function AidDetail({ id }: { id: string }) {
         queryClient.invalidateQueries({ queryKey: getListAidDistributionsQueryKey(id) });
       },
       onError: (error) => {
+        if (activeAidIdRef.current !== requestAidId) return;
         setAssignmentError(getOperationErrorMessage(error, 'aid-assignment'));
       }
     });
@@ -218,12 +228,15 @@ function AidDetail({ id }: { id: string }) {
 
   const handleReceive = (distId: string) => {
     setReceiveError(null);
+    const requestAidId = id;
     receiveDist.mutate({ distributionId: distId, data: {} }, {
       onSuccess: () => {
+        if (activeAidIdRef.current !== requestAidId) return;
         setReceiveError(null);
         queryClient.invalidateQueries({ queryKey: getListAidDistributionsQueryKey(id) });
       },
       onError: (error) => {
+        if (activeAidIdRef.current !== requestAidId) return;
         setReceiveError(getOperationErrorMessage(error, 'aid-receipt'));
       }
     });

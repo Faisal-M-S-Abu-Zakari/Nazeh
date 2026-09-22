@@ -178,6 +178,7 @@ function NeedDetail({ id }: { id: string }) {
   const [updateNote, setUpdateNote] = useState('');
   const [newStatus, setNewStatus] = useState<string>('');
   const [updateError, setUpdateError] = useState<string | null>(null);
+  const activeNeedIdRef = useRef(id);
   
   const { data: needs, isLoading } = useListNeeds({ 
     query: { queryKey: getListNeedsQueryKey() } 
@@ -185,6 +186,14 @@ function NeedDetail({ id }: { id: string }) {
   
   const updateNeed = useUpdateNeed();
   
+  useEffect(() => {
+    activeNeedIdRef.current = id;
+    setUpdateError(null);
+    setUpdateModalOpen(false);
+    setUpdateNote('');
+    setNewStatus('');
+  }, [id]);
+
   const need = (needs || []).find(n => n.id === id);
 
   if (isLoading) return <LoadingState message="جاري تحميل تفاصيل الطلب..." />;
@@ -193,16 +202,19 @@ function NeedDetail({ id }: { id: string }) {
   const handleStatusUpdate = () => {
     if (!newStatus) return;
     setUpdateError(null);
+    const requestNeedId = id;
     updateNeed.mutate({ 
       needId: need.id, 
       data: { status: newStatus as any, note: updateNote, expectedVersion: need.version } 
     }, {
       onSuccess: () => {
+         if (activeNeedIdRef.current !== requestNeedId) return;
          setUpdateError(null);
         setUpdateModalOpen(false);
         queryClient.invalidateQueries({ queryKey: getListNeedsQueryKey() });
        },
        onError: (error) => {
+         if (activeNeedIdRef.current !== requestNeedId) return;
          setUpdateError(getOperationErrorMessage(error, 'need-status'));
       }
     });
