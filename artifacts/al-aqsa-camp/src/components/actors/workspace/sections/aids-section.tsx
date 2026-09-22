@@ -23,7 +23,7 @@ export default function AidsSection({ params }: { params?: Record<string, string
   }
 
   if (params?.id) {
-    return <AidDetail id={params.id} />;
+    return <AidDetail key={params.id} id={params.id} />;
   }
 
   return <AidsList />;

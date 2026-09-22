@@ -47,7 +47,7 @@ export default function NeedsSection({ params }: { params?: Record<string, strin
   }
 
   if (params?.id) {
-    return <NeedDetail id={params.id} />;
+    return <NeedDetail key={params.id} id={params.id} />;
   }
 
   return <NeedsList />;
