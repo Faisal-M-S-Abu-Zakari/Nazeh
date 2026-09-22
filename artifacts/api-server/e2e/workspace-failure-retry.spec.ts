@@ -10,11 +10,13 @@ const userId = randomUUID();
 const email = `task53-browser-${randomUUID()}@example.invalid`;
 
 const familyId = 'family-task53';
+const secondFamilyId = 'family-task53-second';
 const needId = 'need-task53';
 const alternateNeedId = 'need-task63-other';
 const aidId = 'aid-task53';
 const alternateAidId = 'aid-task63-other';
 const distributionId = 'distribution-task53';
+const secondDistributionId = 'distribution-task53-second';
 
 const family = {
   id: familyId,
@@ -33,6 +35,12 @@ const family = {
   version: 1,
   createdAt: '2026-09-21T08:00:00.000Z',
   updatedAt: '2026-09-21T08:00:00.000Z',
+};
+
+const secondFamily = {
+  ...family,
+  id: secondFamilyId,
+  headName: 'أسرة السلام',
 };
 
 const baseNeed = {
@@ -101,12 +109,20 @@ const assignedDistribution = {
   updatedAt: '2026-09-21T08:00:00.000Z',
 };
 
+const secondAssignedDistribution = {
+  ...assignedDistribution,
+  id: secondDistributionId,
+  familyId: secondFamilyId,
+};
+
 type WorkspaceState = {
   needs: typeof baseNeed[];
+  families: typeof family[];
   distributions: typeof assignedDistribution[];
   updateNeedAttempts: number;
   assignAttempts: number;
   receiveAttempts: number;
+  receiveAttemptsById: Record<string, number>;
 };
 
 const json = async (route: Route, status: number, body: unknown) => {
@@ -123,7 +139,7 @@ async function mockWorkspaceApi(page: Page, state: WorkspaceState) {
     const url = new URL(request.url());
 
     if (request.method() === 'GET' && url.pathname === '/api/sync/families') {
-      await json(route, 200, [family]);
+      await json(route, 200, state.families);
       return;
     }
 
@@ -185,24 +201,38 @@ async function mockWorkspaceApi(page: Page, state: WorkspaceState) {
       return;
     }
 
-    if (
-      request.method() === 'POST' &&
-      url.pathname === `/api/sync/distributions/${distributionId}/receive`
-    ) {
+    const receiveMatch = url.pathname.match(/^\/api\/sync\/distributions\/([^/]+)\/receive$/);
+    if (request.method() === 'POST' && receiveMatch) {
+      const requestedDistributionId = receiveMatch[1];
       state.receiveAttempts += 1;
-      if (state.receiveAttempts === 1) {
+      state.receiveAttemptsById[requestedDistributionId] =
+        (state.receiveAttemptsById[requestedDistributionId] || 0) + 1;
+      if (
+        requestedDistributionId === distributionId &&
+        state.receiveAttemptsById[requestedDistributionId] === 1
+      ) {
         await json(route, 500, { error: 'temporary failure' });
         return;
       }
 
+      const existingDistribution = state.distributions.find(
+        (distribution) => distribution.id === requestedDistributionId,
+      );
+      if (!existingDistribution) {
+        await json(route, 404, { error: 'distribution not found' });
+        return;
+      }
+
       const distribution = {
-        ...assignedDistribution,
+        ...existingDistribution,
         status: 'RECEIVED',
         deliveredById: userId,
         deliveredAt: '2026-09-21T09:00:00.000Z',
         updatedAt: '2026-09-21T09:00:00.000Z',
       };
-      state.distributions = [distribution];
+      state.distributions = state.distributions.map((currentDistribution) =>
+        currentDistribution.id === requestedDistributionId ? distribution : currentDistribution,
+      );
       await json(route, 200, distribution);
       return;
     }
@@ -224,10 +254,12 @@ function newWorkspaceState(
 ): WorkspaceState {
   return {
     needs: [baseNeed, alternateNeed],
+    families: [family],
     distributions: [],
     updateNeedAttempts: 0,
     assignAttempts: 0,
     receiveAttempts: 0,
+    receiveAttemptsById: {},
     ...overrides,
   };
 }
@@ -365,6 +397,46 @@ test('failed aid assignment is hidden after navigating to another aid', async ({
   await page.goto(`${webUrl}/actor/aids/${alternateAidId}`);
   await expect(page.getByRole('heading', { name: 'بطانيات شتوية' })).toBeVisible();
   await expect(page.getByText('تعذر تخصيص المساعدة', { exact: true })).toHaveCount(0);
+
+  await context.close();
+});
+
+test('shows a delivery failure on only the affected distribution and retries it independently', async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const state = newWorkspaceState({
+    families: [family, secondFamily],
+    distributions: [assignedDistribution, secondAssignedDistribution],
+  });
+  await mockWorkspaceApi(page, state);
+  await login(page);
+
+  await page.goto(`${webUrl}/actor/aids/${aidId}`);
+  await expect(page.getByRole('button', { name: 'تأكيد التسليم' })).toHaveCount(2);
+
+  const failedRow = page.getByTestId(`distribution-row-${distributionId}`);
+  const unaffectedRow = page.getByTestId(`distribution-row-${secondDistributionId}`);
+  const failedAlert = failedRow.getByText('تعذر تأكيد التسليم', { exact: true });
+  const unaffectedAlert = unaffectedRow.getByText('تعذر تأكيد التسليم', { exact: true });
+
+  await failedRow.getByRole('button', { name: 'تأكيد التسليم' }).click();
+  await expect(failedAlert).toBeVisible();
+  await expect(unaffectedAlert).toHaveCount(0);
+  await expect(
+    unaffectedRow.getByRole('button', { name: 'تأكيد التسليم' }),
+  ).toBeEnabled();
+
+  await unaffectedRow.getByRole('button', { name: 'تأكيد التسليم' }).click();
+  await expect(unaffectedRow.getByText('تم التسليم', { exact: true })).toBeVisible();
+  await expect(failedAlert).toBeVisible();
+  expect(state.receiveAttemptsById[secondDistributionId]).toBe(1);
+
+  await failedRow.getByRole('button', { name: 'تأكيد التسليم' }).click();
+  await expect(failedRow.getByText('تم التسليم', { exact: true })).toBeVisible();
+  await expect(failedAlert).toHaveCount(0);
+  expect(state.receiveAttemptsById[distributionId]).toBe(2);
 
   await context.close();
 });

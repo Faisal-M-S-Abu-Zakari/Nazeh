@@ -177,17 +177,19 @@ function AidDetail({ id }: { id: string }) {
   const [targetNeedId, setTargetNeedId] = useState<string | null>(null);
   const [assignQty, setAssignQty] = useState<number | ''>(1);
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
-  const [receiveError, setReceiveError] = useState<string | null>(null);
+  const [receiveErrors, setReceiveErrors] = useState<Record<string, string>>({});
+  const [receivingDistributionIds, setReceivingDistributionIds] = useState<Set<string>>(new Set());
   const activeAidIdRef = useRef(id);
   
   // Mutations
   const createDist = useCreateAidDistribution();
   const receiveDist = useReceiveAidDistribution();
-  
+
   useEffect(() => {
     activeAidIdRef.current = id;
     setAssignmentError(null);
-    setReceiveError(null);
+    setReceiveErrors({});
+    setReceivingDistributionIds(new Set());
   }, [id]);
 
   const aid = (aidsList || []).find(a => a.id === id);
@@ -227,17 +229,39 @@ function AidDetail({ id }: { id: string }) {
   };
 
   const handleReceive = (distId: string) => {
-    setReceiveError(null);
+    setReceiveErrors((current) => {
+      const next = { ...current };
+      delete next[distId];
+      return next;
+    });
+    setReceivingDistributionIds((current) => new Set(current).add(distId));
     const requestAidId = id;
     receiveDist.mutate({ distributionId: distId, data: {} }, {
       onSuccess: () => {
         if (activeAidIdRef.current !== requestAidId) return;
-        setReceiveError(null);
+        setReceiveErrors((current) => {
+          const next = { ...current };
+          delete next[distId];
+          return next;
+        });
+        setReceivingDistributionIds((current) => {
+          const next = new Set(current);
+          next.delete(distId);
+          return next;
+        });
         queryClient.invalidateQueries({ queryKey: getListAidDistributionsQueryKey(id) });
       },
       onError: (error) => {
         if (activeAidIdRef.current !== requestAidId) return;
-        setReceiveError(getOperationErrorMessage(error, 'aid-receipt'));
+        setReceiveErrors((current) => ({
+          ...current,
+          [distId]: getOperationErrorMessage(error, 'aid-receipt'),
+        }));
+        setReceivingDistributionIds((current) => {
+          const next = new Set(current);
+          next.delete(distId);
+          return next;
+        });
       }
     });
   };
@@ -316,32 +340,34 @@ function AidDetail({ id }: { id: string }) {
           
           <div>
              <Title order={4} className="font-display mb-4 text-sidebar">سجل التوزيع الحالي</Title>
-             {receiveError && (
-               <Alert color="red" icon={<AlertCircle size={18} />} title="تعذر تأكيد التسليم" className="mb-4">
-                {receiveError}
-               </Alert>
-             )}
              <div className="space-y-3">
                {dists.length > 0 ? dists.map(dist => (
-                 <div key={dist.id} className="flex justify-between items-center p-3 rounded-lg border border-border">
-                   <div>
-                     <Text fw={600} size="sm">
-                       {(families.data || []).find(f => f.id === dist.familyId)?.headName || dist.familyId.slice(0, 8)}
-                     </Text>
-                     <Text size="xs" c="dimmed">
-                       الكمية: {dist.quantity} {dist.unit} · {dayjs(dist.createdAt).format('DD MMM YYYY')}
-                     </Text>
-                   </div>
-                   <div className="flex items-center gap-3">
-                     <Badge color={distStatusColors[dist.status]} variant="light">
-                       {distStatusLabels[dist.status]}
-                     </Badge>
-                     {dist.status === 'ASSIGNED' && (
-                       <Button size="xs" color="teal" onClick={() => handleReceive(dist.id)} loading={receiveDist.isPending}>
-                         تأكيد التسليم
-                       </Button>
-                     )}
-                   </div>
+                  <div key={dist.id} data-testid={`distribution-row-${dist.id}`} className="p-3 rounded-lg border border-border space-y-2">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <Text fw={600} size="sm">
+                          {(families.data || []).find(f => f.id === dist.familyId)?.headName || dist.familyId.slice(0, 8)}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          الكمية: {dist.quantity} {dist.unit} · {dayjs(dist.createdAt).format('DD MMM YYYY')}
+                        </Text>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Badge color={distStatusColors[dist.status]} variant="light">
+                          {distStatusLabels[dist.status]}
+                        </Badge>
+                        {dist.status === 'ASSIGNED' && (
+                          <Button size="xs" color="teal" onClick={() => handleReceive(dist.id)} loading={receivingDistributionIds.has(dist.id)}>
+                            تأكيد التسليم
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    {receiveErrors[dist.id] && (
+                      <Alert color="red" icon={<AlertCircle size={18} />} title="تعذر تأكيد التسليم">
+                        {receiveErrors[dist.id]}
+                      </Alert>
+                    )}
                  </div>
                )) : (
                  <Text c="dimmed" size="sm" className="text-center py-4">لم يتم تخصيص أي كميات بعد.</Text>

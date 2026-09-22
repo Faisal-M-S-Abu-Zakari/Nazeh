@@ -10,6 +10,12 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   use: {
     viewport: { width: 1280, height: 900 },
+    launchOptions: {
+      executablePath:
+        process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ??
+        process.env.REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE ??
+        '/repl/tools/bin/chromium',
+    },
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
