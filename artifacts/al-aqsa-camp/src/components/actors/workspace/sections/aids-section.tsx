@@ -190,6 +190,7 @@ function AidDetail({ id }: { id: string }) {
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
   const [receiveErrors, setReceiveErrors] = useState<Record<string, string>>({});
   const [receivingDistributionIds, setReceivingDistributionIds] = useState<Set<string>>(new Set());
+  const [confirmedDistributionIds, setConfirmedDistributionIds] = useState<Set<string>>(new Set());
   const receivingDistributionIdsRef = useRef<Set<string>>(new Set());
   const activeAidIdRef = useRef(id);
   const [draftScope, setDraftScope] = useState<string | null>(null);
@@ -209,6 +210,7 @@ function AidDetail({ id }: { id: string }) {
     setReceiveErrors({});
     receivingDistributionIdsRef.current.clear();
     setReceivingDistributionIds(new Set());
+    setConfirmedDistributionIds(new Set());
   }, [id]);
 
   useEffect(() => {
@@ -251,7 +253,9 @@ function AidDetail({ id }: { id: string }) {
   if (aidsError || distsError) return <ErrorState message="حدث خطأ أثناء تحميل بيانات المساعدة." />;
   if (!aid) return <ErrorState message="تعذر العثور على المساعدة." />;
 
-  const dists = distsData || [];
+  const dists = (distsData || []).map((dist) =>
+    confirmedDistributionIds.has(dist.id) ? { ...dist, status: 'RECEIVED' as const } : dist,
+  );
   const assignedTotal = dists.reduce((acc, curr) => acc + curr.quantity, 0);
   const availableQty = aid.quantity - assignedTotal;
 
@@ -316,6 +320,7 @@ function AidDetail({ id }: { id: string }) {
           ) ?? [receivedDistribution],
       );
       receivingDistributionIdsRef.current.delete(distId);
+      setConfirmedDistributionIds((current) => new Set(current).add(distId));
       setReceiveErrors((current) => {
         const next = { ...current };
         delete next[distId];

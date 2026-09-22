@@ -115,6 +115,11 @@ const secondAssignedDistribution = {
   familyId: secondFamilyId,
 };
 
+type DistributionListResponse = {
+  distributions: typeof assignedDistribution[];
+  gate?: Promise<void>;
+};
+
 type WorkspaceState = {
   needs: typeof baseNeed[];
   families: typeof family[];
@@ -125,6 +130,7 @@ type WorkspaceState = {
   receiveAttempts: number;
   receiveAttemptsById: Record<string, number>;
   receiveResponseDelayMs?: number;
+  distributionListResponses?: DistributionListResponse[];
 };
 
 type Deferred = {
@@ -180,12 +186,18 @@ async function mockWorkspaceApi(
 
     if (request.method() === 'GET' && url.pathname.startsWith('/api/sync/aids/')) {
       if (url.pathname.endsWith('/distributions')) {
+        const response =
+          url.pathname === `/api/sync/aids/${aidId}/distributions`
+            ? state.distributionListResponses?.shift()
+            : undefined;
+        await response?.gate;
         await json(
           route,
           200,
-          url.pathname === `/api/sync/aids/${aidId}/distributions`
-            ? state.distributions
-            : [],
+          response?.distributions ??
+            (url.pathname === `/api/sync/aids/${aidId}/distributions`
+              ? state.distributions
+              : []),
         );
         return;
       }
@@ -860,6 +872,60 @@ test('keeps a delivered distribution after reloading the aid page', async ({
   ).toBeEnabled();
   expect(state.receiveAttemptsById[secondDistributionId]).toBe(1);
   expect(state.receiveAttemptsById[distributionId]).toBeUndefined();
+
+  await context.close();
+});
+
+test('keeps a delivered row after refetch while another delivery is pending', async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const distributionRefetch = createDeferred();
+  const secondDelivery = createDeferred();
+  const state = newWorkspaceState({
+    families: [family, secondFamily],
+    distributions: [assignedDistribution, secondAssignedDistribution],
+    receiveAttemptsById: { [distributionId]: 1 },
+    distributionListResponses: [
+      { distributions: [assignedDistribution, secondAssignedDistribution] },
+      {
+        distributions: [assignedDistribution, secondAssignedDistribution],
+        gate: distributionRefetch.promise,
+      },
+    ],
+    receiveGates: {
+      [secondDistributionId]: secondDelivery.promise,
+    },
+  });
+  await mockWorkspaceApi(page, state);
+  await login(page);
+
+  await page.goto(`${webUrl}/actor/aids/${aidId}`);
+  const deliveredRow = page.getByTestId(`distribution-row-${distributionId}`);
+  const pendingRow = page.getByTestId(`distribution-row-${secondDistributionId}`);
+  await expect(deliveredRow.getByRole('button', { name: 'تأكيد التسليم' })).toBeVisible();
+  await expect(pendingRow.getByRole('button', { name: 'تأكيد التسليم' })).toBeVisible();
+
+  const distributionRefetchStarted = page.waitForRequest(
+    (request) =>
+      request.method() === 'GET' &&
+      new URL(request.url()).pathname === `/api/sync/aids/${aidId}/distributions`,
+  );
+  await deliveredRow.getByRole('button', { name: 'تأكيد التسليم' }).click();
+  await distributionRefetchStarted;
+
+  await pendingRow.getByRole('button', { name: 'تأكيد التسليم' }).click();
+  await expect(pendingRow.getByRole('button', { name: 'تأكيد التسليم' })).toBeDisabled();
+
+  distributionRefetch.resolve();
+  await expect(deliveredRow.getByText('تم التسليم', { exact: true })).toBeVisible();
+  await expect(deliveredRow.getByRole('button', { name: 'تأكيد التسليم' })).toHaveCount(0);
+  await expect(pendingRow.getByRole('button', { name: 'تأكيد التسليم' })).toBeDisabled();
+
+  secondDelivery.resolve();
+  await expect(pendingRow.getByText('تم التسليم', { exact: true })).toBeVisible();
+  await expect(pendingRow.getByRole('button', { name: 'تأكيد التسليم' })).toHaveCount(0);
 
   await context.close();
 });
