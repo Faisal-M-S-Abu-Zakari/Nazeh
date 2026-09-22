@@ -8,6 +8,16 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/ar';
 import { useQueryClient } from '@tanstack/react-query';
 import { getOperationErrorMessage } from '@/utils/operationErrorMessage';
+import useAuth from '@/hooks/useAuth';
+import {
+  clearAidAssignmentDraft,
+  DEFAULT_AID_ASSIGNMENT_DRAFT,
+  getAidAssignmentDraftStorageKey,
+  hasAidAssignmentDraftContent,
+  readAidAssignmentDraft,
+  saveAidAssignmentDraft,
+  type AidAssignmentDraft,
+} from './aid-assignment-draft';
 
 dayjs.locale('ar');
 
@@ -159,6 +169,7 @@ function AidsList() {
 function AidDetail({ id }: { id: string }) {
   const [location, setLocation] = useLocation();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   
   // Queries
   const { data: aidsList, isLoading: aidsLoading } = useListAids({ 
@@ -181,10 +192,16 @@ function AidDetail({ id }: { id: string }) {
   const [receivingDistributionIds, setReceivingDistributionIds] = useState<Set<string>>(new Set());
   const receivingDistributionIdsRef = useRef<Set<string>>(new Set());
   const activeAidIdRef = useRef(id);
+  const [draftScope, setDraftScope] = useState<string | null>(null);
   
   // Mutations
   const createDist = useCreateAidDistribution();
   const receiveDist = useReceiveAidDistribution();
+  const ownerIdentity = user?.identity || (user?.id && user.id > 0 ? String(user.id) : '');
+  const assignmentDraftStorageKey = getAidAssignmentDraftStorageKey(
+    ownerIdentity ? `${user?.role ?? 'unknown'}:${ownerIdentity}` : null,
+    id,
+  );
 
   useEffect(() => {
     activeAidIdRef.current = id;
@@ -193,6 +210,40 @@ function AidDetail({ id }: { id: string }) {
     receivingDistributionIdsRef.current.clear();
     setReceivingDistributionIds(new Set());
   }, [id]);
+
+  useEffect(() => {
+    setDraftScope(null);
+    const draft = assignmentDraftStorageKey
+      ? readAidAssignmentDraft(assignmentDraftStorageKey)
+      : null;
+    const nextDraft = draft ?? DEFAULT_AID_ASSIGNMENT_DRAFT;
+    setTargetFamilyId(nextDraft.familyId || null);
+    setTargetNeedId(nextDraft.needId || null);
+    setAssignQty(nextDraft.quantity);
+    setDraftScope(assignmentDraftStorageKey);
+  }, [assignmentDraftStorageKey]);
+
+  useEffect(() => {
+    if (!assignmentDraftStorageKey || draftScope !== assignmentDraftStorageKey) return;
+
+    const draft: AidAssignmentDraft = {
+      familyId: targetFamilyId || '',
+      needId: targetNeedId || '',
+      quantity: assignQty,
+    };
+
+    if (hasAidAssignmentDraftContent(draft)) {
+      saveAidAssignmentDraft(assignmentDraftStorageKey, draft);
+    } else {
+      clearAidAssignmentDraft(assignmentDraftStorageKey);
+    }
+  }, [
+    assignQty,
+    assignmentDraftStorageKey,
+    draftScope,
+    targetFamilyId,
+    targetNeedId,
+  ]);
 
   const aid = (aidsList || []).find(a => a.id === id);
 
@@ -221,6 +272,9 @@ function AidDetail({ id }: { id: string }) {
         setTargetFamilyId(null);
         setTargetNeedId(null);
         setAssignQty(1);
+        if (assignmentDraftStorageKey) {
+          clearAidAssignmentDraft(assignmentDraftStorageKey);
+        }
         queryClient.invalidateQueries({ queryKey: getListAidDistributionsQueryKey(id) });
       },
       onError: (error) => {
@@ -228,6 +282,16 @@ function AidDetail({ id }: { id: string }) {
         setAssignmentError(getOperationErrorMessage(error, 'aid-assignment'));
       }
     });
+  };
+
+  const handleCancelAssignment = () => {
+    if (assignmentDraftStorageKey) {
+      clearAidAssignmentDraft(assignmentDraftStorageKey);
+    }
+    setTargetFamilyId(null);
+    setTargetNeedId(null);
+    setAssignQty(DEFAULT_AID_ASSIGNMENT_DRAFT.quantity);
+    setAssignmentError(null);
   };
 
   const handleReceive = async (distId: string) => {
@@ -332,6 +396,14 @@ function AidDetail({ id }: { id: string }) {
                   loading={createDist.isPending}
                 >
                   حفظ التخصيص
+                </Button>
+                <Button
+                  variant="outline"
+                  color="gray"
+                  onClick={handleCancelAssignment}
+                  disabled={createDist.isPending}
+                >
+                  إلغاء
                 </Button>
               </div>
             </div>

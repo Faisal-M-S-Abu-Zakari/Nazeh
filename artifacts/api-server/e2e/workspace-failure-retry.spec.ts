@@ -295,6 +295,9 @@ function newWorkspaceState(
     ...overrides,
   };
 }
+
+test.beforeAll(async () => {
+  expect(webUrl, 'Set WEB_E2E_URL to the running web artifact URL').toBeTruthy();
   const passwordHash = await bcrypt.hash(password, 12);
   await db.insert(staffUsers).values({
     id: userId,
@@ -513,6 +516,70 @@ test('late failed aid assignment stays hidden after navigating to another aid', 
 
   delayedFailure.resolve();
   await expect(page.getByText('تعذر تخصيص المساعدة', { exact: true })).toHaveCount(0);
+
+  await context.close();
+});
+
+test('keeps each aid assignment draft across browser history and clears it after cancel or save', async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const state = newWorkspaceState();
+  await mockWorkspaceApi(page, state);
+  await login(page);
+
+  await page.goto(`${webUrl}/actor/aids/${aidId}`);
+  const familySelect = page.getByRole('textbox', { name: 'الأسرة' });
+  const needSelect = page.getByRole('textbox', { name: 'طلب الاحتياج' });
+  const quantity = page.getByRole('textbox', { name: 'الكمية للتخصيص' });
+
+  await familySelect.click();
+  await page.getByRole('option', { name: 'أسرة النور' }).click();
+  await needSelect.click();
+  await page.getByRole('option', { name: 'حليب أطفال' }).click();
+  await quantity.fill('3');
+
+  await page.goto(`${webUrl}/actor/aids/${alternateAidId}`);
+  await expect(page.getByRole('textbox', { name: 'الأسرة' })).toHaveValue('');
+  await expect(page.getByRole('textbox', { name: 'طلب الاحتياج' })).toHaveValue('');
+  await expect(page.getByRole('textbox', { name: 'الكمية للتخصيص' })).toHaveValue('1');
+
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`/actor/aids/${aidId}$`));
+  await expect(page.getByRole('textbox', { name: 'الأسرة' })).toHaveValue('أسرة النور');
+  await expect(page.getByRole('textbox', { name: 'طلب الاحتياج' })).toHaveValue('حليب أطفال');
+  await expect(page.getByRole('textbox', { name: 'الكمية للتخصيص' })).toHaveValue('3');
+
+  await page.getByRole('button', { name: 'إلغاء' }).click();
+  await expect(page.getByRole('textbox', { name: 'الأسرة' })).toHaveValue('');
+  await expect(page.getByRole('textbox', { name: 'طلب الاحتياج' })).toHaveValue('');
+  await expect(page.getByRole('textbox', { name: 'الكمية للتخصيص' })).toHaveValue('1');
+
+  await page.goto(`${webUrl}/actor/aids/${alternateAidId}`);
+  await page.goBack();
+  await expect(page.getByRole('textbox', { name: 'الأسرة' })).toHaveValue('');
+  await expect(page.getByRole('textbox', { name: 'طلب الاحتياج' })).toHaveValue('');
+  await expect(page.getByRole('textbox', { name: 'الكمية للتخصيص' })).toHaveValue('1');
+
+  await familySelect.click();
+  await page.getByRole('option', { name: 'أسرة النور' }).click();
+  await needSelect.click();
+  await page.getByRole('option', { name: 'حليب أطفال' }).click();
+  await quantity.fill('2');
+  await page.getByRole('button', { name: 'حفظ التخصيص' }).click();
+  await expect(page.getByText('تعذر تخصيص المساعدة', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'حفظ التخصيص' }).click();
+  await expect(page.getByText('تعذر تخصيص المساعدة', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'الأسرة' })).toHaveValue('');
+  await expect(page.getByRole('textbox', { name: 'طلب الاحتياج' })).toHaveValue('');
+  await expect(page.getByRole('textbox', { name: 'الكمية للتخصيص' })).toHaveValue('1');
+
+  await page.goto(`${webUrl}/actor/aids/${alternateAidId}`);
+  await page.goBack();
+  await expect(page.getByRole('textbox', { name: 'الأسرة' })).toHaveValue('');
+  await expect(page.getByRole('textbox', { name: 'طلب الاحتياج' })).toHaveValue('');
+  await expect(page.getByRole('textbox', { name: 'الكمية للتخصيص' })).toHaveValue('1');
 
   await context.close();
 });
