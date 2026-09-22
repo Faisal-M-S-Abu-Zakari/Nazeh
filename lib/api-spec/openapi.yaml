@@ -748,6 +748,24 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/SimpleConflict" }
+  /sync/distributions/{distributionId}/cancel:
+    patch:
+      operationId: cancelAidDistribution
+      tags: [aids]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: distributionId, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: "#/components/parameters/OptionalIdempotencyKey"
+      responses:
+        "200":
+          description: Distribution cancellation recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AidDistribution" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/SimpleConflict" }
   /sync/people:
     get:
       operationId: listPeople

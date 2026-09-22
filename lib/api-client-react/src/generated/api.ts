@@ -4054,6 +4054,71 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getReceiveAidDistributionMutationOptions(options));
     }
 
+export const getCancelAidDistributionUrl = (distributionId: string,) => {
+
+
+
+
+  return `/api/sync/distributions/${distributionId}/cancel`
+}
+
+export const cancelAidDistribution = async (distributionId: string, options?: Parameters<typeof customFetch>[1]): Promise<AidDistribution> => {
+
+  return customFetch<AidDistribution>(getCancelAidDistributionUrl(distributionId),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelAidDistributionMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | SimpleConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelAidDistribution>>, TError,{distributionId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelAidDistribution>>, TError,{distributionId: string}, TContext> => {
+
+const mutationKey = ['cancelAidDistribution'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelAidDistribution>>, {distributionId: string}> = (props) => {
+          const {distributionId} = props ?? {};
+
+          return  cancelAidDistribution(distributionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelAidDistributionMutationResult = NonNullable<Awaited<ReturnType<typeof cancelAidDistribution>>>
+
+    export type CancelAidDistributionMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | SimpleConflictResponse>
+
+    export const useCancelAidDistribution = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | SimpleConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelAidDistribution>>, TError,{distributionId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelAidDistribution>>,
+        TError,
+        {distributionId: string},
+        TContext
+      > => {
+      return useMutation(getCancelAidDistributionMutationOptions(options));
+    }
+
 export const getListPeopleUrl = () => {
 
 

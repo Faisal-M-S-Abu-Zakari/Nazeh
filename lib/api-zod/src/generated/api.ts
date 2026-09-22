@@ -1487,6 +1487,37 @@ export const ReceiveAidDistributionResponse = zod.object({
 })
 
 
+export const CancelAidDistributionParams = zod.object({
+  "distributionId": zod.uuid()
+})
+
+export const cancelAidDistributionHeaderIdempotencyKeyMax = 200;
+
+
+
+export const CancelAidDistributionHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(cancelAidDistributionHeaderIdempotencyKeyMax).optional().describe('Optional caller-generated retry key (1–200 characters). Replays the original completed mutation response.')
+})
+
+
+
+
+export const CancelAidDistributionResponse = zod.object({
+  "id": zod.uuid(),
+  "aidId": zod.uuid(),
+  "needId": zod.uuid(),
+  "familyId": zod.uuid(),
+  "quantity": zod.int().min(1),
+  "unit": zod.string(),
+  "status": zod.enum(['ASSIGNED', 'RECEIVED', 'CANCELLED']),
+  "executedById": zod.uuid(),
+  "deliveredById": zod.uuid().nullable(),
+  "deliveredAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
 
 
 

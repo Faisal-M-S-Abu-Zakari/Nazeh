@@ -1,4 +1,6 @@
+import { sql } from "drizzle-orm";
 import {
+  check,
   date,
   index,
   integer,
@@ -290,6 +292,14 @@ export const aidDistributionsTable = pgTable(
     index("aid_distributions_family_idx").on(table.familyId),
     index("aid_distributions_need_idx").on(table.needId),
     index("aid_distributions_status_idx").on(table.status),
+    check(
+      "aid_distributions_delivery_fields_check",
+      sql`(
+        ("status" = 'RECEIVED' AND "delivered_by_id" IS NOT NULL AND "delivered_at" IS NOT NULL)
+        OR
+        ("status" IN ('ASSIGNED', 'CANCELLED') AND "delivered_by_id" IS NULL AND "delivered_at" IS NULL)
+      )`,
+    ),
   ],
 );
 

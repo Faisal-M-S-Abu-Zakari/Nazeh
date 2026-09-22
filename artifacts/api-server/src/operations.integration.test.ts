@@ -424,6 +424,36 @@ test("aid distributions link approved needs, prevent duplicate delivery, and rec
     const auditRows = await db.select().from(syncAuditEvents).where(eq(syncAuditEvents.entityId, distribution.id));
     assert(auditRows.some((row) => row.action === "DUPLICATE_ATTEMPT"));
     assert(auditRows.some((row) => row.action === "DUPLICATE_RECEIVE_ATTEMPT"));
+
+    const cancelled = await fetch(`${baseUrl}/sync/distributions/${distribution.id}/cancel`, {
+      method: "PATCH",
+      headers: { ...headers(managerToken), "Idempotency-Key": randomUUID() },
+    });
+    assert.equal(cancelled.status, 200);
+    const cancelledBody = await cancelled.json() as {
+      id: string;
+      status: string;
+      deliveredById: string | null;
+      deliveredAt: string | null;
+    };
+    assert.equal(cancelledBody.id, distribution.id);
+    assert.equal(cancelledBody.status, "CANCELLED");
+    assert.equal(cancelledBody.deliveredById, null);
+    assert.equal(cancelledBody.deliveredAt, null);
+
+    const [cancelledDistribution] = await db.select().from(aidDistributionsTable)
+      .where(eq(aidDistributionsTable.id, distribution.id));
+    assert(cancelledDistribution);
+    assert.equal(cancelledDistribution.status, "CANCELLED");
+    assert.equal(cancelledDistribution.deliveredById, null);
+    assert.equal(cancelledDistribution.deliveredAt, null);
+    const finalAuditRows = await db.select().from(syncAuditEvents).where(eq(syncAuditEvents.entityId, distribution.id));
+    assert.equal(
+      finalAuditRows.filter((row) => row.action === "RECEIVE").length,
+      1,
+      "cancelling a received distribution must not create a new receipt audit",
+    );
+    assert.equal(finalAuditRows.filter((row) => row.action === "CANCEL").length, 1);
   } finally {
     await db.delete(aidDistributionsTable).where(eq(aidDistributionsTable.aidId, aidId));
     await db.delete(needStatusHistoryTable).where(inArray(needStatusHistoryTable.needId, [approvedNeedId, requiredNeedId]));

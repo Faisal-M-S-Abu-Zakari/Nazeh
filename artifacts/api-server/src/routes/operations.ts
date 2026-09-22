@@ -87,6 +87,8 @@ import {
   ReceiveAidDistributionBody,
   ReceiveAidDistributionParams,
   ReceiveAidDistributionResponse,
+  CancelAidDistributionParams,
+  CancelAidDistributionResponse,
 } from "@workspace/api-zod";
 import {
   aids,
@@ -1118,6 +1120,74 @@ router.post("/distributions/:distributionId/receive", allowRoles(...familyManage
       deliveredAt: updated.deliveredAt,
     });
     return { statusCode: 200, responseBody: ReceiveAidDistributionResponse.parse(updated) };
+  }, { required: false });
+  if (result) res.status(result.statusCode).json(result.responseBody);
+});
+
+router.patch("/distributions/:distributionId/cancel", allowRoles(...familyManagers, ...securityLeads), async (req, res): Promise<void> => {
+  const params = parseRequest(CancelAidDistributionParams, req.params, res);
+  if (!params) return;
+  const actorId = res.locals["staff"].id as string;
+  const staff = res.locals["staff"] as { id: string; role: StaffRole };
+  const result = await withIdempotency<unknown>(req, res, `cancelAidDistribution:${params.distributionId}`, async (tx) => {
+    const [current] = await tx
+      .select({ distribution: aidDistributionsTable, family: familiesTable })
+      .from(aidDistributionsTable)
+      .innerJoin(familiesTable, eq(aidDistributionsTable.familyId, familiesTable.id))
+      .where(eq(aidDistributionsTable.id, params.distributionId))
+      .limit(1);
+    if (!current || current.family.status !== "ACTIVE" || current.family.archivedAt) {
+      return { statusCode: 404, responseBody: { error: "Distribution not found", code: "AID_DISTRIBUTION_NOT_FOUND" } };
+    }
+    if (staff.role === "DELEGATE" && current.family.delegateId !== actorId) {
+      return { statusCode: 404, responseBody: { error: "Distribution not found", code: "AID_DISTRIBUTION_NOT_FOUND" } };
+    }
+    if (current.distribution.status === "CANCELLED") {
+      await audit(tx, actorId, "DUPLICATE_CANCEL_ATTEMPT", "AID_DISTRIBUTION", current.distribution.id, {
+        currentStatus: current.distribution.status,
+      });
+      return {
+        statusCode: 409,
+        responseBody: {
+          error: "This distribution has already been cancelled",
+          code: "AID_DISTRIBUTION_ALREADY_CANCELLED",
+          status: current.distribution.status,
+        },
+      };
+    }
+
+    const [updated] = await tx.update(aidDistributionsTable).set({
+      status: "CANCELLED",
+      deliveredById: null,
+      deliveredAt: null,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(aidDistributionsTable.id, params.distributionId),
+      inArray(aidDistributionsTable.status, ["ASSIGNED", "RECEIVED"]),
+    )).returning();
+    if (!updated) {
+      const [processed] = await tx
+        .select({ status: aidDistributionsTable.status })
+        .from(aidDistributionsTable)
+        .where(eq(aidDistributionsTable.id, params.distributionId))
+        .limit(1);
+      await audit(tx, actorId, "DUPLICATE_CANCEL_ATTEMPT", "AID_DISTRIBUTION", params.distributionId, {
+        currentStatus: processed?.status ?? "UNKNOWN",
+      });
+      return {
+        statusCode: 409,
+        responseBody: {
+          error: "This distribution has already been cancelled",
+          code: "AID_DISTRIBUTION_ALREADY_CANCELLED",
+          status: processed?.status,
+        },
+      };
+    }
+    await audit(tx, actorId, "CANCEL", "AID_DISTRIBUTION", updated.id, {
+      previousStatus: current.distribution.status,
+      clearedDeliveryConfirmation: Boolean(current.distribution.deliveredAt || current.distribution.deliveredById),
+    });
+    return { statusCode: 200, responseBody: CancelAidDistributionResponse.parse(updated) };
   }, { required: false });
   if (result) res.status(result.statusCode).json(result.responseBody);
 });
