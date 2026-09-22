@@ -172,10 +172,10 @@ function AidDetail({ id }: { id: string }) {
   const { user } = useAuth();
   
   // Queries
-  const { data: aidsList, isLoading: aidsLoading } = useListAids({ 
-    query: { queryKey: getListAidsQueryKey() } 
+  const { data: aidsList, isLoading: aidsLoading, error: aidsError } = useListAids({
+    query: { queryKey: [...getListAidsQueryKey(), id] },
   });
-  const { data: distsData, isLoading: distsLoading } = useListAidDistributions(id, {
+  const { data: distsData, isLoading: distsLoading, error: distsError } = useListAidDistributions(id, {
     query: { queryKey: getListAidDistributionsQueryKey(id), enabled: !!id }
   });
   
@@ -248,6 +248,7 @@ function AidDetail({ id }: { id: string }) {
   const aid = (aidsList || []).find(a => a.id === id);
 
   if (aidsLoading || distsLoading) return <LoadingState message="جاري تحميل التفاصيل..." />;
+  if (aidsError || distsError) return <ErrorState message="حدث خطأ أثناء تحميل بيانات المساعدة." />;
   if (!aid) return <ErrorState message="تعذر العثور على المساعدة." />;
 
   const dists = distsData || [];

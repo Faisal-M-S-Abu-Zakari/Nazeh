@@ -182,7 +182,7 @@ function NeedDetail({ id }: { id: string }) {
   const activeNeedIdRef = useRef(id);
   
   const { data: needs, isLoading } = useListNeeds({ 
-    query: { queryKey: getListNeedsQueryKey() } 
+    query: { queryKey: [...getListNeedsQueryKey(), id] },
   });
   
   const updateNeed = useUpdateNeed();

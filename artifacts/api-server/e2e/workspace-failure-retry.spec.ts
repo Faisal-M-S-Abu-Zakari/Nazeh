@@ -281,6 +281,13 @@ async function login(page: Page) {
   await expect(page).toHaveURL(/\/actor\/operations$/);
 }
 
+async function pushBrowserRoute(page: Page, path: string) {
+  await page.evaluate((nextPath) => {
+    window.history.pushState({}, '', nextPath);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, path);
+}
+
 function newWorkspaceState(
   overrides: Partial<WorkspaceState> = {},
 ): WorkspaceState {
@@ -376,6 +383,54 @@ test('failed need status update is hidden after navigating to another need', asy
   await expect(page).toHaveURL(new RegExp(`/actor/needs/${alternateNeedId}$`));
   await expect(page.getByText('مياه للشرب', { exact: true })).toBeVisible();
   await expect(page.getByText('تعذر تحديث حالة الطلب', { exact: true })).toHaveCount(0);
+
+  await context.close();
+});
+
+test('browser history keeps need loading and not-found states scoped to the current need', async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const state = newWorkspaceState();
+  await mockWorkspaceApi(page, state);
+  await login(page);
+
+  let delayNextNeedsRequest = false;
+  let delayedNeedsRoute: Route | null = null;
+  await page.route('**/api/sync/needs', async (route) => {
+    if (!delayNextNeedsRequest || route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+
+    delayNextNeedsRequest = false;
+    delayedNeedsRoute = route;
+  });
+
+  await page.goto(`${webUrl}/actor/needs/${needId}`);
+  await expect(page.getByRole('heading', { name: 'حليب أطفال' })).toBeVisible();
+
+  delayNextNeedsRequest = true;
+  await pushBrowserRoute(page, `/actor/needs/${alternateNeedId}`);
+  await expect(page.getByText('جاري تحميل تفاصيل الطلب...', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'حليب أطفال' })).toHaveCount(0);
+  await expect(page.getByText('تعذر العثور على الطلب.', { exact: true })).toHaveCount(0);
+
+  await expect.poll(() => delayedNeedsRoute !== null).toBe(true);
+  await json(delayedNeedsRoute!, 200, []);
+  await expect(page.getByText('تعذر العثور على الطلب.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'حليب أطفال' })).toHaveCount(0);
+
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`/actor/needs/${needId}$`));
+  await expect(page.getByRole('heading', { name: 'حليب أطفال' })).toBeVisible();
+  await expect(page.getByText('تعذر العثور على الطلب.', { exact: true })).toHaveCount(0);
+
+  await page.goForward();
+  await expect(page).toHaveURL(new RegExp(`/actor/needs/${alternateNeedId}$`));
+  await expect(page.getByText('تعذر العثور على الطلب.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'حليب أطفال' })).toHaveCount(0);
 
   await context.close();
 });
@@ -481,6 +536,72 @@ test('failed aid assignment is hidden after navigating to another aid', async ({
   await expect(page).toHaveURL(new RegExp(`/actor/aids/${alternateAidId}$`));
   await expect(page.getByRole('heading', { name: 'بطانيات شتوية' })).toBeVisible();
   await expect(page.getByText('تعذر تخصيص المساعدة', { exact: true })).toHaveCount(0);
+
+  await context.close();
+});
+
+test('browser history keeps aid loading and failure states scoped to the current aid', async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const state = newWorkspaceState({ distributions: [assignedDistribution] });
+  await mockWorkspaceApi(page, state);
+  await login(page);
+
+  let delayNextAidsRequest = false;
+  let failAidsRequests = false;
+  let delayedAidsRoute: Route | null = null;
+  await page.route('**/api/sync/aids', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+
+    if (delayNextAidsRequest) {
+      delayNextAidsRequest = false;
+      delayedAidsRoute = route;
+      return;
+    }
+
+    if (failAidsRequests) {
+      await json(route, 500, { error: 'temporary failure' });
+      return;
+    }
+
+    await route.fallback();
+  });
+
+  await page.goto(`${webUrl}/actor/aids/${aidId}`);
+  await expect(page.getByRole('heading', { name: 'طرود غذائية' })).toBeVisible();
+
+  delayNextAidsRequest = true;
+  failAidsRequests = true;
+  await pushBrowserRoute(page, `/actor/aids/${alternateAidId}`);
+  await expect(page.getByText('جاري تحميل التفاصيل...', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'طرود غذائية' })).toHaveCount(0);
+  await expect(page.getByText('تعذر العثور على المساعدة.', { exact: true })).toHaveCount(0);
+
+  await expect.poll(() => delayedAidsRoute !== null).toBe(true);
+  await json(delayedAidsRoute!, 500, { error: 'temporary failure' });
+  await expect(
+    page.getByText('حدث خطأ أثناء تحميل بيانات المساعدة.', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'طرود غذائية' })).toHaveCount(0);
+
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`/actor/aids/${aidId}$`));
+  await expect(page.getByRole('heading', { name: 'طرود غذائية' })).toBeVisible();
+  await expect(
+    page.getByText('حدث خطأ أثناء تحميل بيانات المساعدة.', { exact: true }),
+  ).toHaveCount(0);
+
+  await page.goForward();
+  await expect(page).toHaveURL(new RegExp(`/actor/aids/${alternateAidId}$`));
+  await expect(
+    page.getByText('حدث خطأ أثناء تحميل بيانات المساعدة.', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'طرود غذائية' })).toHaveCount(0);
 
   await context.close();
 });
