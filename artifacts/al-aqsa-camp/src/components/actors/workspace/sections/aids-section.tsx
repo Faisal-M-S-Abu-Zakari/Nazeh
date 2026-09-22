@@ -230,7 +230,7 @@ function AidDetail({ id }: { id: string }) {
     });
   };
 
-  const handleReceive = (distId: string) => {
+  const handleReceive = async (distId: string) => {
     if (receivingDistributionIdsRef.current.has(distId)) return;
     receivingDistributionIdsRef.current.add(distId);
     setReceiveErrors((current) => {
@@ -240,36 +240,34 @@ function AidDetail({ id }: { id: string }) {
     });
     setReceivingDistributionIds((current) => new Set(current).add(distId));
     const requestAidId = id;
-    receiveDist.mutate({ distributionId: distId, data: {} }, {
-      onSuccess: () => {
-        if (activeAidIdRef.current !== requestAidId) return;
-        receivingDistributionIdsRef.current.delete(distId);
-        setReceiveErrors((current) => {
-          const next = { ...current };
-          delete next[distId];
-          return next;
-        });
-        setReceivingDistributionIds((current) => {
-          const next = new Set(current);
-          next.delete(distId);
-          return next;
-        });
-        queryClient.invalidateQueries({ queryKey: getListAidDistributionsQueryKey(id) });
-      },
-      onError: (error) => {
-        if (activeAidIdRef.current !== requestAidId) return;
-        receivingDistributionIdsRef.current.delete(distId);
-        setReceiveErrors((current) => ({
-          ...current,
-          [distId]: getOperationErrorMessage(error, 'aid-receipt'),
-        }));
-        setReceivingDistributionIds((current) => {
-          const next = new Set(current);
-          next.delete(distId);
-          return next;
-        });
-      }
-    });
+    try {
+      await receiveDist.mutateAsync({ distributionId: distId, data: {} });
+      if (activeAidIdRef.current !== requestAidId) return;
+      receivingDistributionIdsRef.current.delete(distId);
+      setReceiveErrors((current) => {
+        const next = { ...current };
+        delete next[distId];
+        return next;
+      });
+      setReceivingDistributionIds((current) => {
+        const next = new Set(current);
+        next.delete(distId);
+        return next;
+      });
+      queryClient.invalidateQueries({ queryKey: getListAidDistributionsQueryKey(id) });
+    } catch (error) {
+      if (activeAidIdRef.current !== requestAidId) return;
+      receivingDistributionIdsRef.current.delete(distId);
+      setReceiveErrors((current) => ({
+        ...current,
+        [distId]: getOperationErrorMessage(error, 'aid-receipt'),
+      }));
+      setReceivingDistributionIds((current) => {
+        const next = new Set(current);
+        next.delete(distId);
+        return next;
+      });
+    }
   };
 
   return (

@@ -119,6 +119,7 @@ type WorkspaceState = {
   needs: typeof baseNeed[];
   families: typeof family[];
   distributions: typeof assignedDistribution[];
+  receiveGates?: Record<string, Promise<void>>;
   updateNeedAttempts: number;
   assignAttempts: number;
   receiveAttempts: number;
@@ -236,6 +237,7 @@ async function mockWorkspaceApi(
       if (state.receiveResponseDelayMs) {
         await new Promise((resolve) => setTimeout(resolve, state.receiveResponseDelayMs));
       }
+      await state.receiveGates?.[requestedDistributionId];
       if (
         requestedDistributionId === distributionId &&
         state.receiveAttemptsById[requestedDistributionId] === 1
@@ -520,7 +522,10 @@ test('shows a delivery failure on only the affected distribution and retries it 
 }) => {
   const context = await browser.newContext();
   const page = await context.newPage();
-  const state = newWorkspaceState({ distributions: [assignedDistribution] });
+  const state = newWorkspaceState({
+    families: [family, secondFamily],
+    distributions: [assignedDistribution, secondAssignedDistribution],
+  });
 
   const receiveButton = page.getByRole('button', { name: 'تأكيد التسليم' });
   await mockWorkspaceApi(page, state);
@@ -550,6 +555,58 @@ test('shows a delivery failure on only the affected distribution and retries it 
   await expect(failedRow.getByText('تم التسليم', { exact: true })).toBeVisible();
   await expect(failedAlert).toHaveCount(0);
   expect(state.receiveAttemptsById[distributionId]).toBe(2);
+
+  await context.close();
+});
+
+test('keeps concurrent delivery confirmations tied to their own distribution rows', async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  let releaseFailedResponse!: () => void;
+  let releaseSuccessfulResponse!: () => void;
+  const failedResponse = new Promise<void>((resolve) => {
+    releaseFailedResponse = resolve;
+  });
+  const successfulResponse = new Promise<void>((resolve) => {
+    releaseSuccessfulResponse = resolve;
+  });
+  const state = newWorkspaceState({
+    families: [family, secondFamily],
+    distributions: [assignedDistribution, secondAssignedDistribution],
+    receiveGates: {
+      [distributionId]: failedResponse,
+      [secondDistributionId]: successfulResponse,
+    },
+  });
+  await mockWorkspaceApi(page, state);
+  await login(page);
+
+  await page.goto(`${webUrl}/actor/aids/${aidId}`);
+  const failedRow = page.getByTestId(`distribution-row-${distributionId}`);
+  const successfulRow = page.getByTestId(`distribution-row-${secondDistributionId}`);
+  const failedButton = failedRow.getByRole('button', { name: 'تأكيد التسليم' });
+  const successfulButton = successfulRow.getByRole('button', { name: 'تأكيد التسليم' });
+  const failedAlert = failedRow.getByText('تعذر تأكيد التسليم', { exact: true });
+
+  await failedButton.click();
+  await successfulButton.click();
+  await expect.poll(() => state.receiveAttempts).toBe(2);
+  await expect(failedButton).toBeDisabled();
+  await expect(successfulButton).toBeDisabled();
+  await expect(failedAlert).toHaveCount(0);
+
+  releaseSuccessfulResponse();
+  await expect(successfulRow.getByText('تم التسليم', { exact: true })).toBeVisible();
+  await expect(failedButton).toBeDisabled();
+  await expect(failedAlert).toHaveCount(0);
+
+  releaseFailedResponse();
+  await expect(failedAlert).toBeVisible();
+  await expect(failedButton).toBeEnabled();
+  await expect(successfulRow.getByText('تم التسليم', { exact: true })).toBeVisible();
+  await expect(successfulRow.getByText('تعذر تأكيد التسليم', { exact: true })).toHaveCount(0);
 
   await context.close();
 });
