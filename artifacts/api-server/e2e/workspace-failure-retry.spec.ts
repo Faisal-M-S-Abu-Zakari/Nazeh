@@ -123,6 +123,7 @@ type WorkspaceState = {
   assignAttempts: number;
   receiveAttempts: number;
   receiveAttemptsById: Record<string, number>;
+  receiveResponseDelayMs?: number;
 };
 
 const json = async (route: Route, status: number, body: unknown) => {
@@ -207,6 +208,9 @@ async function mockWorkspaceApi(page: Page, state: WorkspaceState) {
       state.receiveAttempts += 1;
       state.receiveAttemptsById[requestedDistributionId] =
         (state.receiveAttemptsById[requestedDistributionId] || 0) + 1;
+      if (state.receiveResponseDelayMs) {
+        await new Promise((resolve) => setTimeout(resolve, state.receiveResponseDelayMs));
+      }
       if (
         requestedDistributionId === distributionId &&
         state.receiveAttemptsById[requestedDistributionId] === 1
@@ -263,9 +267,6 @@ function newWorkspaceState(
     ...overrides,
   };
 }
-
-test.beforeAll(async () => {
-  expect(webUrl, 'Set WEB_E2E_URL to the running web artifact URL').toBeTruthy();
   const passwordHash = await bcrypt.hash(password, 12);
   await db.insert(staffUsers).values({
     id: userId,
@@ -287,6 +288,8 @@ test('failed need status update keeps the dialog, note, and selected status', as
   const context = await browser.newContext();
   const page = await context.newPage();
   const state = newWorkspaceState({ distributions: [assignedDistribution] });
+
+  const receiveButton = page.getByRole('button', { name: 'تأكيد التسليم' });
   await mockWorkspaceApi(page, state);
   await login(page);
 
@@ -318,6 +321,8 @@ test('failed need status update is hidden after navigating to another need', asy
   const context = await browser.newContext();
   const page = await context.newPage();
   const state = newWorkspaceState({ distributions: [assignedDistribution] });
+
+  const receiveButton = page.getByRole('button', { name: 'تأكيد التسليم' });
   await mockWorkspaceApi(page, state);
   await login(page);
 
@@ -350,6 +355,8 @@ test('failed aid assignment keeps the family, need, and quantity inputs', async 
   const context = await browser.newContext();
   const page = await context.newPage();
   const state = newWorkspaceState({ distributions: [assignedDistribution] });
+
+  const receiveButton = page.getByRole('button', { name: 'تأكيد التسليم' });
   await mockWorkspaceApi(page, state);
   await login(page);
 
@@ -384,6 +391,8 @@ test('failed aid assignment is hidden after navigating to another aid', async ({
   const context = await browser.newContext();
   const page = await context.newPage();
   const state = newWorkspaceState({ distributions: [assignedDistribution] });
+
+  const receiveButton = page.getByRole('button', { name: 'تأكيد التسليم' });
   await mockWorkspaceApi(page, state);
   await login(page);
 
@@ -420,6 +429,8 @@ test('shows a delivery failure on only the affected distribution and retries it 
   const context = await browser.newContext();
   const page = await context.newPage();
   const state = newWorkspaceState({ distributions: [assignedDistribution] });
+
+  const receiveButton = page.getByRole('button', { name: 'تأكيد التسليم' });
   await mockWorkspaceApi(page, state);
   await login(page);
 
@@ -457,6 +468,8 @@ test('failed delivery confirmation clears its alert after a successful retry', a
   const context = await browser.newContext();
   const page = await context.newPage();
   const state = newWorkspaceState({ distributions: [assignedDistribution] });
+
+  const receiveButton = page.getByRole('button', { name: 'تأكيد التسليم' });
   await mockWorkspaceApi(page, state);
   await login(page);
 
@@ -481,6 +494,8 @@ test('failed delivery confirmation is hidden after navigating to another aid', a
   const context = await browser.newContext();
   const page = await context.newPage();
   const state = newWorkspaceState({ distributions: [assignedDistribution] });
+
+  const receiveButton = page.getByRole('button', { name: 'تأكيد التسليم' });
   await mockWorkspaceApi(page, state);
   await login(page);
 

@@ -179,6 +179,7 @@ function AidDetail({ id }: { id: string }) {
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
   const [receiveErrors, setReceiveErrors] = useState<Record<string, string>>({});
   const [receivingDistributionIds, setReceivingDistributionIds] = useState<Set<string>>(new Set());
+  const receivingDistributionIdsRef = useRef<Set<string>>(new Set());
   const activeAidIdRef = useRef(id);
   
   // Mutations
@@ -189,6 +190,7 @@ function AidDetail({ id }: { id: string }) {
     activeAidIdRef.current = id;
     setAssignmentError(null);
     setReceiveErrors({});
+    receivingDistributionIdsRef.current.clear();
     setReceivingDistributionIds(new Set());
   }, [id]);
 
@@ -229,6 +231,8 @@ function AidDetail({ id }: { id: string }) {
   };
 
   const handleReceive = (distId: string) => {
+    if (receivingDistributionIdsRef.current.has(distId)) return;
+    receivingDistributionIdsRef.current.add(distId);
     setReceiveErrors((current) => {
       const next = { ...current };
       delete next[distId];
@@ -239,6 +243,7 @@ function AidDetail({ id }: { id: string }) {
     receiveDist.mutate({ distributionId: distId, data: {} }, {
       onSuccess: () => {
         if (activeAidIdRef.current !== requestAidId) return;
+        receivingDistributionIdsRef.current.delete(distId);
         setReceiveErrors((current) => {
           const next = { ...current };
           delete next[distId];
@@ -253,6 +258,7 @@ function AidDetail({ id }: { id: string }) {
       },
       onError: (error) => {
         if (activeAidIdRef.current !== requestAidId) return;
+        receivingDistributionIdsRef.current.delete(distId);
         setReceiveErrors((current) => ({
           ...current,
           [distId]: getOperationErrorMessage(error, 'aid-receipt'),
