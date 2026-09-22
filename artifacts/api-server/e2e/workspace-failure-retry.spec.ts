@@ -703,6 +703,46 @@ test('retries a failed delivery without clearing another pending delivery', asyn
   await context.close();
 });
 
+test('keeps a delivered distribution after reloading the aid page', async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const state = newWorkspaceState({
+    families: [family, secondFamily],
+    distributions: [assignedDistribution, secondAssignedDistribution],
+  });
+  await mockWorkspaceApi(page, state);
+  await login(page);
+
+  await page.goto(`${webUrl}/actor/aids/${aidId}`);
+  const deliveredRow = page.getByTestId(`distribution-row-${secondDistributionId}`);
+  const pendingRow = page.getByTestId(`distribution-row-${distributionId}`);
+
+  await deliveredRow.getByRole('button', { name: 'تأكيد التسليم' }).click();
+  await expect(deliveredRow.getByText('تم التسليم', { exact: true })).toBeVisible();
+  await expect(deliveredRow.getByRole('button', { name: 'تأكيد التسليم' })).toHaveCount(0);
+  await expect(pendingRow.getByText('مُخصص للتسليم', { exact: true })).toBeVisible();
+  await expect(pendingRow.getByRole('button', { name: 'تأكيد التسليم' })).toBeEnabled();
+
+  await page.reload();
+
+  const reloadedDeliveredRow = page.getByTestId(`distribution-row-${secondDistributionId}`);
+  const reloadedPendingRow = page.getByTestId(`distribution-row-${distributionId}`);
+  await expect(reloadedDeliveredRow.getByText('تم التسليم', { exact: true })).toBeVisible();
+  await expect(
+    reloadedDeliveredRow.getByRole('button', { name: 'تأكيد التسليم' }),
+  ).toHaveCount(0);
+  await expect(reloadedPendingRow.getByText('مُخصص للتسليم', { exact: true })).toBeVisible();
+  await expect(
+    reloadedPendingRow.getByRole('button', { name: 'تأكيد التسليم' }),
+  ).toBeEnabled();
+  expect(state.receiveAttemptsById[secondDistributionId]).toBe(1);
+  expect(state.receiveAttemptsById[distributionId]).toBeUndefined();
+
+  await context.close();
+});
+
 test('failed delivery confirmation clears its alert after a successful retry', async ({
   browser,
 }) => {

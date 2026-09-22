@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useListAids, getListAidsQueryKey, useCreateAid, useListAidDistributions, getListAidDistributionsQueryKey, useListNeeds, getListNeedsQueryKey, useListFamilies, getListFamiliesQueryKey, useCreateAidDistribution, useReceiveAidDistribution } from '@workspace/api-client-react';
+import { useListAids, getListAidsQueryKey, useCreateAid, useListAidDistributions, getListAidDistributionsQueryKey, useListNeeds, getListNeedsQueryKey, useListFamilies, getListFamiliesQueryKey, useCreateAidDistribution, useReceiveAidDistribution, type AidDistribution } from '@workspace/api-client-react';
 import { Link, useLocation } from 'wouter';
 import { Alert, Button, Card, Table, Text, Badge, ActionIcon, TextInput, Title, Select, NumberInput } from '@mantine/core';
 import { Search, ArrowRight, Package, Box, Filter, Plus, Calendar as CalendarIcon, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -305,8 +305,15 @@ function AidDetail({ id }: { id: string }) {
     setReceivingDistributionIds((current) => new Set(current).add(distId));
     const requestAidId = id;
     try {
-      await receiveDist.mutateAsync({ distributionId: distId, data: {} });
+      const receivedDistribution = await receiveDist.mutateAsync({ distributionId: distId, data: {} });
       if (activeAidIdRef.current !== requestAidId) return;
+      queryClient.setQueryData<AidDistribution[]>(
+        getListAidDistributionsQueryKey(requestAidId),
+        (currentDistributions) =>
+          currentDistributions?.map((distribution) =>
+            distribution.id === receivedDistribution.id ? receivedDistribution : distribution,
+          ) ?? [receivedDistribution],
+      );
       receivingDistributionIdsRef.current.delete(distId);
       setReceiveErrors((current) => {
         const next = { ...current };
@@ -318,7 +325,7 @@ function AidDetail({ id }: { id: string }) {
         next.delete(distId);
         return next;
       });
-      queryClient.invalidateQueries({ queryKey: getListAidDistributionsQueryKey(id) });
+      queryClient.invalidateQueries({ queryKey: getListAidDistributionsQueryKey(requestAidId) });
     } catch (error) {
       if (activeAidIdRef.current !== requestAidId) return;
       receivingDistributionIdsRef.current.delete(distId);
