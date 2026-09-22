@@ -142,6 +142,7 @@ type WorkspaceApiDelays = {
   needFailure?: Deferred;
   assignmentFailure?: Deferred;
   receiveFailure?: Deferred;
+  distributionRefresh?: Deferred;
 };
 
 const json = async (route: Route, status: number, body: unknown) => {
@@ -196,7 +197,7 @@ async function mockWorkspaceApi(
           200,
           response?.distributions ??
             (url.pathname === `/api/sync/aids/${aidId}/distributions`
-              ? state.distributions
+              ? await getDistributionsForRefresh(state, delays.distributionRefresh)
               : []),
         );
         return;
@@ -283,6 +284,16 @@ async function mockWorkspaceApi(
 
     await route.continue();
   });
+}
+
+async function getDistributionsForRefresh(
+  state: WorkspaceState,
+  refreshDelay?: Deferred,
+) {
+  if (refreshDelay && state.distributions.some((distribution) => distribution.status === 'RECEIVED')) {
+    await refreshDelay.promise;
+  }
+  return state.distributions;
 }
 
 async function login(page: Page) {
@@ -926,6 +937,44 @@ test('keeps a delivered row after refetch while another delivery is pending', as
   secondDelivery.resolve();
   await expect(pendingRow.getByText('تم التسليم', { exact: true })).toBeVisible();
   await expect(pendingRow.getByRole('button', { name: 'تأكيد التسليم' })).toHaveCount(0);
+
+  await context.close();
+});
+
+test('keeps delivery confirmation locked until the refreshed record shows delivered', async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const state = newWorkspaceState({
+    distributions: [secondAssignedDistribution],
+  });
+  const distributionRefresh = createDeferred();
+  await mockWorkspaceApi(page, state, { distributionRefresh });
+  await login(page);
+
+  await page.goto(`${webUrl}/actor/aids/${aidId}`);
+  const row = page.getByTestId(`distribution-row-${secondDistributionId}`);
+  const receiveButton = row.getByRole('button', { name: 'تأكيد التسليم' });
+  const receiveResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname ===
+        `/api/sync/distributions/${secondDistributionId}/receive`,
+  );
+
+  await receiveButton.click();
+  await receiveResponse;
+  await expect(row.getByText('تم التسليم', { exact: true })).toBeVisible();
+  await expect(row.getByRole('button', { name: 'تأكيد التسليم' })).toHaveCount(0);
+  expect(state.receiveAttemptsById[secondDistributionId]).toBe(1);
+
+  expect(state.receiveAttemptsById[secondDistributionId]).toBe(1);
+
+  distributionRefresh.resolve();
+  await expect(row.getByText('تم التسليم', { exact: true })).toBeVisible();
+  await expect(row.getByRole('button', { name: 'تأكيد التسليم' })).toHaveCount(0);
+  expect(state.receiveAttemptsById[secondDistributionId]).toBe(1);
 
   await context.close();
 });

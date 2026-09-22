@@ -214,6 +214,29 @@ function AidDetail({ id }: { id: string }) {
   }, [id]);
 
   useEffect(() => {
+    const deliveredDistributionIds = new Set(
+      (distsData || [])
+        .filter((distribution) => distribution.status === 'RECEIVED')
+        .map((distribution) => distribution.id),
+    );
+    if (deliveredDistributionIds.size === 0) return;
+
+    deliveredDistributionIds.forEach((distributionId) => {
+      receivingDistributionIdsRef.current.delete(distributionId);
+    });
+    setConfirmedDistributionIds((current) => {
+      const next = new Set(current);
+      deliveredDistributionIds.forEach((distributionId) => next.add(distributionId));
+      return next.size === current.size ? current : next;
+    });
+    setReceivingDistributionIds((current) => {
+      const next = new Set(current);
+      deliveredDistributionIds.forEach((distributionId) => next.delete(distributionId));
+      return next.size === current.size ? current : next;
+    });
+  }, [distsData]);
+
+  useEffect(() => {
     setDraftScope(null);
     const draft = assignmentDraftStorageKey
       ? readAidAssignmentDraft(assignmentDraftStorageKey)
@@ -310,27 +333,15 @@ function AidDetail({ id }: { id: string }) {
     setReceivingDistributionIds((current) => new Set(current).add(distId));
     const requestAidId = id;
     try {
-      const receivedDistribution = await receiveDist.mutateAsync({ distributionId: distId, data: {} });
+      await receiveDist.mutateAsync({ distributionId: distId, data: {} });
       if (activeAidIdRef.current !== requestAidId) return;
-      queryClient.setQueryData<AidDistribution[]>(
-        getListAidDistributionsQueryKey(requestAidId),
-        (currentDistributions) =>
-          currentDistributions?.map((distribution) =>
-            distribution.id === receivedDistribution.id ? receivedDistribution : distribution,
-          ) ?? [receivedDistribution],
-      );
-      receivingDistributionIdsRef.current.delete(distId);
       setConfirmedDistributionIds((current) => new Set(current).add(distId));
       setReceiveErrors((current) => {
         const next = { ...current };
         delete next[distId];
         return next;
       });
-      setReceivingDistributionIds((current) => {
-        const next = new Set(current);
-        next.delete(distId);
-        return next;
-      });
+      // Keep the row locked until the refetched distribution data confirms RECEIVED.
       queryClient.invalidateQueries({ queryKey: getListAidDistributionsQueryKey(requestAidId) });
     } catch (error) {
       if (activeAidIdRef.current !== requestAidId) return;
@@ -446,7 +457,13 @@ function AidDetail({ id }: { id: string }) {
                           {distStatusLabels[dist.status]}
                         </Badge>
                         {dist.status === 'ASSIGNED' && (
-                          <Button size="xs" color="teal" onClick={() => handleReceive(dist.id)} loading={receivingDistributionIds.has(dist.id)}>
+                          <Button
+                            size="xs"
+                            color="teal"
+                            onClick={() => handleReceive(dist.id)}
+                            disabled={receivingDistributionIds.has(dist.id)}
+                            loading={receivingDistributionIds.has(dist.id)}
+                          >
                             تأكيد التسليم
                           </Button>
                         )}
