@@ -1,9 +1,7 @@
-import React, { useRef, useState } from 'react';
 import { useListNeeds, useGetFamily, getListNeedsQueryKey, useUpdateNeed, useListFamilies, getListFamiliesQueryKey, useCreateNeed } from '@workspace/api-client-react';
 import type { NeedInput } from '@workspace/api-client-react';
 import { Link, useLocation } from 'wouter';
 import { Alert, Button, Card, Table, Text, Badge, ActionIcon, TextInput, Title, Select, Modal, Textarea } from '@mantine/core';
-import { Search, Eye, Filter, ArrowRight, CheckCircle2, Clock, XCircle, AlertCircle, PlayCircle } from 'lucide-react';
 import { LoadingState, ErrorState } from '../shared/ui-states';
 import {
   NEED_SUBMISSION_ERROR_MESSAGE,
@@ -19,9 +17,20 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/ar';
 import { useQueryClient } from '@tanstack/react-query';
 import useAuth from '@/hooks/useAuth';
+import {
+  clearNeedDraft,
+  DEFAULT_NEED_DRAFT,
+  getNeedDraftStorageKey,
+  hasNeedDraftContent,
+  readNeedDraft,
+  saveNeedDraft,
+  type NeedDraft,
+} from './needs-draft';
 
 dayjs.locale('ar');
 import { getOperationErrorMessage } from '@/utils/operationErrorMessage';
+import React, { useEffect, useRef, useState } from 'react';
+import { Search, Eye, Filter, ArrowRight, CheckCircle2, Clock, XCircle, AlertCircle, PlayCircle, Trash2 } from 'lucide-react';
 
 const categoryLabels: Record<string, string> = { FOOD: "غذاء", WATER: "ماء", MEDICAL: "رعاية طبية", SHELTER: "مأوى", HYGIENE: "نظافة", OTHER: "أخرى" };
 const statusLabels: Record<string, string> = { REQUIRED: "مطلوب", APPROVED: "تمت الموافقة", IN_PROGRESS: "قيد التنفيذ", FULFILLED: "مكتمل", CANCELLED: "ملغى" };
@@ -291,7 +300,8 @@ function NeedDetail({ id }: { id: string }) {
 function NeedForm() {
   const [location, setLocation] = useLocation();
   const queryClient = useQueryClient();
-  
+  const { user } = useAuth();
+
   const {
     data: families,
     isLoading: familiesLoading,
@@ -309,6 +319,68 @@ function NeedForm() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [submitError, setSubmitError] = useState(false);
+  const [draftScope, setDraftScope] = useState<string | null>(null);
+  const [hasSavedDraft, setHasSavedDraft] = useState(false);
+
+  const ownerIdentity = user?.identity || (user?.id && user.id > 0 ? String(user.id) : '');
+  const draftStorageKey = ownerIdentity
+    ? getNeedDraftStorageKey(`${user?.role ?? 'unknown'}:${ownerIdentity}`)
+    : null;
+
+  useEffect(() => {
+    if (!draftStorageKey) {
+      setDraftScope(null);
+      setHasSavedDraft(false);
+      setFamilyId(DEFAULT_NEED_DRAFT.familyId || null);
+      setCategory(DEFAULT_NEED_DRAFT.category);
+      setPriority(DEFAULT_NEED_DRAFT.priority);
+      setTitle(DEFAULT_NEED_DRAFT.title);
+      setDescription(DEFAULT_NEED_DRAFT.description);
+      return;
+    }
+
+    setDraftScope(null);
+    const draft = readNeedDraft(draftStorageKey);
+    const nextDraft = draft ?? DEFAULT_NEED_DRAFT;
+    setFamilyId(nextDraft.familyId || null);
+    setCategory(nextDraft.category);
+    setPriority(nextDraft.priority);
+    setTitle(nextDraft.title);
+    setDescription(nextDraft.description);
+    setHasSavedDraft(Boolean(draft));
+    setDraftScope(draftStorageKey);
+  }, [draftStorageKey]);
+
+  useEffect(() => {
+    if (!draftStorageKey || draftScope !== draftStorageKey) return;
+
+    const draft: NeedDraft = {
+      familyId: familyId || '',
+      category: category as NeedDraft['category'],
+      priority: priority as NeedDraft['priority'],
+      title,
+      description,
+    };
+
+    if (hasNeedDraftContent(draft)) {
+      saveNeedDraft(draftStorageKey, draft);
+      setHasSavedDraft(true);
+    } else {
+      clearNeedDraft(draftStorageKey);
+      setHasSavedDraft(false);
+    }
+  }, [category, description, draftScope, draftStorageKey, familyId, priority, title]);
+
+  const handleClearDraft = () => {
+    if (draftStorageKey) clearNeedDraft(draftStorageKey);
+    setFamilyId(null);
+    setCategory(DEFAULT_NEED_DRAFT.category);
+    setPriority(DEFAULT_NEED_DRAFT.priority);
+    setTitle('');
+    setDescription('');
+    setSubmitError(false);
+    setHasSavedDraft(false);
+  };
   
   const handleSubmit = () => {
     if (!canSubmitNeed({
@@ -334,7 +406,11 @@ function NeedForm() {
       invalidateNeeds: () => {
         void queryClient.invalidateQueries({ queryKey: getListNeedsQueryKey() });
       },
-      navigate: setLocation,
+      navigate: (path) => {
+        if (draftStorageKey) clearNeedDraft(draftStorageKey);
+        setHasSavedDraft(false);
+        setLocation(path);
+      },
     });
   };
 
@@ -347,6 +423,16 @@ function NeedForm() {
         <Title order={2} className="text-3xl font-display text-primary">تسجيل طلب جديد</Title>
       </div>
       <Card withBorder shadow="sm" radius="lg" p="xl" className="space-y-6">
+         {hasSavedDraft && (
+           <Alert color="blue" icon={<AlertCircle size={18} />} title="تم استعادة مسودة محفوظة">
+             <div className="flex flex-wrap items-center justify-between gap-3">
+               <Text size="sm">استُعيدت آخر مدخلاتك من هذا المتصفح ويمكنك متابعة الطلب أو مسحها.</Text>
+               <Button variant="subtle" color="red" size="compact-sm" leftSection={<Trash2 size={15} />} onClick={handleClearDraft}>
+                 مسح المسودة
+               </Button>
+             </div>
+           </Alert>
+         )}
          {familiesError && (
            <Alert color="red" icon={<AlertCircle size={18} />} title={FAMILY_LIST_LOAD_ERROR_TITLE}>
              <div className="space-y-3">
@@ -422,19 +508,12 @@ function NeedForm() {
             className="bg-primary hover:bg-primary/90" 
             radius="md"
             onClick={handleSubmit}
-            disabled={
-              !canSubmitNeed({
-                familyId,
-                familiesLoading,
-                familiesError,
-                familyCount: families?.length ?? 0,
-              }) ||
-              !category ||
-              !title ||
-              !description ||
-              !priority ||
-              createNeed.isPending
-            }
+            disabled={!canSubmitNeed({
+              familyId,
+              familiesLoading,
+              familiesError,
+              familyCount: families?.length ?? 0,
+            }) || !category || !title || !description || !priority || createNeed.isPending}
             loading={createNeed.isPending}
           >
             إرسال الطلب
