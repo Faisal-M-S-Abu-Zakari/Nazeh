@@ -126,6 +126,17 @@ type WorkspaceState = {
   receiveResponseDelayMs?: number;
 };
 
+type Deferred = {
+  promise: Promise<void>;
+  resolve: () => void;
+};
+
+type WorkspaceApiDelays = {
+  needFailure?: Deferred;
+  assignmentFailure?: Deferred;
+  receiveFailure?: Deferred;
+};
+
 const json = async (route: Route, status: number, body: unknown) => {
   await route.fulfill({
     status,
@@ -134,7 +145,19 @@ const json = async (route: Route, status: number, body: unknown) => {
   });
 };
 
-async function mockWorkspaceApi(page: Page, state: WorkspaceState) {
+function createDeferred(): Deferred {
+  let resolve!: () => void;
+  const promise = new Promise<void>((promiseResolve) => {
+    resolve = promiseResolve;
+  });
+  return { promise, resolve };
+}
+
+async function mockWorkspaceApi(
+  page: Page,
+  state: WorkspaceState,
+  delays: WorkspaceApiDelays = {},
+) {
   await page.route('**/api/sync/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -173,6 +196,7 @@ async function mockWorkspaceApi(page: Page, state: WorkspaceState) {
     ) {
       state.updateNeedAttempts += 1;
       if (state.updateNeedAttempts === 1) {
+        await delays.needFailure?.promise;
         await json(route, 500, { error: 'temporary failure' });
         return;
       }
@@ -188,6 +212,7 @@ async function mockWorkspaceApi(page: Page, state: WorkspaceState) {
     ) {
       state.assignAttempts += 1;
       if (state.assignAttempts === 1) {
+        await delays.assignmentFailure?.promise;
         await json(route, 500, { error: 'temporary failure' });
         return;
       }
@@ -215,6 +240,7 @@ async function mockWorkspaceApi(page: Page, state: WorkspaceState) {
         requestedDistributionId === distributionId &&
         state.receiveAttemptsById[requestedDistributionId] === 1
       ) {
+        await delays.receiveFailure?.promise;
         await json(route, 500, { error: 'temporary failure' });
         return;
       }
@@ -349,6 +375,37 @@ test('failed need status update is hidden after navigating to another need', asy
   await context.close();
 });
 
+test('late failed need status update stays hidden after navigating to another need', async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const state = newWorkspaceState();
+  const delayedFailure = createDeferred();
+  await mockWorkspaceApi(page, state, { needFailure: delayedFailure });
+  await login(page);
+
+  await page.goto(`${webUrl}/actor/needs/${needId}`);
+  await page.getByRole('button', { name: 'موافقة مبدئية' }).click();
+  const dialog = page.getByRole('dialog');
+  const requestStarted = page.waitForRequest(
+    (request) =>
+      request.method() === 'PATCH' &&
+      new URL(request.url()).pathname === `/api/sync/needs/${needId}`,
+  );
+  await dialog.getByRole('button', { name: 'تأكيد التحديث' }).click();
+  await requestStarted;
+
+  await page.goto(`${webUrl}/actor/needs/${alternateNeedId}`);
+  await expect(page.getByText('مياه للشرب', { exact: true })).toBeVisible();
+  await expect(page.getByText('تعذر تحديث حالة الطلب', { exact: true })).toHaveCount(0);
+
+  delayedFailure.resolve();
+  await expect(page.getByText('تعذر تحديث حالة الطلب', { exact: true })).toHaveCount(0);
+
+  await context.close();
+});
+
 test('failed aid assignment keeps the family, need, and quantity inputs', async ({
   browser,
 }) => {
@@ -418,6 +475,41 @@ test('failed aid assignment is hidden after navigating to another aid', async ({
   await page.goForward();
   await expect(page).toHaveURL(new RegExp(`/actor/aids/${alternateAidId}$`));
   await expect(page.getByRole('heading', { name: 'بطانيات شتوية' })).toBeVisible();
+  await expect(page.getByText('تعذر تخصيص المساعدة', { exact: true })).toHaveCount(0);
+
+  await context.close();
+});
+
+test('late failed aid assignment stays hidden after navigating to another aid', async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const state = newWorkspaceState();
+  const delayedFailure = createDeferred();
+  await mockWorkspaceApi(page, state, { assignmentFailure: delayedFailure });
+  await login(page);
+
+  await page.goto(`${webUrl}/actor/aids/${aidId}`);
+  const familySelect = page.getByRole('textbox', { name: 'الأسرة' });
+  await familySelect.click();
+  await page.getByRole('option', { name: 'أسرة النور' }).click();
+  const needSelect = page.getByRole('textbox', { name: 'طلب الاحتياج' });
+  await needSelect.click();
+  await page.getByRole('option', { name: 'حليب أطفال' }).click();
+  const requestStarted = page.waitForRequest(
+    (request) =>
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname === `/api/sync/aids/${aidId}/distributions`,
+  );
+  await page.getByRole('button', { name: 'حفظ التخصيص' }).click();
+  await requestStarted;
+
+  await page.goto(`${webUrl}/actor/aids/${alternateAidId}`);
+  await expect(page.getByRole('heading', { name: 'بطانيات شتوية' })).toBeVisible();
+  await expect(page.getByText('تعذر تخصيص المساعدة', { exact: true })).toHaveCount(0);
+
+  delayedFailure.resolve();
   await expect(page.getByText('تعذر تخصيص المساعدة', { exact: true })).toHaveCount(0);
 
   await context.close();
@@ -515,6 +607,36 @@ test('failed delivery confirmation is hidden after navigating to another aid', a
   await page.goForward();
   await expect(page).toHaveURL(new RegExp(`/actor/aids/${alternateAidId}$`));
   await expect(page.getByRole('heading', { name: 'بطانيات شتوية' })).toBeVisible();
+  await expect(page.getByText('تعذر تأكيد التسليم', { exact: true })).toHaveCount(0);
+
+  await context.close();
+});
+
+test('late failed delivery confirmation stays hidden after navigating to another aid', async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const state = newWorkspaceState({ distributions: [assignedDistribution] });
+  const delayedFailure = createDeferred();
+  await mockWorkspaceApi(page, state, { receiveFailure: delayedFailure });
+  await login(page);
+
+  await page.goto(`${webUrl}/actor/aids/${aidId}`);
+  const requestStarted = page.waitForRequest(
+    (request) =>
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname ===
+        `/api/sync/distributions/${distributionId}/receive`,
+  );
+  await page.getByRole('button', { name: 'تأكيد التسليم' }).click();
+  await requestStarted;
+
+  await page.goto(`${webUrl}/actor/aids/${alternateAidId}`);
+  await expect(page.getByRole('heading', { name: 'بطانيات شتوية' })).toBeVisible();
+  await expect(page.getByText('تعذر تأكيد التسليم', { exact: true })).toHaveCount(0);
+
+  delayedFailure.resolve();
   await expect(page.getByText('تعذر تأكيد التسليم', { exact: true })).toHaveCount(0);
 
   await context.close();
