@@ -29,7 +29,9 @@ export default function PersonDetailScreen() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const saveInFlight = useRef(false);
+  const archiveInFlight = useRef(false);
   const [saving, setSaving] = useState(false);
+  const [archiving, setArchiving] = useState(false);
 
   if (!person) return <View style={[styles.center, { backgroundColor: colors.background }]}><Text style={{ color: colors.foreground, fontFamily: fonts.bold }}>لم يتم العثور على السجل</Text></View>;
 
@@ -64,6 +66,9 @@ export default function PersonDetailScreen() {
     }
   };
   const archive = async () => {
+    if (archiveInFlight.current || archiveMutation.isPending) return;
+    archiveInFlight.current = true;
+    setArchiving(true);
     try {
       await archiveMutation.mutateAsync({ personId: person.id, data: { expectedVersion: person.version } });
       setArchiveOpen(false);
@@ -72,6 +77,9 @@ export default function PersonDetailScreen() {
     } catch (error) {
       setArchiveOpen(false);
       await showMutationError(error, refresh);
+    } finally {
+      archiveInFlight.current = false;
+      setArchiving(false);
     }
   };
   const valid = name.trim().length >= 2 && nationalId.trim().length >= 6 && tentNumber.trim().length > 0 && Number(familySize) >= 1 && !Number.isNaN(new Date(birthDate).getTime());
@@ -96,15 +104,15 @@ export default function PersonDetailScreen() {
               <PrimaryButton testID="person-save-error-retry" label="إعادة المحاولة" icon="refresh" disabled={saving || updateMutation.isPending} onPress={() => void save()} />
             </View>
           ) : null}
-          <PrimaryButton testID="save-person-edits" label={saving || updateMutation.isPending ? 'جارٍ الحفظ…' : 'حفظ التعديلات'} icon="checkmark" disabled={!valid || saving || updateMutation.isPending || archiveMutation.isPending} onPress={() => void save()} />
-          <Pressable testID="archive-person" disabled={archiveMutation.isPending} onPress={() => setArchiveOpen(true)} style={[styles.archive, { borderColor: colors.destructive }]}><Text style={[styles.archiveText, { color: colors.destructive }]}>أرشفة السجل</Text></Pressable>
+          <PrimaryButton testID="save-person-edits" label={saving || updateMutation.isPending ? 'جارٍ الحفظ…' : 'حفظ التعديلات'} icon="checkmark" disabled={!valid || saving || updateMutation.isPending || archiveMutation.isPending || archiving} onPress={() => void save()} />
+          <Pressable testID="archive-person" disabled={archiveMutation.isPending || archiving} onPress={() => setArchiveOpen(true)} style={[styles.archive, { borderColor: colors.destructive }]}><Text style={[styles.archiveText, { color: colors.destructive }]}>أرشفة السجل</Text></Pressable>
         </> : <Text style={[styles.readOnly, { color: colors.destructive }]}>هذا السجل متاح للعرض فقط حسب دور حسابك.</Text>}
       </KeyboardAwareScrollViewCompat>
       <ArchiveConfirmModal
         visible={archiveOpen}
         title="تأكيد أرشفة سجل الشخص"
         message={`هل تريد أرشفة سجل «${person.name}»؟ لن يظهر في سجل النازحين النشط.`}
-        loading={archiveMutation.isPending}
+        loading={archiveMutation.isPending || archiving}
         testIDPrefix="archive-person"
         onCancel={() => setArchiveOpen(false)}
         onConfirm={() => void archive()}
