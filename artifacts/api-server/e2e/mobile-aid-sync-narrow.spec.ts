@@ -224,6 +224,8 @@ test('retries a failed aid save successfully after the server recovers on a narr
       ),
     };
   });
+
+  const detailUrl = page.url();
   expect(archiveLayout.width).toBeGreaterThan(0);
   expect(archiveLayout.top).toBeGreaterThanOrEqual(0);
   expect(archiveLayout.bottom).toBeLessThanOrEqual(
