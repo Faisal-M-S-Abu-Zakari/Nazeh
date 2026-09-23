@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
   syncSection: { gap: 5 },
   sync: { minHeight: 38, borderRadius: 10, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   syncText: { fontFamily: fonts.bold, fontSize: 12, textAlign: 'center' },
-  syncTimestamp: { fontFamily: fonts.medium, fontSize: 12, textAlign: 'right' },
+  syncTimestamp: { flexShrink: 1, fontFamily: fonts.medium, fontSize: 12, textAlign: 'right' },
   freshnessNotice: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 9 },
   freshnessHeading: { flexDirection: 'row-reverse', alignItems: 'center', gap: 7 },
   freshnessTitle: { flex: 1, fontFamily: fonts.bold, fontSize: 14, textAlign: 'right' },

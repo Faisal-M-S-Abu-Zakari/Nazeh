@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import type { Aid as ApiAid } from '@workspace/api-client-react';
 import { selectLatestAids } from '../lib/aidPresentation';
@@ -8,6 +9,9 @@ import {
   getLastSuccessfulAidsSyncAt,
   retryAidList,
 } from '../lib/aidSyncPresentation';
+
+const aidDetailScreenSource = readFileSync(new URL('../app/aid/[id].tsx', import.meta.url), 'utf8');
+const uiSource = readFileSync(new URL('../components/ui.tsx', import.meta.url), 'utf8');
 
 function makeApiAid(receivedDistributionCount: number): ApiAid {
   return {
@@ -117,4 +121,21 @@ test('sync time stays identical when the device timezone changes', () => {
 test('sync time remains unavailable until a successful timestamp exists', () => {
   assert.equal(formatLastSuccessfulSyncAt(null), 'آخر مزامنة ناجحة: غير متوفرة بعد');
   assert.equal(formatLastSuccessfulSyncAt('not-a-date'), 'آخر مزامنة ناجحة: غير متوفرة بعد');
+});
+
+test('aid details render the unavailable sync state without removing cached-data controls', () => {
+  assert.match(
+    aidDetailScreenSource,
+    /<SyncTimestamp testID="aid-last-successful-sync" lastSyncedAt=\{lastAidsSyncAt\} \/>/,
+  );
+  assert.match(
+    uiSource,
+    /<Text testID=\{testID\}[^>]*>\s*\{formatLastSuccessfulSyncAt\(lastSyncedAt\)\}\s*<\/Text>/,
+  );
+  assert.match(uiSource, /syncTimestamp: \{ flexShrink: 1,/);
+  assert.match(
+    aidDetailScreenSource,
+    /recipientSync\.recipientCountIsCached \? \(\s*<DataFreshnessNotice[\s\S]*?onRetry=\{\(\) => void retryAids\(\)\}/,
+  );
+  assert.equal(formatLastSuccessfulSyncAt(null), 'آخر مزامنة ناجحة: غير متوفرة بعد');
 });
