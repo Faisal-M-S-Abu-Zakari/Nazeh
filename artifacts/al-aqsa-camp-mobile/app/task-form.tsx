@@ -11,7 +11,7 @@ import { ArchiveConfirmModal } from '@/components/ArchiveConfirmModal';
 import { Field, fonts, PrimaryButton } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
-import { getErrorStatus, showMutationError } from '@/lib/mutationErrors';
+import { getErrorStatus, getMutationErrorMessage, showMutationError } from '@/lib/mutationErrors';
 
 const priorities = [[TaskPriority.LOW, 'منخفضة'], [TaskPriority.MEDIUM, 'متوسطة'], [TaskPriority.HIGH, 'عالية'], [TaskPriority.URGENT, 'عاجلة']] as const;
 const statuses = [[TaskStatus.PENDING, 'معلّقة'], [TaskStatus.IN_PROGRESS, 'قيد التنفيذ'], [TaskStatus.COMPLETED, 'مكتملة'], [TaskStatus.CANCELLED, 'ملغاة']] as const;
@@ -33,6 +33,7 @@ export default function TaskFormScreen() {
   const [dueAt, setDueAt] = useState(task?.dueAt?.slice(0, 10) ?? '');
   const [assignedToId, setAssignedToId] = useState<string | null>(task?.assignedToId ?? null);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   if (id && !task) {
     return <View style={styles.missing}><Text style={[styles.intro, { color: colors.foreground }]}>لم يتم العثور على المهمة أو تمت أرشفتها.</Text></View>;
@@ -44,6 +45,7 @@ export default function TaskFormScreen() {
   };
   const save = async () => {
     if (!canManageTasks) return;
+    setSaveError(null);
     try {
       const due = dueAt.trim() ? new Date(dueAt).toISOString() : null;
       if (task) {
@@ -56,6 +58,7 @@ export default function TaskFormScreen() {
       await refresh();
       router.back();
     } catch (error) {
+      setSaveError(getMutationErrorMessage(error));
       await showMutationError(error, refresh);
       if (getErrorStatus(error) === 409) router.back();
     } finally {
@@ -97,6 +100,12 @@ export default function TaskFormScreen() {
         <Text style={[styles.label, { color: colors.foreground }]}>الحالة</Text>
         <View style={styles.options}>{statuses.map(([value, label]) => <Pressable testID={`task-status-${value}`} key={value} onPress={() => setStatus(value)} style={[styles.option, { backgroundColor: status === value ? colors.primary : colors.muted }]}><Text style={[styles.optionText, { color: status === value ? colors.primaryForeground : colors.foreground }]}>{label}</Text></Pressable>)}</View>
       </> : null}
+      {saveError ? (
+        <View testID="task-save-error" accessibilityRole="alert" style={[styles.saveError, { backgroundColor: colors.errorSurface, borderColor: colors.destructive }]}>
+          <Text testID="task-save-error-message" style={[styles.saveErrorMessage, { color: colors.foreground }]}>{saveError}</Text>
+          <PrimaryButton testID="task-save-error-retry" label="إعادة المحاولة" icon="refresh" disabled={busy} onPress={() => void save()} />
+        </View>
+      ) : null}
       <PrimaryButton testID="save-task" label={busy ? 'جارٍ الحفظ…' : task ? 'حفظ التعديلات' : 'إنشاء المهمة'} icon="checkmark" disabled={!valid || busy || !canManageTasks} onPress={() => void save()} />
       {task ? <Pressable testID="archive-task" disabled={busy} onPress={() => setArchiveOpen(true)} style={[styles.archive, { borderColor: colors.destructive }]}><Text style={[styles.archiveText, { color: colors.destructive }]}>أرشفة المهمة</Text></Pressable> : null}
     </KeyboardAwareScrollViewCompat>
@@ -119,4 +128,6 @@ const styles = StyleSheet.create({
   option: { paddingHorizontal: 11, paddingVertical: 9, borderRadius: 10 }, optionText: { fontFamily: fonts.bold },
   helper: { fontFamily: fonts.regular, textAlign: 'right', marginTop: -8 },
   archive: { minHeight: 48, borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, archiveText: { fontFamily: fonts.bold },
+  saveError: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 10 },
+  saveErrorMessage: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 21, textAlign: 'right', flexShrink: 1 },
 });

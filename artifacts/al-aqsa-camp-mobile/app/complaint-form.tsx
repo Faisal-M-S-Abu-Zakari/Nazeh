@@ -11,7 +11,7 @@ import { ArchiveConfirmModal } from '@/components/ArchiveConfirmModal';
 import { Field, fonts, PrimaryButton } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
-import { getErrorStatus, showMutationError } from '@/lib/mutationErrors';
+import { getErrorStatus, getMutationErrorMessage, showMutationError } from '@/lib/mutationErrors';
 
 const statuses = [
   [ComplaintStatus.OPEN, 'مفتوحة'], [ComplaintStatus.IN_REVIEW, 'قيد المراجعة'],
@@ -33,6 +33,7 @@ export default function ComplaintFormScreen() {
   const [reply, setReply] = useState(complaint?.reply ?? '');
   const [status, setStatus] = useState(complaint?.status ?? ComplaintStatus.OPEN);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   if (id && !complaint) {
     return <View style={styles.missing}><Text style={[styles.intro, { color: colors.foreground }]}>لم يتم العثور على الشكوى أو تمت أرشفتها.</Text></View>;
@@ -44,6 +45,7 @@ export default function ComplaintFormScreen() {
   };
   const save = async () => {
     if (!canManageComplaints) return;
+    setSaveError(null);
     try {
       if (complaint) {
         await updateMutation.mutateAsync({
@@ -62,6 +64,7 @@ export default function ComplaintFormScreen() {
       await refresh();
       router.back();
     } catch (error) {
+      setSaveError(getMutationErrorMessage(error));
       await showMutationError(error, refresh);
       if (getErrorStatus(error) === 409) router.back();
     } finally {
@@ -95,6 +98,12 @@ export default function ComplaintFormScreen() {
         <View style={styles.options}>{statuses.map(([value, label]) => <Pressable testID={`complaint-status-${value}`} key={value} onPress={() => setStatus(value)} style={[styles.option, { backgroundColor: status === value ? colors.primary : colors.muted }]}><Text style={[styles.optionText, { color: status === value ? colors.primaryForeground : colors.foreground }]}>{label}</Text></Pressable>)}</View>
         <Field testID="complaint-reply" label="رد الفريق (اختياري)" value={reply} onChangeText={setReply} multiline />
       </> : null}
+      {saveError ? (
+        <View testID="complaint-save-error" accessibilityRole="alert" style={[styles.saveError, { backgroundColor: colors.errorSurface, borderColor: colors.destructive }]}>
+          <Text testID="complaint-save-error-message" style={[styles.saveErrorMessage, { color: colors.foreground }]}>{saveError}</Text>
+          <PrimaryButton testID="complaint-save-error-retry" label="إعادة المحاولة" icon="refresh" disabled={busy} onPress={() => void save()} />
+        </View>
+      ) : null}
       <PrimaryButton testID="save-complaint" label={busy ? 'جارٍ الحفظ…' : complaint ? 'حفظ التعديلات' : 'إنشاء الشكوى'} icon="checkmark" disabled={!valid || busy || !canManageComplaints} onPress={() => void save()} />
       {complaint ? <Pressable testID="archive-complaint" disabled={busy} onPress={() => setArchiveOpen(true)} style={[styles.archive, { borderColor: colors.destructive }]}><Text style={[styles.archiveText, { color: colors.destructive }]}>أرشفة الشكوى</Text></Pressable> : null}
     </KeyboardAwareScrollViewCompat>
@@ -116,4 +125,6 @@ const styles = StyleSheet.create({
   label: { fontFamily: fonts.bold, textAlign: 'right' }, options: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 7 },
   option: { paddingHorizontal: 11, paddingVertical: 9, borderRadius: 10 }, optionText: { fontFamily: fonts.bold },
   archive: { minHeight: 48, borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, archiveText: { fontFamily: fonts.bold },
+  saveError: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 10 },
+  saveErrorMessage: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 21, textAlign: 'right', flexShrink: 1 },
 });
