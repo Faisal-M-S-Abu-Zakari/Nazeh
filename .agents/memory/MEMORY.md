@@ -16,3 +16,4 @@
 - [Expo mobile browser URL](expo-mobile-browser-url.md) — mobile Playwright suites need EXPO_E2E_URL set to the current Expo dev domain in the test shell.
 - [Expo web mutation errors](expo-web-mutation-errors.md) — critical mutation failures need inline UI because React Native Alert is not observable as a browser dialog.
 - [Playwright test formatting](playwright-test-formatting.md) — narrow browser specs use the repository's single-quote Prettier style even without a root config file.
+- [React Native Web disabled selectors](react-native-web-disabled-selectors.md) — assert `aria-disabled` for Pressable buttons; Playwright's disabled matcher targets native controls.

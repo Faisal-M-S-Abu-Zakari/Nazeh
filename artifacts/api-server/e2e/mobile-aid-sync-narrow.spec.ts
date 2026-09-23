@@ -283,6 +283,10 @@ test('retries a failed aid save successfully after the server recovers on a narr
   const aidRecordId = aidId!.replace(/^open-aid-/, '');
 
   let patchAttempts = 0;
+  let releaseRecoveredPatch!: () => void;
+  const recoveredPatchReleased = new Promise<void>((resolve) => {
+    releaseRecoveredPatch = resolve;
+  });
   await page.route('**/api/sync/aids/**', async (route) => {
     if (
       route.request().method() === 'PATCH' &&
@@ -297,6 +301,9 @@ test('retries a failed aid save successfully after the server recovers on a narr
           body: JSON.stringify({ error: 'temporary aid save failure' }),
         });
         return;
+      }
+      if (patchAttempts === 2) {
+        await recoveredPatchReleased;
       }
     }
     await route.fallback();
@@ -363,6 +370,28 @@ test('retries a failed aid save successfully after the server recovers on a narr
     expect(elementLayout.documentWidth).toBeLessThanOrEqual(375);
   }
 
+  const recoveredAidRequest = page.waitForRequest(
+    (request) =>
+      request.method() === 'PATCH' &&
+      new URL(request.url()).pathname === `/api/sync/aids/${aidRecordId}`,
+  );
+  await saveErrorRetry.click();
+  await recoveredAidRequest;
+  await expect(saveError).toHaveCount(0);
+  await expect(saveButton).toHaveAttribute('aria-disabled', 'true');
+
+  const saveButtonBox = await saveButton.boundingBox();
+  expect(saveButtonBox).not.toBeNull();
+  await page.mouse.click(
+    saveButtonBox!.x + saveButtonBox!.width / 2,
+    saveButtonBox!.y + saveButtonBox!.height / 2,
+  );
+  await page.mouse.click(
+    saveButtonBox!.x + saveButtonBox!.width / 2,
+    saveButtonBox!.y + saveButtonBox!.height / 2,
+  );
+  expect(patchAttempts).toBe(2);
+
   const recoveredAidResponse = page.waitForResponse(
     (response) =>
       response.request().method() === 'PATCH' &&
@@ -375,7 +404,7 @@ test('retries a failed aid save successfully after the server recovers on a narr
       new URL(response.url()).pathname === '/api/sync/aids' &&
       response.ok(),
   );
-  await saveErrorRetry.click();
+  releaseRecoveredPatch();
   await recoveredAidResponse;
   await refreshedAids;
   expect(patchAttempts).toBe(2);

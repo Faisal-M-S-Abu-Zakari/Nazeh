@@ -1,7 +1,7 @@
 import { AidType, getListAidsQueryKey, useArchiveAid, useUpdateSyncAid } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { ArchiveConfirmModal } from '@/components/ArchiveConfirmModal';
@@ -42,12 +42,17 @@ function AidDetailForm({ aid }: { aid: Aid }) {
   const [notes, setNotes] = useState(aid?.notes ?? '');
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const saveInFlightRef = useRef(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: getListAidsQueryKey() });
     await queryClient.refetchQueries({ queryKey: getListAidsQueryKey() });
   };
   const save = async () => {
+    if (saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
+    setIsSaving(true);
     setSaveError(null);
     try {
       await updateMutation.mutateAsync({
@@ -65,6 +70,9 @@ function AidDetailForm({ aid }: { aid: Aid }) {
       setSaveError(getMutationErrorMessage(error));
       await showMutationError(error, refresh);
       if (typeof error === 'object' && error !== null && 'status' in error && error.status === 409) router.back();
+    } finally {
+      saveInFlightRef.current = false;
+      setIsSaving(false);
     }
   };
   const archive = async () => {
@@ -111,11 +119,11 @@ function AidDetailForm({ aid }: { aid: Aid }) {
         {saveError ? (
           <View testID="aid-save-error" accessibilityRole="alert" style={[styles.saveError, { backgroundColor: colors.errorSurface, borderColor: colors.destructive }]}>
             <Text testID="aid-save-error-message" style={[styles.saveErrorMessage, { color: colors.foreground }]}>{saveError}</Text>
-            <PrimaryButton testID="aid-save-error-retry" label="إعادة المحاولة" icon="refresh" disabled={updateMutation.isPending} onPress={() => void save()} />
+            <PrimaryButton testID="aid-save-error-retry" label="إعادة المحاولة" icon="refresh" disabled={isSaving || updateMutation.isPending} onPress={() => void save()} />
           </View>
         ) : null}
         {canManageAids ? <>
-          <PrimaryButton testID="save-aid-edits" label={updateMutation.isPending ? 'جارٍ الحفظ…' : 'حفظ التعديلات'} icon="checkmark" disabled={!valid || updateMutation.isPending || archiveMutation.isPending} onPress={() => void save()} />
+          <PrimaryButton testID="save-aid-edits" label={isSaving || updateMutation.isPending ? 'جارٍ الحفظ…' : 'حفظ التعديلات'} icon="checkmark" disabled={!valid || isSaving || updateMutation.isPending || archiveMutation.isPending} onPress={() => void save()} />
           <Pressable accessibilityRole="button" accessibilityLabel="أرشفة الحملة" testID="archive-aid" disabled={archiveMutation.isPending} onPress={() => setArchiveOpen(true)} style={[styles.archive, { borderColor: colors.destructive }]}><Text style={[styles.archiveText, { color: colors.destructive }]}>أرشفة الحملة</Text></Pressable>
         </> : <Text style={[styles.readOnly, { color: colors.destructive }]}>هذا السجل متاح للعرض فقط حسب دور حسابك.</Text>}
       </KeyboardAwareScrollViewCompat>
