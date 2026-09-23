@@ -12,6 +12,7 @@ import { TYPE_GROUP_AIDS } from '@/@types/actors/common-types/index.type';
 import { MessageCircleWarning } from 'lucide-react';
 import { AidType, getListAidsQueryKey, useListAids } from '@workspace/api-client-react';
 import { DISTRIBUTION_MECHANISM, DISTRIBUTION_METHOD, QUANTITY_AVAILABILITY, TYPE_AIDS } from '@/@types/actors/common-types/index.type';
+import { formatLastSuccessfulSyncAt } from '@/utils/syncTime';
 
 interface CommonAidsManagementContentProps {
   actor_Id: number;
@@ -98,6 +99,9 @@ export default function Common_Aids_Management_Content({
 
   return (
     <Stack w={'100%'}>
+      <Text size='xs' c='dimmed' ta='right' data-testid='aids-last-sync'>
+        {formatLastSuccessfulSyncAt(aidsQuery.dataUpdatedAt || null)}
+      </Text>
       <Common_Aids_Management_Filters
         setLocalFilters={setLocalFilters}
         aidsNum={AidsData?.pagination.total_items ?? 0}

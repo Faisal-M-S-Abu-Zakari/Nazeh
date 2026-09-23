@@ -8,6 +8,7 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/ar';
 import { useQueryClient } from '@tanstack/react-query';
 import { getOperationErrorMessage } from '@/utils/operationErrorMessage';
+import { formatLastSuccessfulSyncAt } from '@/utils/syncTime';
 import useAuth from '@/hooks/useAuth';
 import {
   clearAidAssignmentDraft,
@@ -43,12 +44,17 @@ function AidsList() {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<string | null>(null);
   const [location, setLocation] = useLocation();
-  const { data: aids, isLoading, error } = useListAids({ 
+  const { data: aids, isLoading, error, dataUpdatedAt } = useListAids({
     query: { queryKey: getListAidsQueryKey() } 
   });
 
   if (isLoading) return <LoadingState message="جاري تحميل سجل المساعدات..." />;
-  if (error) return <ErrorState message="حدث خطأ أثناء تحميل البيانات." />;
+  if (error) return (
+    <div className="space-y-3">
+      <LastSuccessfulSync dataUpdatedAt={dataUpdatedAt} />
+      <ErrorState message="حدث خطأ أثناء تحميل البيانات." />
+    </div>
+  );
 
   const filtered = (aids || []).filter(a => {
     if (filterType && a.type !== filterType) return false;
@@ -69,6 +75,7 @@ function AidsList() {
           </Button>
         </Link>
       </div>
+      <LastSuccessfulSync dataUpdatedAt={dataUpdatedAt} />
 
       <Card withBorder shadow="sm" radius="lg" className="overflow-hidden bg-white dark:bg-card">
         <div className="p-4 border-b border-border bg-slate-50/50 dark:bg-slate-900/50 flex flex-wrap gap-4">
@@ -163,6 +170,19 @@ function AidsList() {
         </div>
       </Card>
     </div>
+  );
+}
+
+function LastSuccessfulSync({ dataUpdatedAt }: { dataUpdatedAt?: number }) {
+  return (
+    <Text
+      size="xs"
+      c="dimmed"
+      data-testid="aids-last-sync"
+      className="text-right"
+    >
+      {formatLastSuccessfulSyncAt(dataUpdatedAt || null)}
+    </Text>
   );
 }
 

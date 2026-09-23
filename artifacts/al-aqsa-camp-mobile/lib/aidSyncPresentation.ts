@@ -1,5 +1,8 @@
 export type AidSyncState = 'syncing' | 'synced' | 'offline' | 'error';
 
+export { formatLastSuccessfulSyncAt } from './syncTime';
+import { formatLastSuccessfulSyncAt } from './syncTime';
+
 export type AidSyncPresentation = {
   recipientCountLabel: string;
   recipientCountIsCached: boolean;
@@ -19,13 +22,6 @@ export function getLastSuccessfulAidsSyncAt(current: string | null, dataUpdatedA
   if (!dataUpdatedAt) return current;
   const updatedAt = new Date(dataUpdatedAt);
   return Number.isNaN(updatedAt.getTime()) ? current : updatedAt.toISOString();
-}
-
-export function formatLastSuccessfulSyncAt(lastSyncedAt?: string | null): string {
-  const parsedLastSyncedAt = lastSyncedAt ? new Date(lastSyncedAt) : null;
-  return parsedLastSyncedAt && !Number.isNaN(parsedLastSyncedAt.getTime())
-    ? `آخر مزامنة ناجحة: ${parsedLastSyncedAt.toLocaleString('ar')}`
-    : 'آخر مزامنة ناجحة: غير متوفرة بعد';
 }
 
 export function getAidSyncPresentation(state: AidSyncState, message: string): AidSyncPresentation {

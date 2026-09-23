@@ -5,7 +5,7 @@ import { Image, Platform, Pressable, StyleSheet, Text, TextInput, TextInputProps
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/context/AppContext';
-import { formatLastSuccessfulSyncAt } from '@/lib/aidSyncPresentation';
+import { formatLastSuccessfulSyncAt } from '@/lib/syncTime';
 
 export const fonts = { regular: 'Tajawal_400Regular', medium: 'Tajawal_500Medium', bold: 'Tajawal_700Bold', extraBold: 'Tajawal_800ExtraBold' };
 

@@ -92,9 +92,29 @@ test('the campaigns cached-version warning displays the last successful sync tim
 
   assert.equal(
     formatLastSuccessfulSyncAt(lastSyncedAt),
-    `آخر مزامنة ناجحة: ${new Date(lastSyncedAt).toLocaleString('ar')}`,
+    'آخر مزامنة ناجحة: ٢٣/٠٩/٢٠٢٦، ١١:٠٠ (بتوقيت القدس)',
   );
   assert.equal(formatLastSuccessfulSyncAt(null), 'آخر مزامنة ناجحة: غير متوفرة بعد');
   assert.equal(warning.recipientCountIsCached, true);
   assert.match(warning.warningMessage ?? '', /آخر عدد محفوظ على الجهاز/);
+});
+
+test('sync time stays identical when the device timezone changes', () => {
+  const previousTimezone = process.env.TZ;
+  try {
+    process.env.TZ = 'America/Los_Angeles';
+    const pacific = formatLastSuccessfulSyncAt('2026-09-23T08:00:00.000Z');
+    process.env.TZ = 'Asia/Tokyo';
+    const tokyo = formatLastSuccessfulSyncAt('2026-09-23T08:00:00.000Z');
+    assert.equal(pacific, tokyo);
+    assert.equal(pacific, 'آخر مزامنة ناجحة: ٢٣/٠٩/٢٠٢٦، ١١:٠٠ (بتوقيت القدس)');
+  } finally {
+    if (previousTimezone === undefined) delete process.env.TZ;
+    else process.env.TZ = previousTimezone;
+  }
+});
+
+test('sync time remains unavailable until a successful timestamp exists', () => {
+  assert.equal(formatLastSuccessfulSyncAt(null), 'آخر مزامنة ناجحة: غير متوفرة بعد');
+  assert.equal(formatLastSuccessfulSyncAt('not-a-date'), 'آخر مزامنة ناجحة: غير متوفرة بعد');
 });
