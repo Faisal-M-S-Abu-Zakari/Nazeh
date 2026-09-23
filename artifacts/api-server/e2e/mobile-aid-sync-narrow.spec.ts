@@ -162,6 +162,43 @@ test('keeps aid details usable when the unavailable sync timestamp wraps on a na
   expect(saveLayout.viewportWidth).toBeLessThanOrEqual(375);
   expect(saveLayout.documentWidth).toBeLessThanOrEqual(saveLayout.viewportWidth);
 
+  let archiveRequests = 0;
+  page.on('request', (request) => {
+    if (request.method() !== 'OPTIONS' && new URL(request.url()).pathname.endsWith('/archive')) {
+      archiveRequests += 1;
+    }
+  });
+  const archiveButton = page.getByTestId('archive-aid');
+  await archiveButton.scrollIntoViewIfNeeded();
+  await expect(archiveButton).toBeVisible();
+  await expect(archiveButton).toBeEnabled();
+  const archiveLayout = await archiveButton.evaluate((node) => {
+    const rect = (node as HTMLElement).getBoundingClientRect();
+    return {
+      top: rect.top,
+      bottom: rect.bottom,
+      left: rect.left,
+      right: rect.right,
+      width: rect.width,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      documentWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+    };
+  });
+  expect(archiveLayout.width).toBeGreaterThan(0);
+  expect(archiveLayout.top).toBeGreaterThanOrEqual(0);
+  expect(archiveLayout.bottom).toBeLessThanOrEqual(archiveLayout.viewportHeight);
+  expect(archiveLayout.left).toBeGreaterThanOrEqual(0);
+  expect(archiveLayout.right).toBeLessThanOrEqual(archiveLayout.viewportWidth);
+  expect(archiveLayout.viewportWidth).toBeLessThanOrEqual(375);
+  expect(archiveLayout.documentWidth).toBeLessThanOrEqual(archiveLayout.viewportWidth);
+
+  await archiveButton.click();
+  await expect(page.getByTestId('archive-aid-modal')).toBeVisible();
+  await page.getByTestId('archive-aid-cancel').click();
+  await expect(page.getByTestId('archive-aid-modal')).toBeHidden();
+  expect(archiveRequests).toBe(0);
+
   await page.unroute('**/api/sync/aids');
   const aidRecordId = aidId!.replace(/^open-aid-/, '');
   const updatedAidResponse = page.waitForResponse(

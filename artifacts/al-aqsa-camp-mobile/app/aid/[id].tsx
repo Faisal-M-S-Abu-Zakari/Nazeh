@@ -100,7 +100,7 @@ export default function AidDetailScreen() {
         <Field testID="edit-aid-notes" label="ملاحظات" value={notes} onChangeText={setNotes} multiline editable={canManageAids} />
         {canManageAids ? <>
           <PrimaryButton testID="save-aid-edits" label={updateMutation.isPending ? 'جارٍ الحفظ…' : 'حفظ التعديلات'} icon="checkmark" disabled={!valid || updateMutation.isPending || archiveMutation.isPending} onPress={() => void save()} />
-          <Pressable testID="archive-aid" disabled={archiveMutation.isPending} onPress={() => setArchiveOpen(true)} style={[styles.archive, { borderColor: colors.destructive }]}><Text style={[styles.archiveText, { color: colors.destructive }]}>أرشفة الحملة</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="أرشفة الحملة" testID="archive-aid" disabled={archiveMutation.isPending} onPress={() => setArchiveOpen(true)} style={[styles.archive, { borderColor: colors.destructive }]}><Text style={[styles.archiveText, { color: colors.destructive }]}>أرشفة الحملة</Text></Pressable>
         </> : <Text style={[styles.readOnly, { color: colors.destructive }]}>هذا السجل متاح للعرض فقط حسب دور حسابك.</Text>}
       </KeyboardAwareScrollViewCompat>
       <ArchiveConfirmModal
