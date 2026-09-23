@@ -36,9 +36,9 @@ export function ArchiveConfirmModal({
           testID={`${testIDPrefix}-modal`}
           style={[styles.dialog, { backgroundColor: colors.card, borderColor: colors.border }]}
         >
-          <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
-          <Text style={[styles.message, { color: colors.mutedForeground }]}>{message}</Text>
-          <View style={styles.actions}>
+          <Text testID={`${testIDPrefix}-title`} style={[styles.title, { color: colors.foreground }]}>{title}</Text>
+          <Text testID={`${testIDPrefix}-message`} style={[styles.message, { color: colors.mutedForeground }]}>{message}</Text>
+          <View testID={`${testIDPrefix}-actions`} style={styles.actions}>
             <Pressable
               accessibilityRole="button"
               testID={`${testIDPrefix}-cancel`}
@@ -67,11 +67,11 @@ export function ArchiveConfirmModal({
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' },
+  overlay: { flex: 1, padding: 16, alignItems: 'center', justifyContent: 'center' },
   dialog: { width: '100%', maxWidth: 420, borderWidth: 1, borderRadius: 18, padding: 20 },
   title: { fontFamily: fonts.extraBold, fontSize: 20, textAlign: 'right' },
   message: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 23, textAlign: 'right', marginTop: 8 },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 22 },
-  button: { flex: 1, minHeight: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
-  buttonText: { fontFamily: fonts.bold, fontSize: 14, textAlign: 'center' },
+  actions: { flexDirection: 'row', gap: 10, marginTop: 22, minWidth: 0 },
+  button: { flex: 1, minWidth: 0, minHeight: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
+  buttonText: { flexShrink: 1, fontFamily: fonts.bold, fontSize: 14, textAlign: 'center' },
 });

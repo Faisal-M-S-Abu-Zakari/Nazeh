@@ -237,9 +237,44 @@ test('retries a failed aid save successfully after the server recovers on a narr
   );
 
   await archiveButton.click();
-  await expect(page.getByTestId('archive-aid-modal')).toBeVisible();
+  const archiveModal = page.getByTestId('archive-aid-modal');
+  await expect(archiveModal).toBeVisible();
+  for (const element of [
+    archiveModal,
+    page.getByTestId('archive-aid-title'),
+    page.getByTestId('archive-aid-message'),
+    page.getByTestId('archive-aid-actions'),
+    page.getByTestId('archive-aid-cancel'),
+    page.getByTestId('archive-aid-confirm'),
+  ]) {
+    await expect(element).toBeVisible();
+    const layout = await element.evaluate((node) => {
+      const element = node as HTMLElement;
+      const rect = element.getBoundingClientRect();
+      return {
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom,
+        width: rect.width,
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        documentWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+      };
+    });
+    expect(layout.width).toBeGreaterThan(0);
+    expect(layout.left).toBeGreaterThanOrEqual(0);
+    expect(layout.right).toBeLessThanOrEqual(layout.viewportWidth);
+    expect(layout.top).toBeGreaterThanOrEqual(0);
+    expect(layout.bottom).toBeLessThanOrEqual(layout.viewportHeight);
+    expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1);
+    expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth);
+    expect(layout.viewportWidth).toBeLessThanOrEqual(375);
+  }
   await page.getByTestId('archive-aid-cancel').click();
-  await expect(page.getByTestId('archive-aid-modal')).toBeHidden();
+  await expect(archiveModal).toBeHidden();
   expect(archiveRequests).toBe(0);
 
   await page.unroute('**/api/sync/aids');
