@@ -45,6 +45,23 @@ test('account hydration reads only that account cache and queued writes', async 
   assert.deepEqual(accountB.queue.map((item) => item.id), ['b-write']);
 });
 
+test('last successful aid sync time survives reload without crossing account caches', async () => {
+  const accountATime = '2026-09-23T08:15:00.000Z';
+  const accountBTime = '2026-09-23T09:45:00.000Z';
+  const storage = new Map<string, string>([
+    [cacheStorageKey('account-a'), JSON.stringify({ aids: ['private-a'], lastAidsSyncAt: accountATime })],
+    [cacheStorageKey('account-b'), JSON.stringify({ aids: ['private-b'], lastAidsSyncAt: accountBTime })],
+  ]);
+  const getItem = async (key: string) => storage.get(key) ?? null;
+
+  const accountAAfterReload = await loadOwnerStorage<{ aids: string[]; lastAidsSyncAt?: string | null }, Write>('account-a', getItem);
+  const accountBAfterReload = await loadOwnerStorage<{ aids: string[]; lastAidsSyncAt?: string | null }, Write>('account-b', getItem);
+
+  assert.equal(accountAAfterReload.cache?.lastAidsSyncAt, accountATime);
+  assert.equal(accountBAfterReload.cache?.lastAidsSyncAt, accountBTime);
+  assert.notEqual(accountAAfterReload.cache?.lastAidsSyncAt, accountBAfterReload.cache?.lastAidsSyncAt);
+});
+
 test('an in-flight replay is cancelled without touching the next account queue', async () => {
   const controller = new AbortController();
   let activeOwner = 'account-a';
