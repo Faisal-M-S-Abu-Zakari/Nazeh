@@ -1,7 +1,7 @@
 import { Gender, getListPeopleQueryKey, useArchivePerson, useUpdatePerson } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { ArchiveConfirmModal } from '@/components/ArchiveConfirmModal';
@@ -28,6 +28,8 @@ export default function PersonDetailScreen() {
   const [notes, setNotes] = useState(person?.notes ?? '');
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const saveInFlight = useRef(false);
+  const [saving, setSaving] = useState(false);
 
   if (!person) return <View style={[styles.center, { backgroundColor: colors.background }]}><Text style={{ color: colors.foreground, fontFamily: fonts.bold }}>لم يتم العثور على السجل</Text></View>;
 
@@ -36,6 +38,9 @@ export default function PersonDetailScreen() {
     await queryClient.refetchQueries({ queryKey: getListPeopleQueryKey() });
   };
   const save = async () => {
+    if (saveInFlight.current || updateMutation.isPending) return;
+    saveInFlight.current = true;
+    setSaving(true);
     setSaveError(null);
     try {
       await updateMutation.mutateAsync({
@@ -53,6 +58,9 @@ export default function PersonDetailScreen() {
       setSaveError(getMutationErrorMessage(error));
       await showMutationError(error, refresh);
       if (getErrorStatus(error) === 409) router.back();
+    } finally {
+      saveInFlight.current = false;
+      setSaving(false);
     }
   };
   const archive = async () => {
@@ -85,10 +93,10 @@ export default function PersonDetailScreen() {
           {saveError ? (
             <View testID="person-save-error" accessibilityRole="alert" style={[styles.saveError, { backgroundColor: colors.errorSurface, borderColor: colors.destructive }]}>
               <Text testID="person-save-error-message" style={[styles.saveErrorMessage, { color: colors.foreground }]}>{saveError}</Text>
-              <PrimaryButton testID="person-save-error-retry" label="إعادة المحاولة" icon="refresh" disabled={updateMutation.isPending} onPress={() => void save()} />
+              <PrimaryButton testID="person-save-error-retry" label="إعادة المحاولة" icon="refresh" disabled={saving || updateMutation.isPending} onPress={() => void save()} />
             </View>
           ) : null}
-          <PrimaryButton testID="save-person-edits" label={updateMutation.isPending ? 'جارٍ الحفظ…' : 'حفظ التعديلات'} icon="checkmark" disabled={!valid || updateMutation.isPending || archiveMutation.isPending} onPress={() => void save()} />
+          <PrimaryButton testID="save-person-edits" label={saving || updateMutation.isPending ? 'جارٍ الحفظ…' : 'حفظ التعديلات'} icon="checkmark" disabled={!valid || saving || updateMutation.isPending || archiveMutation.isPending} onPress={() => void save()} />
           <Pressable testID="archive-person" disabled={archiveMutation.isPending} onPress={() => setArchiveOpen(true)} style={[styles.archive, { borderColor: colors.destructive }]}><Text style={[styles.archiveText, { color: colors.destructive }]}>أرشفة السجل</Text></Pressable>
         </> : <Text style={[styles.readOnly, { color: colors.destructive }]}>هذا السجل متاح للعرض فقط حسب دور حسابك.</Text>}
       </KeyboardAwareScrollViewCompat>

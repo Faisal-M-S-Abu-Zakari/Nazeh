@@ -6,6 +6,7 @@
 - [Unified manager compatibility](unified-manager-compatibility.md) — ADMIN and MANAGER remain internal aliases, but the product exposes one manager role with full platform access.
 - [Safe operation error contract](operation-error-contract.md) — use public reason codes and localized client messages instead of exposing raw mutation errors.
 - [Concurrent mutation callbacks](concurrent-mutation-callbacks.md) — use independent mutation promises when multiple row actions can be pending at once.
+- [Single-control mutation locks](single-control-mutation-locks.md) — pair visible pending state with a synchronous ref guard when one control must reject same-tick repeats.
 - [Workspace e2e selectors](workspace-e2e-selectors.md) — Mantine staff-workspace selects and quantities are accessible textboxes; assert visible labels, not internal IDs.
 - [Workspace Playwright runtime](workspace-playwright-runtime.md) — workspace browser tests need an explicit Chromium executable fallback in this environment.
 - [Workspace detail history cache isolation](workspace-detail-history-cache.md) — ID-scope detail queries so browser history cannot reuse another record's list snapshot.
