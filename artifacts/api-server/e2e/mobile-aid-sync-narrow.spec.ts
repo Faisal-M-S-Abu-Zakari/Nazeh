@@ -132,8 +132,54 @@ test('keeps aid details usable when the unavailable sync timestamp wraps on a na
   const retry = page.getByTestId('aid-recipient-sync-warning-retry');
   await retry.scrollIntoViewIfNeeded();
   await expect(retry).toBeVisible();
+  const retryResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'GET' &&
+      new URL(response.url()).pathname === '/api/sync/aids' &&
+      response.status() === 503,
+  );
   await retry.click();
+  await retryResponse;
   await expect(retry).toBeVisible();
+
+  const saveButton = page.getByTestId('save-aid-edits');
+  await saveButton.scrollIntoViewIfNeeded();
+  await expect(saveButton).toBeVisible();
+  await expect(saveButton).toBeEnabled();
+  const saveLayout = await saveButton.evaluate((node) => {
+    const rect = (node as HTMLElement).getBoundingClientRect();
+    return {
+      left: rect.left,
+      right: rect.right,
+      width: rect.width,
+      viewportWidth: window.innerWidth,
+      documentWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+    };
+  });
+  expect(saveLayout.width).toBeGreaterThan(0);
+  expect(saveLayout.left).toBeGreaterThanOrEqual(0);
+  expect(saveLayout.right).toBeLessThanOrEqual(saveLayout.viewportWidth);
+  expect(saveLayout.viewportWidth).toBeLessThanOrEqual(375);
+  expect(saveLayout.documentWidth).toBeLessThanOrEqual(saveLayout.viewportWidth);
+
+  await page.unroute('**/api/sync/aids');
+  const aidRecordId = aidId!.replace(/^open-aid-/, '');
+  const updatedAidResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PATCH' &&
+      new URL(response.url()).pathname === `/api/sync/aids/${aidRecordId}` &&
+      response.ok(),
+  );
+  const refreshedAids = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'GET' &&
+      new URL(response.url()).pathname === '/api/sync/aids' &&
+      response.ok(),
+  );
+  await saveButton.click();
+  await updatedAidResponse;
+  await refreshedAids;
+  await expect(page.locator(`[data-testid="${aidId}"]`)).toBeVisible();
 
   await context.close();
 });
