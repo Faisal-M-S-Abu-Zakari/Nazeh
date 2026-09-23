@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { ArchiveConfirmModal } from '@/components/ArchiveConfirmModal';
-import { DataFreshnessNotice, Field, fonts, PrimaryButton, ScreenHeader } from '@/components/ui';
+import { DataFreshnessNotice, Field, fonts, PrimaryButton, ScreenHeader, SyncTimestamp } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { getAidSyncPresentation } from '@/lib/aidSyncPresentation';
@@ -20,7 +20,7 @@ export default function AidDetailScreen() {
   const colors = useColors();
   const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { aids, aidsSyncMessage, aidsSyncState, canManageAids, retryAids } = useApp();
+  const { aids, aidsSyncMessage, aidsSyncState, canManageAids, lastAidsSyncAt, retryAids } = useApp();
   const aid = aids.find((item) => item.id === id);
   const updateMutation = useUpdateSyncAid();
   const archiveMutation = useArchiveAid();
@@ -83,6 +83,7 @@ export default function AidDetailScreen() {
           <Text testID="aid-recipient-count" style={[styles.recipientCount, { color: recipientSync.recipientCountIsCached || aidsSyncState === 'syncing' ? colors.warning : colors.primary }]}>
             {recipientSync.recipientCountLabel}: {aid.receivedDistributionCount}
           </Text>
+          <SyncTimestamp testID="aid-last-successful-sync" lastSyncedAt={lastAidsSyncAt} />
           {recipientSync.recipientCountIsCached ? (
             <DataFreshnessNotice
               testID={recipientSync.warningTestID}

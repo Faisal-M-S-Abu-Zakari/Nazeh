@@ -70,6 +70,14 @@ export function StatusPill({ text, tone = 'green' }: { text: string; tone?: 'gre
   return <View style={[styles.pill, { backgroundColor }]}><Text style={[styles.pillText, { color }]}>{text}</Text></View>;
 }
 
+export function SyncTimestamp({ lastSyncedAt, testID }: { lastSyncedAt?: string | null; testID: string }) {
+  const colors = useColors();
+  return (
+    <Text testID={testID} style={[styles.syncTimestamp, { color: colors.mutedForeground }]}>
+      {formatLastSuccessfulSyncAt(lastSyncedAt)}
+    </Text>
+  );
+}
 export function SyncBanner({ scope = 'all' }: { scope?: 'all' | 'aids' } = {}) {
   const colors = useColors();
   const { syncState, syncMessage, retrySync, aidsSyncState, aidsSyncMessage, lastAidsSyncAt, retryAids } = useApp();
@@ -90,9 +98,7 @@ export function SyncBanner({ scope = 'all' }: { scope?: 'all' | 'aids' } = {}) {
         <Ionicons name={bad ? 'cloud-offline-outline' : scopedState === 'syncing' ? 'sync-outline' : 'cloud-done-outline'} size={17} color={bad ? colors.destructive : colors.primary} />
       </Pressable>
       {scope === 'aids' ? (
-        <Text testID="aids-last-successful-sync" style={[styles.syncTimestamp, { color: colors.mutedForeground }]}>
-          {formatLastSuccessfulSyncAt(lastAidsSyncAt)}
-        </Text>
+        <SyncTimestamp testID="aids-last-successful-sync" lastSyncedAt={lastAidsSyncAt} />
       ) : null}
     </View>
   );
