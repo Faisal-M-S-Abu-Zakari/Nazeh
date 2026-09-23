@@ -77,6 +77,7 @@ export default function AidDetailScreen() {
         <Text style={[styles.label, { color: colors.foreground }]}>نوع المساعدة</Text>
         <View style={styles.options}>{types.map(([value, label]) => <Pressable testID={`edit-aid-type-${value}`} disabled={!canManageAids} key={value} onPress={() => setType(value)} style={[styles.option, { backgroundColor: type === value ? colors.primary : colors.muted }]}><Text style={{ color: type === value ? colors.primaryForeground : colors.foreground, fontFamily: fonts.bold }}>{label}</Text></Pressable>)}</View>
         <Field testID="edit-aid-quantity" label="الكمية" value={quantity} onChangeText={setQuantity} keyboardType="number-pad" editable={canManageAids} />
+        <Text testID="aid-recipient-count" style={[styles.recipientCount, { color: colors.primary }]}>عدد المستلمين: {aid.receivedDistributionCount}</Text>
         <Field testID="edit-aid-unit" label="الوحدة" value={unit} onChangeText={setUnit} editable={canManageAids} />
         <Field testID="edit-aid-location" label="الموقع" value={location} onChangeText={setLocation} editable={canManageAids} />
         <Field testID="edit-aid-date" label="تاريخ التوزيع" value={date} onChangeText={setDate} editable={canManageAids} />
@@ -105,6 +106,7 @@ const styles = StyleSheet.create({
   label: { fontFamily: fonts.bold, textAlign: 'right' },
   options: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 7 },
   option: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10 },
+  recipientCount: { fontFamily: fonts.medium, textAlign: 'right', fontSize: 14 },
   archive: { minHeight: 48, borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   archiveText: { fontFamily: fonts.bold }, readOnly: { fontFamily: fonts.bold, textAlign: 'center' },
 });
