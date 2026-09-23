@@ -192,3 +192,13 @@ test('the operations aid status bar shares the detail sync-time wording for empt
     'آخر مزامنة ناجحة: ٢٣/٠٩/٢٠٢٦، ١١:٠٠ (بتوقيت القدس)',
   );
 });
+
+test('long campaign names stay within narrow mobile layouts in the list and detail header', () => {
+  assert.match(operationsScreenSource, /row: \{[^}]*minWidth: 0/);
+  assert.match(operationsScreenSource, /titleArea: \{ flex: 1, minWidth: 0/);
+  assert.match(operationsScreenSource, /title: \{ flexShrink: 1, maxWidth: '100%'/);
+  assert.match(uiSource, /headerText: \{ flex: 1, minWidth: 0/);
+  assert.match(uiSource, /headerTitle: \{ flexShrink: 1, maxWidth: '100%'/);
+  assert.match(aidDetailScreenSource, /<ScreenHeader title=\{aid\.title\} subtitle="تعديل بيانات الحملة" \/>/);
+  assert.match(aidDetailScreenSource, /<KeyboardAwareScrollViewCompat contentContainerStyle=\{styles\.content\}/);
+});

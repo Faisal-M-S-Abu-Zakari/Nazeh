@@ -72,9 +72,9 @@ export default function OperationsScreen() {
 const styles = StyleSheet.create({
   page: { flex: 1 }, content: { padding: 16, paddingBottom: 118, gap: 12 },
   summary: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  section: { fontFamily: fonts.extraBold, fontSize: 18 }, row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  titleArea: { flex: 1, alignItems: 'flex-end' }, title: { fontFamily: fonts.bold, fontSize: 16, textAlign: 'right' },
-  meta: { fontFamily: fonts.regular, fontSize: 12, marginTop: 3 }, icon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  section: { fontFamily: fonts.extraBold, fontSize: 18 }, row: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, minWidth: 0 },
+  titleArea: { flex: 1, minWidth: 0, alignItems: 'flex-end' }, title: { flexShrink: 1, maxWidth: '100%', fontFamily: fonts.bold, fontSize: 16, lineHeight: 24, textAlign: 'right' },
+  meta: { flexShrink: 1, maxWidth: '100%', fontFamily: fonts.regular, fontSize: 12, marginTop: 3, textAlign: 'right' }, icon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   progressTrack: { height: 6, borderRadius: 6, overflow: 'hidden', marginTop: 16 }, progress: { height: 6, borderRadius: 6 },
   count: { fontFamily: fonts.medium, textAlign: 'right', marginTop: 8, fontSize: 12 }, notice: { fontFamily: fonts.regular, textAlign: 'center' },
 });

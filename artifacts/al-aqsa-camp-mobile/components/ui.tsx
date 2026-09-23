@@ -122,8 +122,8 @@ export function DataFreshnessNotice({ title, message, lastSyncedAt, onRetry, tes
 const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 18, borderBottomWidth: 1 },
   headerRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  headerText: { flex: 1, alignItems: 'flex-end' },
-  headerTitle: { fontFamily: fonts.extraBold, fontSize: 22, textAlign: 'right' },
+  headerText: { flex: 1, minWidth: 0, alignItems: 'flex-end' },
+  headerTitle: { flexShrink: 1, maxWidth: '100%', fontFamily: fonts.extraBold, fontSize: 22, textAlign: 'right' },
   headerSubtitle: { fontFamily: fonts.regular, fontSize: 13, textAlign: 'right', marginTop: 2 },
   card: { borderWidth: 1, borderRadius: 12, padding: 16, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
   button: { minHeight: 50, borderRadius: 14, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
