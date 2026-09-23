@@ -72,22 +72,29 @@ export function StatusPill({ text, tone = 'green' }: { text: string; tone?: 'gre
 
 export function SyncBanner({ scope = 'all' }: { scope?: 'all' | 'aids' } = {}) {
   const colors = useColors();
-  const { syncState, syncMessage, retrySync, aidsSyncState, aidsSyncMessage, retryAids } = useApp();
+  const { syncState, syncMessage, retrySync, aidsSyncState, aidsSyncMessage, lastAidsSyncAt, retryAids } = useApp();
   const scopedState = scope === 'aids' ? aidsSyncState : syncState;
   const scopedMessage = scope === 'aids' ? aidsSyncMessage : syncMessage;
   const retry = scope === 'aids' ? retryAids : retrySync;
   const bad = scopedState === 'offline' || scopedState === 'error';
   return (
-    <Pressable
-      testID="retry-sync"
-      accessibilityRole="button"
-      accessibilityLabel={`${scopedMessage}. اضغط لإعادة المحاولة`}
-      onPress={() => void retry()}
-      style={[styles.sync, { backgroundColor: bad ? colors.errorSurface : colors.accent }]}
-    >
-      <Text style={[styles.syncText, { color: bad ? colors.destructive : colors.primary }]}>{scopedMessage}</Text>
-      <Ionicons name={bad ? 'cloud-offline-outline' : scopedState === 'syncing' ? 'sync-outline' : 'cloud-done-outline'} size={17} color={bad ? colors.destructive : colors.primary} />
-    </Pressable>
+    <View style={styles.syncSection}>
+      <Pressable
+        testID="retry-sync"
+        accessibilityRole="button"
+        accessibilityLabel={`${scopedMessage}. اضغط لإعادة المحاولة`}
+        onPress={() => void retry()}
+        style={[styles.sync, { backgroundColor: bad ? colors.errorSurface : colors.accent }]}
+      >
+        <Text style={[styles.syncText, { color: bad ? colors.destructive : colors.primary }]}>{scopedMessage}</Text>
+        <Ionicons name={bad ? 'cloud-offline-outline' : scopedState === 'syncing' ? 'sync-outline' : 'cloud-done-outline'} size={17} color={bad ? colors.destructive : colors.primary} />
+      </Pressable>
+      {scope === 'aids' ? (
+        <Text testID="aids-last-successful-sync" style={[styles.syncTimestamp, { color: colors.mutedForeground }]}>
+          {formatLastSuccessfulSyncAt(lastAidsSyncAt)}
+        </Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -120,8 +127,10 @@ const styles = StyleSheet.create({
   input: { minHeight: 50, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, fontFamily: fonts.regular, fontSize: 16 },
   pill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   pillText: { fontFamily: fonts.bold, fontSize: 12 },
+  syncSection: { gap: 5 },
   sync: { minHeight: 38, borderRadius: 10, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   syncText: { fontFamily: fonts.bold, fontSize: 12, textAlign: 'center' },
+  syncTimestamp: { fontFamily: fonts.medium, fontSize: 12, textAlign: 'right' },
   freshnessNotice: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 9 },
   freshnessHeading: { flexDirection: 'row-reverse', alignItems: 'center', gap: 7 },
   freshnessTitle: { flex: 1, fontFamily: fonts.bold, fontSize: 14, textAlign: 'right' },

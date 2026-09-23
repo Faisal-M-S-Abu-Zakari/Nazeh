@@ -94,6 +94,7 @@ test('the campaigns cached-version warning displays the last successful sync tim
     formatLastSuccessfulSyncAt(lastSyncedAt),
     `آخر مزامنة ناجحة: ${new Date(lastSyncedAt).toLocaleString('ar')}`,
   );
+  assert.equal(formatLastSuccessfulSyncAt(null), 'آخر مزامنة ناجحة: غير متوفرة بعد');
   assert.equal(warning.recipientCountIsCached, true);
   assert.match(warning.warningMessage ?? '', /آخر عدد محفوظ على الجهاز/);
 });
