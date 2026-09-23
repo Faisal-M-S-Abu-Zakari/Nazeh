@@ -31,7 +31,7 @@ import {
   useListSectors,
   useListTasks,
 } from '@workspace/api-client-react';
-import type { FamilyInput, FamilyMemberInput, FamilyUpdate, NeedInput, NeedStatus, TaskApproval, TaskSubmission } from '@workspace/api-client-react';
+import type { Aid, AidDistribution, FamilyInput, FamilyMemberInput, FamilyUpdate, NeedInput, NeedStatus, TaskApproval, TaskSubmission } from '@workspace/api-client-react';
 import { AlertCircle, CheckCircle2, ClipboardList, Home, Loader2, Search, ShieldCheck, Users } from 'lucide-react';
 import useAuth from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';
@@ -177,11 +177,38 @@ export default function OperationsDashboard() {
     },
   });
   const receiveDistributionMutation = useMutation({
-    mutationFn: (distributionId: string) =>
+    mutationFn: ({ aidId, distributionId }: { aidId: string; distributionId: string }) =>
       receiveAidDistribution(distributionId, {}, { headers: { 'Idempotency-Key': crypto.randomUUID() } }),
-    onSuccess: () => {
+    onSuccess: (receivedDistribution, { aidId }) => {
       setNotice('تم تسجيل الاستلام مع الوقت والمنفذ.');
-      queryClient.invalidateQueries({ queryKey: getListAidDistributionsQueryKey(distributionAidId) });
+      const wasAlreadyReceived = queryClient
+        .getQueryData<AidDistribution[]>(getListAidDistributionsQueryKey(aidId))
+        ?.some(
+          (distribution) =>
+            distribution.id === receivedDistribution.id && distribution.status === 'RECEIVED',
+        );
+      queryClient.setQueryData<AidDistribution[]>(
+        getListAidDistributionsQueryKey(aidId),
+        (currentDistributions) =>
+          currentDistributions?.map((distribution) =>
+            distribution.id === receivedDistribution.id ? receivedDistribution : distribution,
+          ) ?? [receivedDistribution],
+      );
+      if (!wasAlreadyReceived && receivedDistribution.status === 'RECEIVED') {
+        queryClient.setQueriesData<Aid[]>(
+          { queryKey: getListAidsQueryKey() },
+          (currentAids) =>
+            currentAids?.map((aid) =>
+              aid.id === aidId
+                ? {
+                    ...aid,
+                    receivedDistributionCount: (aid.receivedDistributionCount ?? 0) + 1,
+                  }
+                : aid,
+            ),
+        );
+      }
+      queryClient.invalidateQueries({ queryKey: getListAidDistributionsQueryKey(aidId) });
       queryClient.invalidateQueries({ queryKey: getListNeedsQueryKey() });
     },
   });
@@ -244,6 +271,7 @@ export default function OperationsDashboard() {
     `${family.headName} ${family.id}`.toLowerCase().includes(search.toLowerCase())), [families.data, search]);
   const sectorName = (id: string) => sectors.data?.find((item) => item.id === id)?.name ?? 'غير محدد';
   const shelterName = (id?: string | null) => shelters.data?.find((item) => item.id === id)?.code ?? 'بدون خيمة';
+  const selectedAid = aids.data?.find((aid) => aid.id === distributionAidId);
   const submitTaskNow = (task: { id: string; version: number }) => {
     const data = { result: 'تم التنفيذ ميدانياً', expectedVersion: task.version };
     if (!navigator.onLine) {
@@ -411,9 +439,9 @@ export default function OperationsDashboard() {
               </div>
               {distributionAidId && (
                 <div className="space-y-2 rounded-xl border bg-slate-50 p-3">
-                  <div className="flex items-center justify-between"><p className="font-semibold">سجل هذه المساعدة</p><span className="text-xs text-muted-foreground">{distributions.data?.length ?? 0} أسرة مرتبطة</span></div>
+                  <div className="flex flex-wrap items-center justify-between gap-2"><p className="font-semibold">سجل هذه المساعدة</p><div className="flex gap-3 text-xs text-muted-foreground"><span>{distributions.data?.length ?? 0} أسرة مرتبطة</span><span data-testid="received-distribution-count">عدد المستلمين: {selectedAid?.receivedDistributionCount ?? 0}</span></div></div>
                   {(distributions.data ?? []).length === 0 ? <p className="text-sm text-muted-foreground">لم تُسجل توزيعات بعد.</p> :
-                    (distributions.data ?? []).map((distribution) => <div key={distribution.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-white p-3 text-sm"><span>الأسرة #{distribution.familyId.slice(0, 8)} · {distribution.quantity} {distribution.unit}</span><div className="flex items-center gap-2"><Badge variant={distribution.status === 'RECEIVED' ? 'default' : 'secondary'}>{labels[distribution.status]}</Badge>{distribution.status === 'ASSIGNED' && <Button size="sm" variant="outline" disabled={receiveDistributionMutation.isPending} onClick={() => receiveDistributionMutation.mutate(distribution.id)}>تسجيل الاستلام</Button>}</div></div>)}
+                    (distributions.data ?? []).map((distribution) => <div key={distribution.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-white p-3 text-sm"><span>الأسرة #{distribution.familyId.slice(0, 8)} · {distribution.quantity} {distribution.unit}</span><div className="flex items-center gap-2"><Badge variant={distribution.status === 'RECEIVED' ? 'default' : 'secondary'}>{labels[distribution.status]}</Badge>{distribution.status === 'ASSIGNED' && <Button size="sm" variant="outline" disabled={receiveDistributionMutation.isPending} onClick={() => receiveDistributionMutation.mutate({ aidId: distributionAidId, distributionId: distribution.id })}>تسجيل الاستلام</Button>}</div></div>)}
                 </div>
               )}
             </CardContent>

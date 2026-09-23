@@ -181,7 +181,15 @@ async function mockWorkspaceApi(
     }
 
     if (request.method() === 'GET' && url.pathname === '/api/sync/aids') {
-      await json(route, 200, [aid, alternateAid]);
+      await json(route, 200, [
+        {
+          ...aid,
+          receivedDistributionCount: state.distributions.filter(
+            (distribution) => distribution.aidId === aidId && distribution.status === 'RECEIVED',
+          ).length,
+        },
+        alternateAid,
+      ]);
       return;
     }
 
@@ -290,7 +298,10 @@ async function getDistributionsForRefresh(
   state: WorkspaceState,
   refreshDelay?: Deferred,
 ) {
-  if (refreshDelay && state.distributions.some((distribution) => distribution.status === 'RECEIVED')) {
+  if (
+    refreshDelay &&
+    state.distributions.some((distribution) => distribution.status === 'RECEIVED')
+  ) {
     await refreshDelay.promise;
   }
   return state.distributions;
@@ -969,12 +980,58 @@ test('keeps delivery confirmation locked until the refreshed record shows delive
   await expect(row.getByRole('button', { name: 'تأكيد التسليم' })).toHaveCount(0);
   expect(state.receiveAttemptsById[secondDistributionId]).toBe(1);
 
-  expect(state.receiveAttemptsById[secondDistributionId]).toBe(1);
-
   distributionRefresh.resolve();
   await expect(row.getByText('تم التسليم', { exact: true })).toBeVisible();
   await expect(row.getByRole('button', { name: 'تأكيد التسليم' })).toHaveCount(0);
   expect(state.receiveAttemptsById[secondDistributionId]).toBe(1);
+
+  await context.close();
+});
+
+test('updates the received distribution count only after success and keeps it after reload', async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const pendingDelivery = createDeferred();
+  const state = newWorkspaceState({
+    families: [family, secondFamily],
+    distributions: [assignedDistribution, secondAssignedDistribution],
+    receiveGates: {
+      [secondDistributionId]: pendingDelivery.promise,
+    },
+  });
+  await mockWorkspaceApi(page, state);
+  await login(page);
+
+  await page.goto(`${webUrl}/actor/operations`);
+  const aidSelect = page.getByRole('combobox', { name: 'اختر المساعدة' });
+  await aidSelect.selectOption(aidId);
+  const receivedCount = page.getByTestId('received-distribution-count');
+  await expect(receivedCount).toHaveText('عدد المستلمين: 0');
+
+  const firstReceiveButton = page.getByRole('button', { name: 'تسجيل الاستلام' }).first();
+  await firstReceiveButton.click();
+  await expect(firstReceiveButton).toBeEnabled();
+  await expect(receivedCount).toHaveText('عدد المستلمين: 0');
+
+  const pendingReceiveButton = page.getByRole('button', { name: 'تسجيل الاستلام' }).nth(1);
+  const pendingRequest = page.waitForRequest(
+    (request) =>
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname ===
+        `/api/sync/distributions/${secondDistributionId}/receive`,
+  );
+  await pendingReceiveButton.click();
+  await pendingRequest;
+  await expect(receivedCount).toHaveText('عدد المستلمين: 0');
+
+  pendingDelivery.resolve();
+  await expect(receivedCount).toHaveText('عدد المستلمين: 1');
+
+  await page.reload();
+  await aidSelect.selectOption(aidId);
+  await expect(page.getByTestId('received-distribution-count')).toHaveText('عدد المستلمين: 1');
 
   await context.close();
 });

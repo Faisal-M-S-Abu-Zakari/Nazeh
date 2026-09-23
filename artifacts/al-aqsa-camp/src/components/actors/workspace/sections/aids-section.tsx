@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useListAids, getListAidsQueryKey, useCreateAid, useListAidDistributions, getListAidDistributionsQueryKey, useListNeeds, getListNeedsQueryKey, useListFamilies, getListFamiliesQueryKey, useCreateAidDistribution, useReceiveAidDistribution, type AidDistribution } from '@workspace/api-client-react';
+import { useListAids, getListAidsQueryKey, useCreateAid, useListAidDistributions, getListAidDistributionsQueryKey, useListNeeds, getListNeedsQueryKey, useListFamilies, getListFamiliesQueryKey, useCreateAidDistribution, useReceiveAidDistribution, type Aid, type AidDistribution } from '@workspace/api-client-react';
 import { Link, useLocation } from 'wouter';
 import { Alert, Button, Card, Table, Text, Badge, ActionIcon, TextInput, Title, Select, NumberInput } from '@mantine/core';
 import { Search, ArrowRight, Package, Box, Filter, Plus, Calendar as CalendarIcon, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -333,8 +333,35 @@ function AidDetail({ id }: { id: string }) {
     setReceivingDistributionIds((current) => new Set(current).add(distId));
     const requestAidId = id;
     try {
-      await receiveDist.mutateAsync({ distributionId: distId, data: {} });
+      const receivedDistribution = await receiveDist.mutateAsync({ distributionId: distId, data: {} });
       if (activeAidIdRef.current !== requestAidId) return;
+      const currentDistributions = queryClient.getQueryData<AidDistribution[]>(
+        getListAidDistributionsQueryKey(requestAidId),
+      );
+      const wasAlreadyReceived = currentDistributions?.some(
+        (distribution) => distribution.id === receivedDistribution.id && distribution.status === 'RECEIVED',
+      );
+      queryClient.setQueryData<AidDistribution[]>(
+        getListAidDistributionsQueryKey(requestAidId),
+        (currentDistributions) =>
+          currentDistributions?.map((distribution) =>
+            distribution.id === receivedDistribution.id ? receivedDistribution : distribution,
+          ) ?? [receivedDistribution],
+      );
+      if (!wasAlreadyReceived && receivedDistribution.status === 'RECEIVED') {
+        queryClient.setQueriesData<Aid[]>(
+          { queryKey: getListAidsQueryKey() },
+          (currentAids) =>
+            currentAids?.map((currentAid) =>
+              currentAid.id === requestAidId
+                ? {
+                    ...currentAid,
+                    receivedDistributionCount: (currentAid.receivedDistributionCount ?? 0) + 1,
+                  }
+                : currentAid,
+            ),
+        );
+      }
       setConfirmedDistributionIds((current) => new Set(current).add(distId));
       setReceiveErrors((current) => {
         const next = { ...current };

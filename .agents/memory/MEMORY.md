@@ -10,3 +10,4 @@
 - [Workspace Playwright runtime](workspace-playwright-runtime.md) — workspace browser tests need an explicit Chromium executable fallback in this environment.
 - [Workspace detail history cache isolation](workspace-detail-history-cache.md) — ID-scope detail queries so browser history cannot reuse another record's list snapshot.
 - [Workspace browser URL](workspace-browser-url.md) — browser suites need WEB_E2E_URL set to the current Replit development domain.
+- [Derived receipt counters](derived-receipt-counters.md) — patch list caches immediately after a confirmed status transition, then refetch for durable server truth.
