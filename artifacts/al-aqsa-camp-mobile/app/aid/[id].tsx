@@ -89,6 +89,7 @@ export default function AidDetailScreen() {
               testID={recipientSync.warningTestID}
               title={recipientSync.warningTitle}
               message={recipientSync.warningMessage ?? ''}
+              lastSyncedAt={lastAidsSyncAt}
               onRetry={() => void retryAids()}
             />
           ) : null}
