@@ -6,7 +6,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { ArchiveConfirmModal } from '@/components/ArchiveConfirmModal';
 import { DataFreshnessNotice, Field, fonts, PrimaryButton, ScreenHeader, SyncTimestamp } from '@/components/ui';
-import { useApp } from '@/context/AppContext';
+import { type Aid, useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { getAidSyncPresentation } from '@/lib/aidSyncPresentation';
 import { getMutationErrorMessage, showMutationError } from '@/lib/mutationErrors';
@@ -18,10 +18,19 @@ const types = [
 
 export default function AidDetailScreen() {
   const colors = useColors();
-  const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { aids, aidsSyncMessage, aidsSyncState, canManageAids, lastAidsSyncAt, retryAids } = useApp();
+  const { aids } = useApp();
   const aid = aids.find((item) => item.id === id);
+
+  if (!aid) return <View style={[styles.center, { backgroundColor: colors.background }]}><Text style={{ color: colors.foreground, fontFamily: fonts.bold }}>لم يتم العثور على الحملة</Text></View>;
+
+  return <AidDetailForm key={`${aid.id}:${aid.version}`} aid={aid} />;
+}
+
+function AidDetailForm({ aid }: { aid: Aid }) {
+  const colors = useColors();
+  const queryClient = useQueryClient();
+  const { aidsSyncMessage, aidsSyncState, canManageAids, lastAidsSyncAt, retryAids } = useApp();
   const updateMutation = useUpdateSyncAid();
   const archiveMutation = useArchiveAid();
   const [title, setTitle] = useState(aid?.title ?? '');
@@ -33,8 +42,6 @@ export default function AidDetailScreen() {
   const [notes, setNotes] = useState(aid?.notes ?? '');
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-
-  if (!aid) return <View style={[styles.center, { backgroundColor: colors.background }]}><Text style={{ color: colors.foreground, fontFamily: fonts.bold }}>لم يتم العثور على الحملة</Text></View>;
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: getListAidsQueryKey() });

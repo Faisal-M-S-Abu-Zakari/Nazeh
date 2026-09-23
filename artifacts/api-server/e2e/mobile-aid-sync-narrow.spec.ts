@@ -383,5 +383,25 @@ test('retries a failed aid save successfully after the server recovers on a narr
   await expect(page.getByText(updatedTitle, { exact: true })).toBeVisible();
   await expect(page.getByText(aidTitle, { exact: true })).toHaveCount(0);
 
+  const updatedAidCard = page.locator(`[data-testid="${aidId}"]`);
+  await updatedAidCard.click();
+  for (const [fieldId, expectedValue] of [
+    ['edit-aid-title', updatedTitle],
+    ['edit-aid-quantity', '12'],
+    ['edit-aid-unit', 'سلة'],
+    ['edit-aid-location', 'المستودع الرئيسي'],
+    ['edit-aid-date', '2030-01-01'],
+  ] as const) {
+    await expect(page.getByTestId(fieldId)).toHaveValue(expectedValue);
+  }
+
+  await page.evaluate((storageKey) => localStorage.removeItem(storageKey), cacheKey);
+  await page.reload();
+  await expect(page.getByTestId('edit-aid-title')).toHaveValue(updatedTitle);
+  await expect(page.getByTestId('edit-aid-quantity')).toHaveValue('12');
+  await expect(page.getByTestId('edit-aid-unit')).toHaveValue('سلة');
+  await expect(page.getByTestId('edit-aid-location')).toHaveValue('المستودع الرئيسي');
+  await expect(page.getByTestId('edit-aid-date')).toHaveValue('2030-01-01');
+
   await context.close();
 });
