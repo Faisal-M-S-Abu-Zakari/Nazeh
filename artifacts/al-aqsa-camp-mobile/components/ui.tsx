@@ -69,20 +69,23 @@ export function StatusPill({ text, tone = 'green' }: { text: string; tone?: 'gre
   return <View style={[styles.pill, { backgroundColor }]}><Text style={[styles.pillText, { color }]}>{text}</Text></View>;
 }
 
-export function SyncBanner() {
+export function SyncBanner({ scope = 'all' }: { scope?: 'all' | 'aids' } = {}) {
   const colors = useColors();
-  const { syncState, syncMessage, retrySync } = useApp();
-  const bad = syncState === 'offline' || syncState === 'error';
+  const { syncState, syncMessage, retrySync, aidsSyncState, aidsSyncMessage, retryAids } = useApp();
+  const scopedState = scope === 'aids' ? aidsSyncState : syncState;
+  const scopedMessage = scope === 'aids' ? aidsSyncMessage : syncMessage;
+  const retry = scope === 'aids' ? retryAids : retrySync;
+  const bad = scopedState === 'offline' || scopedState === 'error';
   return (
     <Pressable
       testID="retry-sync"
       accessibilityRole="button"
-      accessibilityLabel={`${syncMessage}. اضغط لإعادة المحاولة`}
-      onPress={() => void retrySync()}
+      accessibilityLabel={`${scopedMessage}. اضغط لإعادة المحاولة`}
+      onPress={() => void retry()}
       style={[styles.sync, { backgroundColor: bad ? colors.errorSurface : colors.accent }]}
     >
-      <Text style={[styles.syncText, { color: bad ? colors.destructive : colors.primary }]}>{syncMessage}</Text>
-      <Ionicons name={bad ? 'cloud-offline-outline' : syncState === 'syncing' ? 'sync-outline' : 'cloud-done-outline'} size={17} color={bad ? colors.destructive : colors.primary} />
+      <Text style={[styles.syncText, { color: bad ? colors.destructive : colors.primary }]}>{scopedMessage}</Text>
+      <Ionicons name={bad ? 'cloud-offline-outline' : scopedState === 'syncing' ? 'sync-outline' : 'cloud-done-outline'} size={17} color={bad ? colors.destructive : colors.primary} />
     </Pressable>
   );
 }

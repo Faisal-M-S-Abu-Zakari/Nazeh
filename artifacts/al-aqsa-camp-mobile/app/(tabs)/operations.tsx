@@ -1,14 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Card, fonts, ScreenHeader, StatusPill, SyncBanner } from '@/components/ui';
+import { Card, DataFreshnessNotice, fonts, ScreenHeader, StatusPill, SyncBanner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
-import { formatReceivedDistributionCount } from '@/lib/aidPresentation';
+import { getReceivedDistributionCount } from '@/lib/aidPresentation';
 
 export default function OperationsScreen() {
   const colors = useColors();
-  const { aids, signedIn, canManageAids } = useApp();
+  const { aids, aidsSyncMessage, aidsSyncState, retryAids, signedIn, canManageAids } = useApp();
+  const recipientCountIsCached = aidsSyncState === 'offline' || aidsSyncState === 'error';
+  const recipientCountIsBeingVerified = aidsSyncState === 'syncing';
+  const recipientCountLabel = recipientCountIsCached
+    ? 'عدد المستلمين (آخر نسخة محفوظة)'
+    : recipientCountIsBeingVerified
+      ? 'عدد المستلمين (جارٍ التحقق)'
+      : 'عدد المستلمين';
   return (
     <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
       <ScreenHeader
@@ -17,7 +24,15 @@ export default function OperationsScreen() {
         action={canManageAids ? <Pressable testID="add-aid" onPress={() => router.push('/add-aid')}><Ionicons name="add-circle" size={31} color={colors.primary} /></Pressable> : undefined}
       />
       <ScrollView contentContainerStyle={styles.content}>
-        <SyncBanner />
+        <SyncBanner scope="aids" />
+        {recipientCountIsCached ? (
+          <DataFreshnessNotice
+            testID="campaign-recipient-sync-warning"
+            title="أعداد المستلمين قديمة"
+            message={`${aidsSyncMessage}. الأعداد المعروضة مأخوذة من آخر نسخة محفوظة وقد لا تعكس العدد الحالي على الخادم.`}
+            onRetry={() => void retryAids()}
+          />
+        ) : null}
         <View style={styles.summary}>
           <StatusPill text={`${aids.length} حملات`} tone="gold" />
           <Text style={[styles.section, { color: colors.foreground }]}>الحملات الحالية</Text>
@@ -39,7 +54,12 @@ export default function OperationsScreen() {
                 <View style={[styles.progress, { backgroundColor: colors.gold, width: `${Math.min(90, aid.families / 1.5)}%` }]} />
               </View>
               <Text style={[styles.count, { color: colors.primary }]}>{aid.families} عائلة مستفيدة</Text>
-              <Text style={[styles.count, { color: colors.primary }]}>{formatReceivedDistributionCount(aid)}</Text>
+              <Text
+                testID={`recipient-count-${aid.id}`}
+                style={[styles.count, { color: recipientCountIsCached || recipientCountIsBeingVerified ? colors.warning : colors.primary }]}
+              >
+                {recipientCountLabel}: {getReceivedDistributionCount(aid)}
+              </Text>
             </Card>
           </Pressable>
         ))}
