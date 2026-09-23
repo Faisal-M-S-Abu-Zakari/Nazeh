@@ -8,6 +8,7 @@ import { ArchiveConfirmModal } from '@/components/ArchiveConfirmModal';
 import { DataFreshnessNotice, Field, fonts, PrimaryButton, ScreenHeader } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { getAidSyncPresentation } from '@/lib/aidSyncPresentation';
 import { showMutationError } from '@/lib/mutationErrors';
 
 const types = [
@@ -68,8 +69,7 @@ export default function AidDetailScreen() {
     }
   };
   const valid = title.trim().length >= 2 && Number(quantity) >= 1 && unit.trim().length > 0 && location.trim().length >= 2 && !Number.isNaN(new Date(date).getTime());
-  const recipientCountIsCached = aidsSyncState === 'offline' || aidsSyncState === 'error';
-  const recipientCountLabel = recipientCountIsCached ? 'عدد المستلمين (آخر نسخة محفوظة دون اتصال)' : aidsSyncState === 'syncing' ? 'عدد المستلمين (جارٍ التحقق من الخادم)' : 'عدد المستلمين المتزامن';
+  const recipientSync = getAidSyncPresentation(aidsSyncState, aidsSyncMessage);
 
   return (
     <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
@@ -80,14 +80,14 @@ export default function AidDetailScreen() {
         <View style={styles.options}>{types.map(([value, label]) => <Pressable testID={`edit-aid-type-${value}`} disabled={!canManageAids} key={value} onPress={() => setType(value)} style={[styles.option, { backgroundColor: type === value ? colors.primary : colors.muted }]}><Text style={{ color: type === value ? colors.primaryForeground : colors.foreground, fontFamily: fonts.bold }}>{label}</Text></Pressable>)}</View>
         <Field testID="edit-aid-quantity" label="الكمية" value={quantity} onChangeText={setQuantity} keyboardType="number-pad" editable={canManageAids} />
         <View style={styles.recipientSection}>
-          <Text testID="aid-recipient-count" style={[styles.recipientCount, { color: recipientCountIsCached || aidsSyncState === 'syncing' ? colors.warning : colors.primary }]}>
-            {recipientCountLabel}: {aid.receivedDistributionCount}
+          <Text testID="aid-recipient-count" style={[styles.recipientCount, { color: recipientSync.recipientCountIsCached || aidsSyncState === 'syncing' ? colors.warning : colors.primary }]}>
+            {recipientSync.recipientCountLabel}: {aid.receivedDistributionCount}
           </Text>
-          {recipientCountIsCached ? (
+          {recipientSync.recipientCountIsCached ? (
             <DataFreshnessNotice
-              testID="aid-recipient-sync-warning"
-              title="تعذر تحديث عدد المستلمين"
-              message={`${aidsSyncMessage}. الرقم المعروض هو آخر عدد محفوظ على الجهاز، وليس بالضرورة العدد الحالي على الخادم.`}
+              testID={recipientSync.warningTestID}
+              title={recipientSync.warningTitle}
+              message={recipientSync.warningMessage ?? ''}
               onRetry={() => void retryAids()}
             />
           ) : null}
