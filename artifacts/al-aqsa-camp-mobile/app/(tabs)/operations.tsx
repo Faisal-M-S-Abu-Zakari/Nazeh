@@ -8,7 +8,7 @@ import { getReceivedDistributionCount } from '@/lib/aidPresentation';
 
 export default function OperationsScreen() {
   const colors = useColors();
-  const { aids, aidsSyncMessage, aidsSyncState, retryAids, signedIn, canManageAids } = useApp();
+  const { aids, aidsSyncMessage, aidsSyncState, lastAidsSyncAt, retryAids, signedIn, canManageAids } = useApp();
   const recipientCountIsCached = aidsSyncState === 'offline' || aidsSyncState === 'error';
   const recipientCountIsBeingVerified = aidsSyncState === 'syncing';
   const recipientCountLabel = recipientCountIsCached
@@ -30,6 +30,7 @@ export default function OperationsScreen() {
             testID="campaign-recipient-sync-warning"
             title="أعداد المستلمين قديمة"
             message={`${aidsSyncMessage}. الأعداد المعروضة مأخوذة من آخر نسخة محفوظة وقد لا تعكس العدد الحالي على الخادم.`}
+            lastSyncedAt={lastAidsSyncAt}
             onRetry={() => void retryAids()}
           />
         ) : null}

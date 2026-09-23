@@ -90,8 +90,12 @@ export function SyncBanner({ scope = 'all' }: { scope?: 'all' | 'aids' } = {}) {
   );
 }
 
-export function DataFreshnessNotice({ title, message, onRetry, testID }: { title: string; message: string; onRetry: () => void; testID: string }) {
+export function DataFreshnessNotice({ title, message, lastSyncedAt, onRetry, testID }: { title: string; message: string; lastSyncedAt?: string | null; onRetry: () => void; testID: string }) {
   const colors = useColors();
+  const parsedLastSyncedAt = lastSyncedAt ? new Date(lastSyncedAt) : null;
+  const lastSyncText = parsedLastSyncedAt && !Number.isNaN(parsedLastSyncedAt.getTime())
+    ? `آخر مزامنة ناجحة: ${parsedLastSyncedAt.toLocaleString('ar')}`
+    : 'آخر مزامنة ناجحة: غير متوفرة بعد';
   return (
     <View testID={testID} style={[styles.freshnessNotice, { backgroundColor: colors.errorSurface, borderColor: colors.destructive }]}>
       <View style={styles.freshnessHeading}>
@@ -99,6 +103,7 @@ export function DataFreshnessNotice({ title, message, onRetry, testID }: { title
         <Text style={[styles.freshnessTitle, { color: colors.destructive }]}>{title}</Text>
       </View>
       <Text style={[styles.freshnessMessage, { color: colors.foreground }]}>{message}</Text>
+      <Text testID={`${testID}-last-sync`} style={[styles.freshnessTimestamp, { color: colors.mutedForeground }]}>{lastSyncText}</Text>
       <PrimaryButton testID={`${testID}-retry`} label="إعادة المحاولة" icon="refresh" onPress={onRetry} />
     </View>
   );
@@ -124,4 +129,5 @@ const styles = StyleSheet.create({
   freshnessHeading: { flexDirection: 'row-reverse', alignItems: 'center', gap: 7 },
   freshnessTitle: { flex: 1, fontFamily: fonts.bold, fontSize: 14, textAlign: 'right' },
   freshnessMessage: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, textAlign: 'right' },
+  freshnessTimestamp: { fontFamily: fonts.medium, fontSize: 12, textAlign: 'right' },
 });
