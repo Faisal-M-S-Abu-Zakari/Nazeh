@@ -38,6 +38,7 @@ export default function OperationsScreen() {
                 <View style={[styles.progress, { backgroundColor: colors.gold, width: `${Math.min(90, aid.families / 1.5)}%` }]} />
               </View>
               <Text style={[styles.count, { color: colors.primary }]}>{aid.families} عائلة مستفيدة</Text>
+              <Text style={[styles.count, { color: colors.primary }]}>عدد المستلمين: {aid.receivedDistributionCount}</Text>
             </Card>
           </Pressable>
         ))}

@@ -16,7 +16,7 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useM
 import { Platform } from 'react-native';
 import { cacheStorageKey, createMobileAuthLifecycle, loadOwnerStorage, queueStorageKey, replayOwnerQueue } from './offlineSync';
 
-export type Aid = { id: string; title: string; type: string; apiType: AidType; families: number; unit: string; location: string; distributionDate: string; notes?: string | null; version: number; status: 'نشطة' | 'مكتملة'; date: string };
+export type Aid = { id: string; title: string; type: string; apiType: AidType; families: number; receivedDistributionCount: number; unit: string; location: string; distributionDate: string; notes?: string | null; version: number; status: 'نشطة' | 'مكتملة'; date: string };
 export type Person = { id: string; name: string; role: 'نازح'; phone: string; nationalId: string; gender: ApiPerson['gender']; birthDate: string; tentNumber: string; familySize: number; notes?: string | null; version: number; location: string };
 export type SyncState = 'syncing' | 'synced' | 'offline' | 'error';
 export type AppUser = StaffUser | (Omit<FamilyHeadProfile['headUser'], 'id' | 'role'> & { id: string; role: 'DISPLACED' });
@@ -104,7 +104,7 @@ function hydrateQueue(entries: unknown, userId: string): QueuedWrite[] {
   });
 }
 function mapAid(aid: ApiAid): Aid {
-  return { id: aid.id, title: aid.title, type: ({ FOOD: 'غذاء', WATER: 'مياه', MEDICAL: 'صحة', SHELTER: 'إيواء', HYGIENE: 'نظافة', OTHER: 'أخرى' } as Record<AidType, string>)[aid.type], apiType: aid.type, families: aid.quantity, unit: aid.unit, location: aid.location, distributionDate: aid.distributionDate, notes: aid.notes, version: aid.version, status: new Date(aid.distributionDate).getTime() < Date.now() ? 'مكتملة' : 'نشطة', date: new Date(aid.distributionDate).toLocaleDateString('ar') };
+  return { id: aid.id, title: aid.title, type: ({ FOOD: 'غذاء', WATER: 'مياه', MEDICAL: 'صحة', SHELTER: 'إيواء', HYGIENE: 'نظافة', OTHER: 'أخرى' } as Record<AidType, string>)[aid.type], apiType: aid.type, families: aid.quantity, receivedDistributionCount: aid.receivedDistributionCount ?? 0, unit: aid.unit, location: aid.location, distributionDate: aid.distributionDate, notes: aid.notes, version: aid.version, status: new Date(aid.distributionDate).getTime() < Date.now() ? 'مكتملة' : 'نشطة', date: new Date(aid.distributionDate).toLocaleDateString('ar') };
 }
 function mapPerson(person: ApiPerson): Person {
   return { id: person.id, name: person.fullName, role: 'نازح', phone: person.phone || 'لا يوجد هاتف', nationalId: person.nationalId, gender: person.gender, birthDate: person.birthDate, tentNumber: person.tentNumber, familySize: person.familySize, notes: person.notes, version: person.version, location: `الخيمة ${person.tentNumber}` };
