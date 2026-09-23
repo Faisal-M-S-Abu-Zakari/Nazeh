@@ -15,6 +15,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { cacheStorageKey, createMobileAuthLifecycle, loadOwnerStorage, queueStorageKey, replayOwnerQueue } from './offlineSync';
+import { getReceivedDistributionCount, selectLatestAids } from '@/lib/aidPresentation';
 
 export type Aid = { id: string; title: string; type: string; apiType: AidType; families: number; receivedDistributionCount: number; unit: string; location: string; distributionDate: string; notes?: string | null; version: number; status: 'نشطة' | 'مكتملة'; date: string };
 export type Person = { id: string; name: string; role: 'نازح'; phone: string; nationalId: string; gender: ApiPerson['gender']; birthDate: string; tentNumber: string; familySize: number; notes?: string | null; version: number; location: string };
@@ -104,7 +105,7 @@ function hydrateQueue(entries: unknown, userId: string): QueuedWrite[] {
   });
 }
 function mapAid(aid: ApiAid): Aid {
-  return { id: aid.id, title: aid.title, type: ({ FOOD: 'غذاء', WATER: 'مياه', MEDICAL: 'صحة', SHELTER: 'إيواء', HYGIENE: 'نظافة', OTHER: 'أخرى' } as Record<AidType, string>)[aid.type], apiType: aid.type, families: aid.quantity, receivedDistributionCount: aid.receivedDistributionCount ?? 0, unit: aid.unit, location: aid.location, distributionDate: aid.distributionDate, notes: aid.notes, version: aid.version, status: new Date(aid.distributionDate).getTime() < Date.now() ? 'مكتملة' : 'نشطة', date: new Date(aid.distributionDate).toLocaleDateString('ar') };
+  return { id: aid.id, title: aid.title, type: ({ FOOD: 'غذاء', WATER: 'مياه', MEDICAL: 'صحة', SHELTER: 'إيواء', HYGIENE: 'نظافة', OTHER: 'أخرى' } as Record<AidType, string>)[aid.type], apiType: aid.type, families: aid.quantity, receivedDistributionCount: getReceivedDistributionCount(aid), unit: aid.unit, location: aid.location, distributionDate: aid.distributionDate, notes: aid.notes, version: aid.version, status: new Date(aid.distributionDate).getTime() < Date.now() ? 'مكتملة' : 'نشطة', date: new Date(aid.distributionDate).toLocaleDateString('ar') };
 }
 function mapPerson(person: ApiPerson): Person {
   return { id: person.id, name: person.fullName, role: 'نازح', phone: person.phone || 'لا يوجد هاتف', nationalId: person.nationalId, gender: person.gender, birthDate: person.birthDate, tentNumber: person.tentNumber, familySize: person.familySize, notes: person.notes, version: person.version, location: `الخيمة ${person.tentNumber}` };
@@ -155,7 +156,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .finally(() => { if (identityEpoch.current === hydrationEpoch) setProtectedHydrated(true); });
   }, [ownerUserId, rotateIdentity, user]);
 
-  const serverCache = useMemo<Cache>(() => ({ aids: aidsQuery.data ?? cache.aids, people: peopleQuery.data ?? cache.people, complaints: complaintsQuery.data ?? cache.complaints, tasks: tasksQuery.data ?? cache.tasks, familyProfile: familyProfileQuery.data ?? cache.familyProfile, familyNeeds: familyNeedsQuery.data ?? cache.familyNeeds }), [aidsQuery.data, cache, complaintsQuery.data, familyNeedsQuery.data, familyProfileQuery.data, peopleQuery.data, tasksQuery.data]);
+  const serverCache = useMemo<Cache>(() => ({ aids: selectLatestAids(aidsQuery.data, cache.aids), people: peopleQuery.data ?? cache.people, complaints: complaintsQuery.data ?? cache.complaints, tasks: tasksQuery.data ?? cache.tasks, familyProfile: familyProfileQuery.data ?? cache.familyProfile, familyNeeds: familyNeedsQuery.data ?? cache.familyNeeds }), [aidsQuery.data, cache, complaintsQuery.data, familyNeedsQuery.data, familyProfileQuery.data, peopleQuery.data, tasksQuery.data]);
   useEffect(() => {
     if (!user || !protectedHydrated || (!aidsQuery.data && !peopleQuery.data && !complaintsQuery.data && !tasksQuery.data && !familyProfileQuery.data && !familyNeedsQuery.data)) return;
     const next: Cache = { aids: aidsQuery.data ?? cache.aids, people: peopleQuery.data ?? cache.people, complaints: complaintsQuery.data ?? cache.complaints, tasks: tasksQuery.data ?? cache.tasks, familyProfile: familyProfileQuery.data ?? cache.familyProfile, familyNeeds: familyNeedsQuery.data ?? cache.familyNeeds };

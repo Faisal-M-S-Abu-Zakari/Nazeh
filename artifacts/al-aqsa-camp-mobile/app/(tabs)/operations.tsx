@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card, fonts, ScreenHeader, StatusPill, SyncBanner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { formatReceivedDistributionCount } from '@/lib/aidPresentation';
 
 export default function OperationsScreen() {
   const colors = useColors();
@@ -38,7 +39,7 @@ export default function OperationsScreen() {
                 <View style={[styles.progress, { backgroundColor: colors.gold, width: `${Math.min(90, aid.families / 1.5)}%` }]} />
               </View>
               <Text style={[styles.count, { color: colors.primary }]}>{aid.families} عائلة مستفيدة</Text>
-              <Text style={[styles.count, { color: colors.primary }]}>عدد المستلمين: {aid.receivedDistributionCount}</Text>
+              <Text style={[styles.count, { color: colors.primary }]}>{formatReceivedDistributionCount(aid)}</Text>
             </Card>
           </Pressable>
         ))}
