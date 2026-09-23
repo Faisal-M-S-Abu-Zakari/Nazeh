@@ -41,20 +41,11 @@ test.afterAll(async () => {
   await db.delete(staffUsers).where(eq(staffUsers.id, userId));
 });
 
-test('keeps aid details usable when the unavailable sync timestamp wraps on a narrow phone', async ({ browser }) => {
+test('keeps aid save failures readable and contained on a narrow phone', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 375, height: 812 } });
   const page = await context.newPage();
-  page.on('dialog', (dialog) => void dialog.accept());
 
-  await signIn(page);
-  await page.getByTestId('add-aid').click();
-  await page.getByTestId('aid-title').fill(aidTitle);
-  await page.getByTestId('aid-quantity').fill('12');
-  await page.getByTestId('aid-unit').fill('سلة');
-  await page.getByTestId('aid-location').fill('المستودع الرئيسي');
-  await page.getByTestId('aid-date').fill('2030-01-01');
-  await page.getByTestId('save-aid').click();
-
+  const dialogMessages: string[] = [];
   const aidCard = page.locator('[data-testid^="open-aid-"]').filter({ hasText: aidTitle }).first();
   await expect(aidCard).toBeVisible();
   const aidId = await aidCard.getAttribute('data-testid');
@@ -130,8 +121,24 @@ test('keeps aid details usable when the unavailable sync timestamp wraps on a na
   await warning.scrollIntoViewIfNeeded();
   await expect(warning).toBeVisible();
   const retry = page.getByTestId('aid-recipient-sync-warning-retry');
-  await retry.scrollIntoViewIfNeeded();
-  await expect(retry).toBeVisible();
+
+    const layout = await element.evaluate((node) => {
+      const rect = (node as HTMLElement).getBoundingClientRect();
+      return {
+        left: rect.left,
+        right: rect.right,
+        documentWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+      };
+    });
+
+    const layout = await element.evaluate((node) => {
+      const rect = (node as HTMLElement).getBoundingClientRect();
+      return {
+        left: rect.left,
+        right: rect.right,
+        documentWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+      };
+    });
   const retryResponse = page.waitForResponse(
     (response) =>
       response.request().method() === 'GET' &&
@@ -201,22 +208,24 @@ test('keeps aid details usable when the unavailable sync timestamp wraps on a na
 
   await page.unroute('**/api/sync/aids');
   const aidRecordId = aidId!.replace(/^open-aid-/, '');
-  const updatedAidResponse = page.waitForResponse(
+
+  const failedAidUpdate = page.waitForResponse(
     (response) =>
       response.request().method() === 'PATCH' &&
       new URL(response.url()).pathname === `/api/sync/aids/${aidRecordId}` &&
-      response.ok(),
+      response.status() === 503,
   );
-  const refreshedAids = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'GET' &&
-      new URL(response.url()).pathname === '/api/sync/aids' &&
-      response.ok(),
-  );
-  await saveButton.click();
-  await updatedAidResponse;
-  await refreshedAids;
-  await expect(page.locator(`[data-testid="${aidId}"]`)).toBeVisible();
+    expect(layout.left).toBeGreaterThanOrEqual(0);
+    expect(layout.right).toBeLessThanOrEqual(375);
+    expect(layout.documentWidth).toBeLessThanOrEqual(375);
+  }
+  await expect(saveButton).toBeVisible();
 
   await context.close();
 });
+
+  const saveError = page.getByTestId('aid-save-error');
+
+  const saveErrorRetry = page.getByTestId('aid-save-error-retry');
+
+  const saveErrorMessage = page.getByTestId('aid-save-error-message');

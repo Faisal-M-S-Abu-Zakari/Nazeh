@@ -1,11 +1,39 @@
 import { Alert } from 'react-native';
 
 type ApiError = Error & { status?: number };
+type ErrorPayload = { code?: unknown };
+
+const genericMutationMessage = 'لم تُحفظ البيانات. حاول مرة أخرى.';
 
 export function getErrorStatus(error: unknown): number | undefined {
   return typeof error === 'object' && error !== null && 'status' in error
     ? (error as ApiError).status
     : undefined;
+}
+
+function getErrorCode(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('data' in error)) return undefined;
+  const payload = (error as ApiError & { data?: ErrorPayload | null }).data;
+  return payload && typeof payload.code === 'string' ? payload.code : undefined;
+}
+
+export function getMutationErrorMessage(error: unknown): string {
+  const status = getErrorStatus(error);
+  const code = getErrorCode(error);
+
+  if (code === 'PERMISSION_DENIED' || status === 401 || status === 403) {
+    return 'لا تملك الصلاحية لتنفيذ هذا الإجراء.';
+  }
+  if (code === 'AID_NOT_FOUND' || status === 404) {
+    return 'لم تعد الحملة متاحة. حدّث القائمة ثم حاول مرة أخرى.';
+  }
+  if (status === 400) {
+    return 'تعذر حفظ التغيير. راجع البيانات وحاول مرة أخرى.';
+  }
+  if (status !== undefined && status >= 500) {
+    return 'تعذر الاتصال بالخادم. لم تُحفظ البيانات؛ حاول مرة أخرى.';
+  }
+  return genericMutationMessage;
 }
 
 export async function showMutationError(error: unknown, refetch: () => Promise<unknown>) {
@@ -21,5 +49,5 @@ export async function showMutationError(error: unknown, refetch: () => Promise<u
     );
     return;
   }
-  Alert.alert('تعذر حفظ التغيير', error instanceof Error ? error.message : 'حدث خطأ غير متوقع.');
+  Alert.alert('تعذر حفظ التغيير', getMutationErrorMessage(error));
 }

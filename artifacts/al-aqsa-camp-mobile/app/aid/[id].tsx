@@ -9,7 +9,7 @@ import { DataFreshnessNotice, Field, fonts, PrimaryButton, ScreenHeader, SyncTim
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { getAidSyncPresentation } from '@/lib/aidSyncPresentation';
-import { showMutationError } from '@/lib/mutationErrors';
+import { getMutationErrorMessage, showMutationError } from '@/lib/mutationErrors';
 
 const types = [
   [AidType.FOOD, 'غذاء'], [AidType.WATER, 'مياه'], [AidType.MEDICAL, 'صحة'],
@@ -32,6 +32,7 @@ export default function AidDetailScreen() {
   const [date, setDate] = useState(aid?.distributionDate.slice(0, 10) ?? '');
   const [notes, setNotes] = useState(aid?.notes ?? '');
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   if (!aid) return <View style={[styles.center, { backgroundColor: colors.background }]}><Text style={{ color: colors.foreground, fontFamily: fonts.bold }}>لم يتم العثور على الحملة</Text></View>;
 
@@ -40,6 +41,7 @@ export default function AidDetailScreen() {
     await queryClient.refetchQueries({ queryKey: getListAidsQueryKey() });
   };
   const save = async () => {
+    setSaveError(null);
     try {
       await updateMutation.mutateAsync({
         aidId: aid.id,
@@ -53,6 +55,7 @@ export default function AidDetailScreen() {
       Alert.alert('تم الحفظ', 'تم تحديث الحملة ومزامنتها.');
       router.back();
     } catch (error) {
+      setSaveError(getMutationErrorMessage(error));
       await showMutationError(error, refresh);
       if (typeof error === 'object' && error !== null && 'status' in error && error.status === 409) router.back();
     }
@@ -98,6 +101,12 @@ export default function AidDetailScreen() {
         <Field testID="edit-aid-location" label="الموقع" value={location} onChangeText={setLocation} editable={canManageAids} />
         <Field testID="edit-aid-date" label="تاريخ التوزيع" value={date} onChangeText={setDate} editable={canManageAids} />
         <Field testID="edit-aid-notes" label="ملاحظات" value={notes} onChangeText={setNotes} multiline editable={canManageAids} />
+        {saveError ? (
+          <View testID="aid-save-error" accessibilityRole="alert" style={[styles.saveError, { backgroundColor: colors.errorSurface, borderColor: colors.destructive }]}>
+            <Text testID="aid-save-error-message" style={[styles.saveErrorMessage, { color: colors.foreground }]}>{saveError}</Text>
+            <PrimaryButton testID="aid-save-error-retry" label="إعادة المحاولة" icon="refresh" disabled={updateMutation.isPending} onPress={() => void save()} />
+          </View>
+        ) : null}
         {canManageAids ? <>
           <PrimaryButton testID="save-aid-edits" label={updateMutation.isPending ? 'جارٍ الحفظ…' : 'حفظ التعديلات'} icon="checkmark" disabled={!valid || updateMutation.isPending || archiveMutation.isPending} onPress={() => void save()} />
           <Pressable accessibilityRole="button" accessibilityLabel="أرشفة الحملة" testID="archive-aid" disabled={archiveMutation.isPending} onPress={() => setArchiveOpen(true)} style={[styles.archive, { borderColor: colors.destructive }]}><Text style={[styles.archiveText, { color: colors.destructive }]}>أرشفة الحملة</Text></Pressable>
@@ -124,6 +133,8 @@ const styles = StyleSheet.create({
   option: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10 },
   recipientSection: { gap: 10 },
   recipientCount: { fontFamily: fonts.medium, textAlign: 'right', fontSize: 14 },
+  saveError: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 10 },
+  saveErrorMessage: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 21, textAlign: 'right', flexShrink: 1 },
   archive: { minHeight: 48, borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   archiveText: { fontFamily: fonts.bold }, readOnly: { fontFamily: fonts.bold, textAlign: 'center' },
 });

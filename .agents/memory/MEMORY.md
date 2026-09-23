@@ -14,3 +14,4 @@
 - [Generated API declarations](generated-api-declarations.md) — rebuild the ignored API declaration output before server typechecks so project references see current schemas.
 - [Expo role-scoped e2e checks](expo-role-scoped-e2e.md) — role-limited accounts can mark the global sync banner as errored on unrelated 403s; assert the target flow directly.
 - [Expo mobile browser URL](expo-mobile-browser-url.md) — mobile Playwright suites need EXPO_E2E_URL set to the current Expo dev domain in the test shell.
+- [Expo web mutation errors](expo-web-mutation-errors.md) — critical mutation failures need inline UI because React Native Alert is not observable as a browser dialog.
