@@ -4,7 +4,7 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { ArchiveConfirmModal } from '@/components/ArchiveConfirmModal';
@@ -24,7 +24,9 @@ export default function TaskFormScreen() {
   const updateMutation = useUpdateTaskStatus();
   const archiveMutation = useArchiveSyncTask();
   const officersQuery = useListSecurityOfficers({ query: { queryKey: getListSecurityOfficersQueryKey(), enabled: canManageTasks } });
+  const saveInFlight = useRef(false);
   const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [title, setTitle] = useState(task?.title ?? '');
   const [description, setDescription] = useState(task?.description ?? '');
   const [location, setLocation] = useState(task?.location ?? '');
@@ -44,7 +46,9 @@ export default function TaskFormScreen() {
     await queryClient.refetchQueries({ queryKey: getListTasksQueryKey() });
   };
   const save = async () => {
-    if (!canManageTasks) return;
+    if (!canManageTasks || saveInFlight.current) return;
+    saveInFlight.current = true;
+    setSaving(true);
     setSaveError(null);
     try {
       const due = dueAt.trim() ? new Date(dueAt).toISOString() : null;
@@ -63,6 +67,8 @@ export default function TaskFormScreen() {
       if (getErrorStatus(error) === 409) router.back();
     } finally {
       setCreating(false);
+      saveInFlight.current = false;
+      setSaving(false);
     }
   };
   const archive = async () => {
@@ -77,7 +83,7 @@ export default function TaskFormScreen() {
       await showMutationError(error, refresh);
     }
   };
-  const busy = creating || updateMutation.isPending || archiveMutation.isPending;
+  const busy = saving || creating || updateMutation.isPending || archiveMutation.isPending;
   const valid = title.trim().length >= 2 && description.trim().length > 0 && location.trim().length >= 2 && (!dueAt.trim() || !Number.isNaN(new Date(dueAt).getTime()));
 
   return (<>
