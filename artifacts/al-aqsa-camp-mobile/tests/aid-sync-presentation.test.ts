@@ -11,6 +11,7 @@ import {
 } from '../lib/aidSyncPresentation';
 
 const aidDetailScreenSource = readFileSync(new URL('../app/aid/[id].tsx', import.meta.url), 'utf8');
+const operationsScreenSource = readFileSync(new URL('../app/(tabs)/operations.tsx', import.meta.url), 'utf8');
 const uiSource = readFileSync(new URL('../components/ui.tsx', import.meta.url), 'utf8');
 
 function makeApiAid(receivedDistributionCount: number): ApiAid {
@@ -175,4 +176,19 @@ test('aid details render the unavailable sync state without removing cached-data
     /recipientSync\.recipientCountIsCached \? \(\s*<DataFreshnessNotice[\s\S]*?onRetry=\{\(\) => void retryAids\(\)\}/,
   );
   assert.equal(formatLastSuccessfulSyncAt(null), 'آخر مزامنة ناجحة: غير متوفرة بعد');
+});
+
+test('the operations aid status bar shares the detail sync-time wording for empty and populated states', () => {
+  assert.match(operationsScreenSource, /<SyncBanner scope="aids" \/>/);
+  assert.match(
+    uiSource,
+    /scope === 'aids' \? \(\s*<SyncTimestamp testID="aids-last-successful-sync" lastSyncedAt=\{lastAidsSyncAt\} \/>/,
+  );
+  assert.match(uiSource, /testID="retry-sync"/);
+  assert.match(uiSource, /\{scopedMessage\}/);
+  assert.equal(formatLastSuccessfulSyncAt(null), 'آخر مزامنة ناجحة: غير متوفرة بعد');
+  assert.equal(
+    formatLastSuccessfulSyncAt('2026-09-23T08:00:00.000Z'),
+    'آخر مزامنة ناجحة: ٢٣/٠٩/٢٠٢٦، ١١:٠٠ (بتوقيت القدس)',
+  );
 });
