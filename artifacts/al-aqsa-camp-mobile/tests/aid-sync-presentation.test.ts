@@ -44,11 +44,12 @@ test('a failed aid-list sync labels the cached count and exposes the warning ret
   assert.match(presentation.warningMessage ?? '', /آخر عدد محفوظ على الجهاز/);
 });
 
-test('a successful retry requests the aid list again and removes the cached warning', async () => {
+test('a successful retry requests the aid list again, removes the cached warning, and displays its sync time', async () => {
   const cachedAids = [makeApiAid(4)];
   let requestCount = 0;
   let synchronizedRefreshCount = 0;
   let syncedAids: ApiAid[] | undefined;
+  const successfulSyncAt = Date.parse('2026-09-23T08:10:00.000Z');
 
   await retryAidList(
     async (refresh) => {
@@ -64,12 +65,17 @@ test('a successful retry requests the aid list again and removes the cached warn
 
   const aidsAfterRetry = selectLatestAids(syncedAids, cachedAids);
   const presentationAfterRetry = getAidSyncPresentation('synced', 'بيانات المساعدات متزامنة');
+  const lastSyncedAt = getLastSuccessfulAidsSyncAt(null, successfulSyncAt);
 
   assert.equal(synchronizedRefreshCount, 1);
   assert.equal(requestCount, 1);
   assert.equal(aidsAfterRetry[0].receivedDistributionCount, 9);
   assert.equal(presentationAfterRetry.recipientCountIsCached, false);
   assert.equal(presentationAfterRetry.warningMessage, null);
+  assert.equal(
+    formatLastSuccessfulSyncAt(lastSyncedAt),
+    'آخر مزامنة ناجحة: ٢٣/٠٩/٢٠٢٦، ١١:١٠ (بتوقيت القدس)',
+  );
 });
 
 test('a failed retry keeps the last successful sync time until a later success', () => {
@@ -90,17 +96,24 @@ test('a failed retry keeps the last successful sync time until a later success',
   assert.equal(getLastSuccessfulAidsSyncAt(lastSyncedAt, laterSuccessAt), lastSyncedAt);
 });
 
+test('before the first successful sync, the unavailable timestamp keeps the stale warning and retry control', () => {
+  const warning = getAidSyncPresentation('offline', 'تعذر الاتصال بخادم المساعدات');
+
+  assert.equal(formatLastSuccessfulSyncAt(null), 'آخر مزامنة ناجحة: غير متوفرة بعد');
+  assert.equal(warning.recipientCountIsCached, true);
+  assert.equal(warning.warningTestID, 'aid-recipient-sync-warning');
+  assert.equal(warning.retryTestID, 'aid-recipient-sync-warning-retry');
+  assert.equal(warning.warningTitle, 'تعذر تحديث عدد المستلمين');
+  assert.match(warning.warningMessage ?? '', /آخر عدد محفوظ على الجهاز/);
+});
+
 test('the campaigns cached-version warning displays the last successful sync time', () => {
   const lastSyncedAt = '2026-09-23T08:00:00.000Z';
-  const warning = getAidSyncPresentation('offline', 'تعذر الاتصال بخادم المساعدات');
 
   assert.equal(
     formatLastSuccessfulSyncAt(lastSyncedAt),
     'آخر مزامنة ناجحة: ٢٣/٠٩/٢٠٢٦، ١١:٠٠ (بتوقيت القدس)',
   );
-  assert.equal(formatLastSuccessfulSyncAt(null), 'آخر مزامنة ناجحة: غير متوفرة بعد');
-  assert.equal(warning.recipientCountIsCached, true);
-  assert.match(warning.warningMessage ?? '', /آخر عدد محفوظ على الجهاز/);
 });
 
 test('sync time stays identical when the device timezone changes', () => {
