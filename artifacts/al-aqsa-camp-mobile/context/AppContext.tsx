@@ -35,6 +35,7 @@ type AppValue = {
   signedIn: boolean; authLoading: boolean; user: AppUser | null; familyProfile: FamilyHeadProfile | null; familyNeeds: FamilyHeadNeed[];
   signedInAsFamilyHead: boolean; aids: Aid[]; people: Person[];
   complaints: Complaint[]; tasks: Task[]; syncState: SyncState; syncMessage: string; queuedCount: number;
+  aidsSyncState: SyncState; aidsSyncMessage: string; retryAids: () => Promise<void>;
   pendingWrites: QueuedWrite[]; canManageAids: boolean; canManagePeople: boolean;
   canManageComplaints: boolean; canManageTasks: boolean;
   signIn: (email: string, password: string, accountType?: 'staff' | 'family') => Promise<void>; signOut: () => Promise<void>;
@@ -186,6 +187,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setManualError('');
     await mobileAuthLifecycle.synchronizedRefresh(async () => { await Promise.all([aidsQuery.refetch(), peopleQuery.refetch(), complaintsQuery.refetch(), tasksQuery.refetch(), familyProfileQuery.refetch(), familyNeedsQuery.refetch()]); });
   }, [aidsQuery.refetch, complaintsQuery.refetch, familyNeedsQuery.refetch, familyProfileQuery.refetch, peopleQuery.refetch, tasksQuery.refetch]);
+  const retryAids = useCallback(async () => {
+    await mobileAuthLifecycle.synchronizedRefresh(async () => { await aidsQuery.refetch(); });
+  }, [aidsQuery.refetch]);
   const invalidateFor = useCallback(async (item: QueuedWrite) => {
     if (item.kind === 'aid') await queryClient.invalidateQueries({ queryKey: getListAidsQueryKey() });
     if (item.kind === 'person') await queryClient.invalidateQueries({ queryKey: getListPeopleQueryKey() });
@@ -251,6 +255,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const queryError = queries.find((query) => query.error)?.error;
   const syncState: SyncState = queries.some((query) => query.isFetching) ? 'syncing' : queryError && isNetworkFailure(queryError) ? 'offline' : queryError || manualError ? 'error' : 'synced';
   const syncMessage = queue.length ? `${queue.length} إجراء بانتظار المزامنة` : syncState === 'syncing' ? 'جارٍ مزامنة بيانات الفريق…' : syncState === 'offline' ? 'غير متصل — تُعرض آخر نسخة محفوظة' : syncState === 'error' ? (manualError || 'تعذرت المزامنة. اسحب للتحديث أو أعد المحاولة.') : 'متزامن مع خادم الفريق';
+  const aidsSyncState: SyncState = aidsQuery.isFetching ? 'syncing' : aidsQuery.error && isNetworkFailure(aidsQuery.error) ? 'offline' : aidsQuery.error ? 'error' : 'synced';
+  const aidsSyncMessage = aidsSyncState === 'syncing' ? 'جارٍ تحديث بيانات المساعدات…' : aidsSyncState === 'offline' ? 'تعذر الاتصال بخادم المساعدات' : aidsSyncState === 'error' ? 'تعذر تحديث بيانات المساعدات' : 'بيانات المساعدات متزامنة';
   const createOperation = useCallback(async (data: CreateAidRequest | CreatePersonRequest | ComplaintInput | TaskInput | FamilyHeadNeedInput, kind: 'aid' | 'person' | 'complaint-create' | 'task-create' | 'family-need') => {
     const id = requestId(); const idempotencyKey = requestId(); const epoch = identityEpoch.current;
     const item = { id, idempotencyKey, ownerUserId: user?.id || '', kind, data } as QueuedWrite;
@@ -264,7 +270,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (error) { return queueOnNetworkError(error, item, epoch); }
   }, [invalidateFor, queueOnNetworkError, user]);
   const value = useMemo<AppValue>(() => ({
-    signedIn: !!user, authLoading: !!token && !user, user, familyProfile: serverCache.familyProfile ?? null, familyNeeds: serverCache.familyNeeds ?? [], signedInAsFamilyHead: authRole === 'displaced', aids: serverCache.aids.map(mapAid), people: serverCache.people.map(mapPerson), complaints: serverCache.complaints, tasks: serverCache.tasks, syncState, syncMessage, queuedCount: queue.length, pendingWrites: queue,
+    signedIn: !!user, authLoading: !!token && !user, user, familyProfile: serverCache.familyProfile ?? null, familyNeeds: serverCache.familyNeeds ?? [], signedInAsFamilyHead: authRole === 'displaced', aids: serverCache.aids.map(mapAid), people: serverCache.people.map(mapPerson), complaints: serverCache.complaints, tasks: serverCache.tasks, syncState, syncMessage, queuedCount: queue.length, aidsSyncState, aidsSyncMessage, retryAids, pendingWrites: queue,
     canManageAids: !!user && (manager || delegate), canManagePeople: !!user && (manager || delegate), canManageComplaints: !!user && (manager || delegate), canManageTasks: !!user && (manager || security),
     signIn, signOut,
     addAid: (data) => createOperation(data, 'aid'), addPerson: (data) => createOperation(data, 'person'),
@@ -281,7 +287,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     retrySync: async () => { await replayQueue(); await refetchAll(); },
     discardQueuedWrite: async (id) => saveQueue(queue.filter((item) => item.id !== id)),
-  }), [authRole, createOperation, delegate, manager, queryClient, queue, queueOnNetworkError, refetchAll, replayQueue, saveQueue, security, serverCache, signIn, signOut, syncMessage, syncState, token, user]);
+  }), [aidsSyncMessage, aidsSyncState, authRole, createOperation, delegate, manager, queryClient, queue, queueOnNetworkError, refetchAll, replayQueue, retryAids, saveQueue, security, serverCache, signIn, signOut, syncMessage, syncState, token, user]);
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 export function useApp() {

@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { ArchiveConfirmModal } from '@/components/ArchiveConfirmModal';
-import { Field, fonts, PrimaryButton, ScreenHeader } from '@/components/ui';
+import { DataFreshnessNotice, Field, fonts, PrimaryButton, ScreenHeader } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { showMutationError } from '@/lib/mutationErrors';
@@ -19,7 +19,7 @@ export default function AidDetailScreen() {
   const colors = useColors();
   const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { aids, canManageAids } = useApp();
+  const { aids, aidsSyncMessage, aidsSyncState, canManageAids, retryAids } = useApp();
   const aid = aids.find((item) => item.id === id);
   const updateMutation = useUpdateSyncAid();
   const archiveMutation = useArchiveAid();
@@ -68,6 +68,8 @@ export default function AidDetailScreen() {
     }
   };
   const valid = title.trim().length >= 2 && Number(quantity) >= 1 && unit.trim().length > 0 && location.trim().length >= 2 && !Number.isNaN(new Date(date).getTime());
+  const recipientCountIsCached = aidsSyncState === 'offline' || aidsSyncState === 'error';
+  const recipientCountLabel = recipientCountIsCached ? 'عدد المستلمين (آخر نسخة محفوظة دون اتصال)' : aidsSyncState === 'syncing' ? 'عدد المستلمين (جارٍ التحقق من الخادم)' : 'عدد المستلمين المتزامن';
 
   return (
     <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
@@ -77,7 +79,19 @@ export default function AidDetailScreen() {
         <Text style={[styles.label, { color: colors.foreground }]}>نوع المساعدة</Text>
         <View style={styles.options}>{types.map(([value, label]) => <Pressable testID={`edit-aid-type-${value}`} disabled={!canManageAids} key={value} onPress={() => setType(value)} style={[styles.option, { backgroundColor: type === value ? colors.primary : colors.muted }]}><Text style={{ color: type === value ? colors.primaryForeground : colors.foreground, fontFamily: fonts.bold }}>{label}</Text></Pressable>)}</View>
         <Field testID="edit-aid-quantity" label="الكمية" value={quantity} onChangeText={setQuantity} keyboardType="number-pad" editable={canManageAids} />
-        <Text testID="aid-recipient-count" style={[styles.recipientCount, { color: colors.primary }]}>عدد المستلمين: {aid.receivedDistributionCount}</Text>
+        <View style={styles.recipientSection}>
+          <Text testID="aid-recipient-count" style={[styles.recipientCount, { color: recipientCountIsCached || aidsSyncState === 'syncing' ? colors.warning : colors.primary }]}>
+            {recipientCountLabel}: {aid.receivedDistributionCount}
+          </Text>
+          {recipientCountIsCached ? (
+            <DataFreshnessNotice
+              testID="aid-recipient-sync-warning"
+              title="تعذر تحديث عدد المستلمين"
+              message={`${aidsSyncMessage}. الرقم المعروض هو آخر عدد محفوظ على الجهاز، وليس بالضرورة العدد الحالي على الخادم.`}
+              onRetry={() => void retryAids()}
+            />
+          ) : null}
+        </View>
         <Field testID="edit-aid-unit" label="الوحدة" value={unit} onChangeText={setUnit} editable={canManageAids} />
         <Field testID="edit-aid-location" label="الموقع" value={location} onChangeText={setLocation} editable={canManageAids} />
         <Field testID="edit-aid-date" label="تاريخ التوزيع" value={date} onChangeText={setDate} editable={canManageAids} />
@@ -106,6 +120,7 @@ const styles = StyleSheet.create({
   label: { fontFamily: fonts.bold, textAlign: 'right' },
   options: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 7 },
   option: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10 },
+  recipientSection: { gap: 10 },
   recipientCount: { fontFamily: fonts.medium, textAlign: 'right', fontSize: 14 },
   archive: { minHeight: 48, borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   archiveText: { fontFamily: fonts.bold }, readOnly: { fontFamily: fonts.bold, textAlign: 'center' },

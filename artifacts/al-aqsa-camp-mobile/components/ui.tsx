@@ -87,6 +87,20 @@ export function SyncBanner() {
   );
 }
 
+export function DataFreshnessNotice({ title, message, onRetry, testID }: { title: string; message: string; onRetry: () => void; testID: string }) {
+  const colors = useColors();
+  return (
+    <View testID={testID} style={[styles.freshnessNotice, { backgroundColor: colors.errorSurface, borderColor: colors.destructive }]}>
+      <View style={styles.freshnessHeading}>
+        <Ionicons name="warning-outline" size={18} color={colors.destructive} />
+        <Text style={[styles.freshnessTitle, { color: colors.destructive }]}>{title}</Text>
+      </View>
+      <Text style={[styles.freshnessMessage, { color: colors.foreground }]}>{message}</Text>
+      <PrimaryButton testID={`${testID}-retry`} label="إعادة المحاولة" icon="refresh" onPress={onRetry} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 18, borderBottomWidth: 1 },
   headerRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
@@ -103,4 +117,8 @@ const styles = StyleSheet.create({
   pillText: { fontFamily: fonts.bold, fontSize: 12 },
   sync: { minHeight: 38, borderRadius: 10, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   syncText: { fontFamily: fonts.bold, fontSize: 12, textAlign: 'center' },
+  freshnessNotice: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 9 },
+  freshnessHeading: { flexDirection: 'row-reverse', alignItems: 'center', gap: 7 },
+  freshnessTitle: { flex: 1, fontFamily: fonts.bold, fontSize: 14, textAlign: 'right' },
+  freshnessMessage: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, textAlign: 'right' },
 });
