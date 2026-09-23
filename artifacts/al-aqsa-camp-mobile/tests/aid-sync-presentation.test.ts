@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Aid as ApiAid } from '@workspace/api-client-react';
 import { selectLatestAids } from '../lib/aidPresentation';
-import { getAidSyncPresentation, retryAidList } from '../lib/aidSyncPresentation';
+import {
+  formatLastSuccessfulSyncAt,
+  getAidSyncPresentation,
+  getLastSuccessfulAidsSyncAt,
+  retryAidList,
+} from '../lib/aidSyncPresentation';
 
 function makeApiAid(receivedDistributionCount: number): ApiAid {
   return {
@@ -61,4 +66,34 @@ test('a successful retry requests the aid list again and removes the cached warn
   assert.equal(aidsAfterRetry[0].receivedDistributionCount, 9);
   assert.equal(presentationAfterRetry.recipientCountIsCached, false);
   assert.equal(presentationAfterRetry.warningMessage, null);
+});
+
+test('a failed retry keeps the last successful sync time until a later success', () => {
+  const firstSuccessAt = Date.parse('2026-09-23T08:00:00.000Z');
+  const laterSuccessAt = Date.parse('2026-09-23T08:05:00.000Z');
+  let lastSyncedAt = getLastSuccessfulAidsSyncAt(null, firstSuccessAt);
+  let successfulTimestampUpdates = 1;
+
+  lastSyncedAt = getLastSuccessfulAidsSyncAt(lastSyncedAt, undefined);
+  assert.equal(lastSyncedAt, '2026-09-23T08:00:00.000Z');
+
+  const nextLastSyncedAt = getLastSuccessfulAidsSyncAt(lastSyncedAt, laterSuccessAt);
+  if (nextLastSyncedAt !== lastSyncedAt) successfulTimestampUpdates += 1;
+  lastSyncedAt = nextLastSyncedAt;
+
+  assert.equal(lastSyncedAt, '2026-09-23T08:05:00.000Z');
+  assert.equal(successfulTimestampUpdates, 2);
+  assert.equal(getLastSuccessfulAidsSyncAt(lastSyncedAt, laterSuccessAt), lastSyncedAt);
+});
+
+test('the campaigns cached-version warning displays the last successful sync time', () => {
+  const lastSyncedAt = '2026-09-23T08:00:00.000Z';
+  const warning = getAidSyncPresentation('offline', 'تعذر الاتصال بخادم المساعدات');
+
+  assert.equal(
+    formatLastSuccessfulSyncAt(lastSyncedAt),
+    `آخر مزامنة ناجحة: ${new Date(lastSyncedAt).toLocaleString('ar')}`,
+  );
+  assert.equal(warning.recipientCountIsCached, true);
+  assert.match(warning.warningMessage ?? '', /آخر عدد محفوظ على الجهاز/);
 });

@@ -16,7 +16,7 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useM
 import { Platform } from 'react-native';
 import { cacheStorageKey, createMobileAuthLifecycle, loadOwnerStorage, queueStorageKey, replayOwnerQueue } from './offlineSync';
 import { getReceivedDistributionCount, selectLatestAids } from '@/lib/aidPresentation';
-import { retryAidList } from '@/lib/aidSyncPresentation';
+import { getLastSuccessfulAidsSyncAt, retryAidList } from '@/lib/aidSyncPresentation';
 
 export type Aid = { id: string; title: string; type: string; apiType: AidType; families: number; receivedDistributionCount: number; unit: string; location: string; distributionDate: string; notes?: string | null; version: number; status: 'نشطة' | 'مكتملة'; date: string };
 export type Person = { id: string; name: string; role: 'نازح'; phone: string; nationalId: string; gender: ApiPerson['gender']; birthDate: string; tentNumber: string; familySize: number; notes?: string | null; version: number; location: string };
@@ -174,8 +174,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [aidsQuery.data, complaintsQuery.data, familyNeedsQuery.data, familyProfileQuery.data, lastAidsSyncAt, peopleQuery.data, protectedHydrated, tasksQuery.data, user]);
   useEffect(() => {
     if (!user || !protectedHydrated || !aidsQuery.data || !aidsQuery.dataUpdatedAt) return;
-    const syncedAt = new Date(aidsQuery.dataUpdatedAt).toISOString();
-    setLastAidsSyncAt((current) => current === syncedAt ? current : syncedAt);
+    setLastAidsSyncAt((current) => getLastSuccessfulAidsSyncAt(current, aidsQuery.dataUpdatedAt));
   }, [aidsQuery.data, aidsQuery.dataUpdatedAt, protectedHydrated, user]);
   useEffect(() => {
     if (authRole === 'displaced' || httpStatus(me.error) !== 401) return;

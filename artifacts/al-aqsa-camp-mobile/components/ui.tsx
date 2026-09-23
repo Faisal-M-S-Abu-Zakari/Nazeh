@@ -5,6 +5,7 @@ import { Image, Platform, Pressable, StyleSheet, Text, TextInput, TextInputProps
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/context/AppContext';
+import { formatLastSuccessfulSyncAt } from '@/lib/aidSyncPresentation';
 
 export const fonts = { regular: 'Tajawal_400Regular', medium: 'Tajawal_500Medium', bold: 'Tajawal_700Bold', extraBold: 'Tajawal_800ExtraBold' };
 
@@ -92,10 +93,6 @@ export function SyncBanner({ scope = 'all' }: { scope?: 'all' | 'aids' } = {}) {
 
 export function DataFreshnessNotice({ title, message, lastSyncedAt, onRetry, testID }: { title: string; message: string; lastSyncedAt?: string | null; onRetry: () => void; testID: string }) {
   const colors = useColors();
-  const parsedLastSyncedAt = lastSyncedAt ? new Date(lastSyncedAt) : null;
-  const lastSyncText = parsedLastSyncedAt && !Number.isNaN(parsedLastSyncedAt.getTime())
-    ? `آخر مزامنة ناجحة: ${parsedLastSyncedAt.toLocaleString('ar')}`
-    : 'آخر مزامنة ناجحة: غير متوفرة بعد';
   return (
     <View testID={testID} style={[styles.freshnessNotice, { backgroundColor: colors.errorSurface, borderColor: colors.destructive }]}>
       <View style={styles.freshnessHeading}>
@@ -103,7 +100,7 @@ export function DataFreshnessNotice({ title, message, lastSyncedAt, onRetry, tes
         <Text style={[styles.freshnessTitle, { color: colors.destructive }]}>{title}</Text>
       </View>
       <Text style={[styles.freshnessMessage, { color: colors.foreground }]}>{message}</Text>
-      <Text testID={`${testID}-last-sync`} style={[styles.freshnessTimestamp, { color: colors.mutedForeground }]}>{lastSyncText}</Text>
+      <Text testID={`${testID}-last-sync`} style={[styles.freshnessTimestamp, { color: colors.mutedForeground }]}>{formatLastSuccessfulSyncAt(lastSyncedAt)}</Text>
       <PrimaryButton testID={`${testID}-retry`} label="إعادة المحاولة" icon="refresh" onPress={onRetry} />
     </View>
   );
