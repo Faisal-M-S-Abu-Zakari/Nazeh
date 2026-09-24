@@ -182,9 +182,9 @@ test('the operations aid status bar shares the detail sync-time wording for empt
   assert.match(operationsScreenSource, /<SyncBanner scope="aids" \/>/);
   assert.match(
     uiSource,
-    /scope === 'aids' \? \(\s*<SyncTimestamp testID="aids-last-successful-sync" lastSyncedAt=\{lastAidsSyncAt\} \/>/,
+    /scope !== 'all' \? \([\s\S]*testID=\{scope === 'aids' \? 'aids-last-successful-sync' : 'people-last-successful-sync'\} lastSyncedAt=\{lastSyncedAt\}/,
   );
-  assert.match(uiSource, /testID="retry-sync"/);
+  assert.match(uiSource, /testID=\{scope === 'people' \? 'retry-people-sync' : 'retry-sync'\}/);
   assert.match(uiSource, /\{scopedMessage\}/);
   assert.equal(formatLastSuccessfulSyncAt(null), 'آخر مزامنة ناجحة: غير متوفرة بعد');
   assert.equal(

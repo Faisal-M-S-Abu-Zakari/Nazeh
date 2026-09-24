@@ -18,12 +18,13 @@ import { cacheStorageKey, createMobileAuthLifecycle, loadOwnerStorage, queueStor
 import { getReceivedDistributionCount, selectLatestAids } from '@/lib/aidPresentation';
 import { getLastSuccessfulAidsSyncAt, retryAidList } from '@/lib/aidSyncPresentation';
 import { selectLatestPeople } from '@/lib/personPresentation';
+import { getLastSuccessfulPeopleSyncAt, getPeopleSyncPresentation } from '@/lib/peopleSyncPresentation';
 
 export type Aid = { id: string; title: string; type: string; apiType: AidType; families: number; receivedDistributionCount: number; unit: string; location: string; distributionDate: string; notes?: string | null; version: number; status: 'نشطة' | 'مكتملة'; date: string };
 export type Person = { id: string; name: string; role: 'نازح'; phone: string; nationalId: string; gender: ApiPerson['gender']; birthDate: string; tentNumber: string; familySize: number; notes?: string | null; version: number; location: string };
 export type SyncState = 'syncing' | 'synced' | 'offline' | 'error';
 export type AppUser = StaffUser | (Omit<FamilyHeadProfile['headUser'], 'id' | 'role'> & { id: string; role: 'DISPLACED' });
-type Cache = { aids: ApiAid[]; people: ApiPerson[]; complaints: Complaint[]; tasks: Task[]; familyProfile?: FamilyHeadProfile; familyNeeds?: FamilyHeadNeed[]; lastAidsSyncAt?: string | null };
+type Cache = { aids: ApiAid[]; people: ApiPerson[]; complaints: Complaint[]; tasks: Task[]; familyProfile?: FamilyHeadProfile; familyNeeds?: FamilyHeadNeed[]; lastAidsSyncAt?: string | null; lastPeopleSyncAt?: string | null };
 type QueuedWrite =
   | { id: string; idempotencyKey: string; ownerUserId: string; kind: 'aid'; data: CreateAidRequest }
   | { id: string; idempotencyKey: string; ownerUserId: string; kind: 'person'; data: CreatePersonRequest }
@@ -38,6 +39,7 @@ type AppValue = {
   signedInAsFamilyHead: boolean; aids: Aid[]; people: Person[];
   complaints: Complaint[]; tasks: Task[]; syncState: SyncState; syncMessage: string; queuedCount: number;
   aidsSyncState: SyncState; aidsSyncMessage: string; lastAidsSyncAt: string | null; retryAids: () => Promise<void>;
+  peopleSyncState: SyncState; peopleSyncMessage: string; lastPeopleSyncAt: string | null; retryPeople: () => Promise<void>;
   pendingWrites: QueuedWrite[]; canManageAids: boolean; canManagePeople: boolean;
   canManageComplaints: boolean; canManageTasks: boolean;
   signIn: (email: string, password: string, accountType?: 'staff' | 'family') => Promise<void>; signOut: () => Promise<void>;
@@ -124,6 +126,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [protectedHydrated, setProtectedHydrated] = useState(false);
   const [cache, setCache] = useState<Cache>(emptyCache);
   const [lastAidsSyncAt, setLastAidsSyncAt] = useState<string | null>(null);
+  const [storedLastPeopleSyncAt, setStoredLastPeopleSyncAt] = useState<string | null>(null);
+  const [hasLocalPeopleCache, setHasLocalPeopleCache] = useState(false);
   const [queue, setQueue] = useState<QueuedWrite[]>([]);
   const [manualError, setManualError] = useState('');
   const identityEpoch = useRef(0);
@@ -140,6 +144,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const familyNeedsQuery = useGetFamilyMeNeeds({ query: { queryKey: getGetFamilyMeNeedsQueryKey(), enabled: familyEnabled, retry: false } });
   const aidsQuery = useListAids({ query: { queryKey: getListAidsQueryKey(), enabled: staffEnabled, retry: false } });
   const peopleQuery = useListPeople({ query: { queryKey: getListPeopleQueryKey(), enabled: staffEnabled, retry: false } });
+  const lastPeopleSyncAt = getLastSuccessfulPeopleSyncAt(storedLastPeopleSyncAt, peopleQuery.dataUpdatedAt);
   const complaintsQuery = useListComplaints({ query: { queryKey: getListComplaintsQueryKey(), enabled: staffEnabled, retry: false } });
   const tasksQuery = useListTasks({ query: { queryKey: getListTasksQueryKey(), enabled: staffEnabled, retry: false } });
   const loginMutation = useLogin();
@@ -151,7 +156,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) return;
     const hydrationEpoch = identityEpoch.current;
-    if (ownerUserId && ownerUserId !== user.id) { rotateIdentity(); setCache(emptyCache); setLastAidsSyncAt(null); setQueue([]); setProtectedHydrated(false); }
+    if (ownerUserId && ownerUserId !== user.id) { rotateIdentity(); setCache(emptyCache); setLastAidsSyncAt(null); setStoredLastPeopleSyncAt(null); setHasLocalPeopleCache(false); setQueue([]); setProtectedHydrated(false); }
     activeOwner.current = user.id;
     setOwnerUserId(user.id); setProtectedHydrated(false);
     loadOwnerStorage<Cache, QueuedWrite>(user.id, (key) => AsyncStorage.getItem(key))
@@ -159,6 +164,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (identityEpoch.current !== hydrationEpoch) return;
         if (stored.cache) setCache(stored.cache);
         setLastAidsSyncAt(stored.cache?.lastAidsSyncAt ?? null);
+        setStoredLastPeopleSyncAt(stored.cache?.lastPeopleSyncAt ?? null);
+        setHasLocalPeopleCache(Array.isArray(stored.cache?.people));
         setQueue(hydrateQueue(stored.queue, user.id));
       })
       .catch(() => setManualError('تعذر تحميل بيانات الحساب المحفوظة على الجهاز.'))
@@ -169,20 +176,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user || !protectedHydrated || (!aidsQuery.data && !peopleQuery.data && !complaintsQuery.data && !tasksQuery.data && !familyProfileQuery.data && !familyNeedsQuery.data)) return;
     const next: Cache = { aids: aidsQuery.data ?? cache.aids, people: selectLatestPeople(peopleQuery.data, cache.people), complaints: complaintsQuery.data ?? cache.complaints, tasks: tasksQuery.data ?? cache.tasks, familyProfile: familyProfileQuery.data ?? cache.familyProfile, familyNeeds: familyNeedsQuery.data ?? cache.familyNeeds, lastAidsSyncAt };
-    setCache(next);
-    AsyncStorage.setItem(cacheStorageKey(user.id), JSON.stringify(next)).catch(() => setManualError('تمت المزامنة، لكن تعذر حفظ نسخة القراءة دون اتصال.'));
+    setCache({ ...next, lastPeopleSyncAt });
+    if (peopleQuery.data !== undefined) setHasLocalPeopleCache(true);
+    AsyncStorage.setItem(cacheStorageKey(user.id), JSON.stringify({ ...next, lastPeopleSyncAt })).catch(() => setManualError('تمت المزامنة، لكن تعذر حفظ نسخة القراءة دون اتصال.'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aidsQuery.data, complaintsQuery.data, familyNeedsQuery.data, familyProfileQuery.data, lastAidsSyncAt, peopleQuery.data, protectedHydrated, tasksQuery.data, user]);
+  }, [aidsQuery.data, complaintsQuery.data, familyNeedsQuery.data, familyProfileQuery.data, lastAidsSyncAt, lastPeopleSyncAt, peopleQuery.data, protectedHydrated, tasksQuery.data, user]);
   useEffect(() => {
     if (!user || !protectedHydrated || !aidsQuery.data || !aidsQuery.dataUpdatedAt) return;
     setLastAidsSyncAt((current) => getLastSuccessfulAidsSyncAt(current, aidsQuery.dataUpdatedAt));
   }, [aidsQuery.data, aidsQuery.dataUpdatedAt, protectedHydrated, user]);
   useEffect(() => {
+    if (!user || !protectedHydrated || peopleQuery.data === undefined || !peopleQuery.dataUpdatedAt) return;
+    setStoredLastPeopleSyncAt((current) => getLastSuccessfulPeopleSyncAt(current, peopleQuery.dataUpdatedAt));
+  }, [peopleQuery.data, peopleQuery.dataUpdatedAt, protectedHydrated, user]);
+  useEffect(() => {
     if (authRole === 'displaced' || httpStatus(me.error) !== 401) return;
     rotateIdentity();
     mobileAuthLifecycle.logout().finally(() => {
       setToken(null); if (ownerUserId) void AsyncStorage.multiRemove([cacheStorageKey(ownerUserId), queueStorageKey(ownerUserId)]);
-      activeOwner.current = null; setOwnerUserId(null); setProtectedHydrated(false); setCache(emptyCache); setLastAidsSyncAt(null); setQueue([]); queryClient.clear(); setManualError('انتهت الجلسة. سجّل الدخول مجدداً.');
+      activeOwner.current = null; setOwnerUserId(null); setProtectedHydrated(false); setCache(emptyCache); setLastAidsSyncAt(null); setStoredLastPeopleSyncAt(null); setHasLocalPeopleCache(false); setQueue([]); queryClient.clear(); setManualError('انتهت الجلسة. سجّل الدخول مجدداً.');
     });
   }, [authRole, me.error, ownerUserId, queryClient, rotateIdentity]);
 
@@ -202,6 +214,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const retryAids = useCallback(async () => {
     await retryAidList(mobileAuthLifecycle.synchronizedRefresh, aidsQuery.refetch);
   }, [aidsQuery.refetch]);
+  const retryPeople = useCallback(async () => {
+    await mobileAuthLifecycle.synchronizedRefresh(async () => { await peopleQuery.refetch(); });
+  }, [peopleQuery.refetch]);
   const invalidateFor = useCallback(async (item: QueuedWrite) => {
     if (item.kind === 'aid') await queryClient.invalidateQueries({ queryKey: getListAidsQueryKey() });
     if (item.kind === 'person') await queryClient.invalidateQueries({ queryKey: getListPeopleQueryKey() });
@@ -250,14 +265,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ? await customFetch<{ token: string; user: { id: number; name: string; email: string; role: string; phone: string | null; createdAt: string } }>('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password, role: 'displaced' }) })
       : await loginMutation.mutateAsync({ data: { email, password } });
     rotateIdentity();
-    if (ownerUserId) { await AsyncStorage.multiRemove([cacheStorageKey(ownerUserId), queueStorageKey(ownerUserId)]); activeOwner.current = null; setCache(emptyCache); setLastAidsSyncAt(null); setQueue([]); setOwnerUserId(null); setProtectedHydrated(false); }
+    if (ownerUserId) { await AsyncStorage.multiRemove([cacheStorageKey(ownerUserId), queueStorageKey(ownerUserId)]); activeOwner.current = null; setCache(emptyCache); setLastAidsSyncAt(null); setStoredLastPeopleSyncAt(null); setHasLocalPeopleCache(false); setQueue([]); setOwnerUserId(null); setProtectedHydrated(false); }
     queryClient.clear(); await mobileAuthLifecycle.login(session.token); await saveRole(accountType === 'family' ? 'displaced' : session.user.role); setAuthRole(accountType === 'family' ? 'displaced' : session.user.role); if (accountType === 'family') { const familyUser = { ...session.user, id: String(session.user.id), role: 'DISPLACED' as const }; await saveStoredFamilyUser(familyUser); setStoredFamilyUser(familyUser); } setToken(session.token); void queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() }); setManualError('');
   }, [loginMutation, ownerUserId, queryClient, rotateIdentity]);
   const signOut = useCallback(async () => {
     rotateIdentity(); try { await logoutMutation.mutateAsync(); } catch { /* local logout must still clear credentials */ }
     await mobileAuthLifecycle.logout(); await clearRole(); await clearStoredFamilyUser(); setToken(null); setAuthRole(null); setStoredFamilyUser(null);
     if (ownerUserId) await AsyncStorage.multiRemove([cacheStorageKey(ownerUserId), queueStorageKey(ownerUserId)]);
-    activeOwner.current = null; setOwnerUserId(null); setProtectedHydrated(false); setCache(emptyCache); setLastAidsSyncAt(null); setQueue([]); queryClient.clear();
+    activeOwner.current = null; setOwnerUserId(null); setProtectedHydrated(false); setCache(emptyCache); setLastAidsSyncAt(null); setStoredLastPeopleSyncAt(null); setHasLocalPeopleCache(false); setQueue([]); queryClient.clear();
   }, [logoutMutation, ownerUserId, queryClient, rotateIdentity]);
 
   const manager = user?.role === 'ADMIN' || user?.role === 'MANAGER';
@@ -269,6 +284,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const syncMessage = queue.length ? `${queue.length} إجراء بانتظار المزامنة` : syncState === 'syncing' ? 'جارٍ مزامنة بيانات الفريق…' : syncState === 'offline' ? 'غير متصل — تُعرض آخر نسخة محفوظة' : syncState === 'error' ? (manualError || 'تعذرت المزامنة. اسحب للتحديث أو أعد المحاولة.') : 'متزامن مع خادم الفريق';
   const aidsSyncState: SyncState = aidsQuery.isFetching ? 'syncing' : aidsQuery.error && isNetworkFailure(aidsQuery.error) ? 'offline' : aidsQuery.error ? 'error' : 'synced';
   const aidsSyncMessage = aidsSyncState === 'syncing' ? 'جارٍ تحديث بيانات المساعدات…' : aidsSyncState === 'offline' ? 'تعذر الاتصال بخادم المساعدات' : aidsSyncState === 'error' ? 'تعذر تحديث بيانات المساعدات' : 'بيانات المساعدات متزامنة';
+  const peopleSync = getPeopleSyncPresentation({
+    isFetching: peopleQuery.isFetching,
+    hasServerData: peopleQuery.data !== undefined,
+    hasLocalData: hasLocalPeopleCache,
+    hasError: !!peopleQuery.error,
+    isOffline: !!peopleQuery.error && isNetworkFailure(peopleQuery.error),
+  });
   const createOperation = useCallback(async (data: CreateAidRequest | CreatePersonRequest | ComplaintInput | TaskInput | FamilyHeadNeedInput, kind: 'aid' | 'person' | 'complaint-create' | 'task-create' | 'family-need') => {
     const id = requestId(); const idempotencyKey = requestId(); const epoch = identityEpoch.current;
     const item = { id, idempotencyKey, ownerUserId: user?.id || '', kind, data } as QueuedWrite;
@@ -283,6 +305,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [invalidateFor, queueOnNetworkError, user]);
   const value = useMemo<AppValue>(() => ({
     signedIn: !!user, authLoading: !!token && !user, user, familyProfile: serverCache.familyProfile ?? null, familyNeeds: serverCache.familyNeeds ?? [], signedInAsFamilyHead: authRole === 'displaced', aids: serverCache.aids.map(mapAid), people: serverCache.people.map(mapPerson), complaints: serverCache.complaints, tasks: serverCache.tasks, syncState, syncMessage, queuedCount: queue.length, aidsSyncState, aidsSyncMessage, lastAidsSyncAt, retryAids, pendingWrites: queue,
+    peopleSyncState: peopleSync.state, peopleSyncMessage: peopleSync.message, lastPeopleSyncAt, retryPeople,
     canManageAids: !!user && (manager || delegate), canManagePeople: !!user && (manager || delegate), canManageComplaints: !!user && (manager || delegate), canManageTasks: !!user && (manager || security),
     signIn, signOut,
     addAid: (data) => createOperation(data, 'aid'), addPerson: (data) => createOperation(data, 'person'),
@@ -299,7 +322,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     retrySync: async () => { await replayQueue(); await refetchAll(); },
     discardQueuedWrite: async (id) => saveQueue(queue.filter((item) => item.id !== id)),
-  }), [aidsSyncMessage, aidsSyncState, authRole, createOperation, delegate, lastAidsSyncAt, manager, queryClient, queue, queueOnNetworkError, refetchAll, replayQueue, retryAids, saveQueue, security, serverCache, signIn, signOut, syncMessage, syncState, token, user]);
+  }), [aidsSyncMessage, aidsSyncState, authRole, createOperation, delegate, lastAidsSyncAt, lastPeopleSyncAt, manager, peopleSync.message, peopleSync.state, queryClient, queue, queueOnNetworkError, refetchAll, replayQueue, retryAids, retryPeople, saveQueue, security, serverCache, signIn, signOut, syncMessage, syncState, token, user]);
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 export function useApp() {

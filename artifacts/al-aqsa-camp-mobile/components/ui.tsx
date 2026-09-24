@@ -78,17 +78,18 @@ export function SyncTimestamp({ lastSyncedAt, testID }: { lastSyncedAt?: string 
     </Text>
   );
 }
-export function SyncBanner({ scope = 'all' }: { scope?: 'all' | 'aids' } = {}) {
+export function SyncBanner({ scope = 'all' }: { scope?: 'all' | 'aids' | 'people' } = {}) {
   const colors = useColors();
-  const { syncState, syncMessage, retrySync, aidsSyncState, aidsSyncMessage, lastAidsSyncAt, retryAids } = useApp();
-  const scopedState = scope === 'aids' ? aidsSyncState : syncState;
-  const scopedMessage = scope === 'aids' ? aidsSyncMessage : syncMessage;
-  const retry = scope === 'aids' ? retryAids : retrySync;
+  const { syncState, syncMessage, retrySync, aidsSyncState, aidsSyncMessage, lastAidsSyncAt, retryAids, peopleSyncState, peopleSyncMessage, lastPeopleSyncAt, retryPeople } = useApp();
+  const scopedState = scope === 'aids' ? aidsSyncState : scope === 'people' ? peopleSyncState : syncState;
+  const scopedMessage = scope === 'aids' ? aidsSyncMessage : scope === 'people' ? peopleSyncMessage : syncMessage;
+  const retry = scope === 'aids' ? retryAids : scope === 'people' ? retryPeople : retrySync;
+  const lastSyncedAt = scope === 'aids' ? lastAidsSyncAt : lastPeopleSyncAt;
   const bad = scopedState === 'offline' || scopedState === 'error';
   return (
     <View style={styles.syncSection}>
       <Pressable
-        testID="retry-sync"
+        testID={scope === 'people' ? 'retry-people-sync' : 'retry-sync'}
         accessibilityRole="button"
         accessibilityLabel={`${scopedMessage}. اضغط لإعادة المحاولة`}
         onPress={() => void retry()}
@@ -97,8 +98,8 @@ export function SyncBanner({ scope = 'all' }: { scope?: 'all' | 'aids' } = {}) {
         <Text style={[styles.syncText, { color: bad ? colors.destructive : colors.primary }]}>{scopedMessage}</Text>
         <Ionicons name={bad ? 'cloud-offline-outline' : scopedState === 'syncing' ? 'sync-outline' : 'cloud-done-outline'} size={17} color={bad ? colors.destructive : colors.primary} />
       </Pressable>
-      {scope === 'aids' ? (
-        <SyncTimestamp testID="aids-last-successful-sync" lastSyncedAt={lastAidsSyncAt} />
+      {scope !== 'all' ? (
+        <SyncTimestamp testID={scope === 'aids' ? 'aids-last-successful-sync' : 'people-last-successful-sync'} lastSyncedAt={lastSyncedAt} />
       ) : null}
     </View>
   );

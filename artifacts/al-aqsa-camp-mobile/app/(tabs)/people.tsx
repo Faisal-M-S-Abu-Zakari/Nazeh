@@ -15,7 +15,7 @@ export default function PeopleScreen() {
     <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
       <ScreenHeader title="سجل المخيم" subtitle="سجل النازحين المشترك" action={canManagePeople ? <Pressable testID="add-person" onPress={() => router.push('/add-person')}><Ionicons name="person-add" size={26} color={colors.primary} /></Pressable> : undefined} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <SyncBanner />
+        <SyncBanner scope="people" />
         <View style={[styles.search, { backgroundColor: colors.background, borderColor: colors.border }]}>
           <TextInput testID="people-search" value={query} onChangeText={setQuery} placeholder="ابحث بالاسم أو الدور" placeholderTextColor={colors.mutedForeground} style={[styles.searchInput, { color: colors.foreground }]} textAlign="right" />
           <Ionicons name="search" size={20} color={colors.primary} />
