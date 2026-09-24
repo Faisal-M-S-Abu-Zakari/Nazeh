@@ -12,15 +12,14 @@ import {
 } from '@workspace/db';
 
 const expoUrl = process.env.EXPO_E2E_URL;
-const password = `Task147-${randomUUID()}!`;
+const password = `Task152-${randomUUID()}!`;
 const userId = randomUUID();
 const personId = randomUUID();
-const email = `task147-mobile-${randomUUID()}@example.invalid`;
+const email = `task152-mobile-${randomUUID()}@example.invalid`;
 const personName = `اختبار إعادة فتح الشخص ${randomUUID().slice(0, 8)}`;
-const oldPersonName = `${personName} القديم`;
 const updatedPerson = {
   name: `${personName} بعد إعادة الفتح`,
-  nationalId: `TASK147-${randomUUID().slice(0, 8)}`,
+  nationalId: `TASK152-${randomUUID().slice(0, 8)}`,
   phone: '0590000147',
   tentNumber: 'ت-147-محدث',
   familySize: '6',
@@ -44,13 +43,13 @@ test.beforeAll(async () => {
   await db.insert(staffUsers).values({
     id: userId,
     email,
-    name: 'Task 147 mobile test user',
+    name: 'Task 152 mobile test user',
     passwordHash,
     role: 'DELEGATE' satisfies StaffRole,
   });
   await db.insert(people).values({
     id: personId,
-    nationalId: `TASK147-OLD-${randomUUID().slice(0, 8)}`,
+    nationalId: `TASK152-OLD-${randomUUID().slice(0, 8)}`,
     fullName: personName,
     gender: 'MALE',
     birthDate: '1988-04-12',
@@ -62,7 +61,6 @@ test.beforeAll(async () => {
   });
 });
 
-
 test.afterAll(async () => {
   await db
     .delete(syncAuditEvents)
@@ -72,7 +70,7 @@ test.afterAll(async () => {
   await db.delete(staffUsers).where(eq(staffUsers.id, userId));
 });
 
-test('shows the latest person edits after reloading the narrow Expo app', async ({
+test('keeps the latest cached person visible after list sync fails and retries successfully', async ({
   browser,
 }) => {
   const context = await browser.newContext({
@@ -109,61 +107,74 @@ test('shows the latest person edits after reloading the narrow Expo app', async 
   );
 
   const cacheKey = `al-aqsa-read-cache-v2:${userId}`;
-  await page.evaluate(
-    ({ key, id, name }) => {
-      const cache = JSON.parse(localStorage.getItem(key) ?? '{}') as {
-        people?: Array<Record<string, unknown>>;
-      };
-      cache.people = [
-        {
-          id,
-          nationalId: 'TASK147-OLD-CACHE',
-          fullName: name,
-          gender: 'MALE',
-          birthDate: '1988-04-12T00:00:00.000Z',
-          phone: '0590000100',
-          tentNumber: 'ت-147',
-          familySize: 4,
-          notes: 'نسخة محلية قديمة',
-          version: 1,
-          createdById: null,
-          createdAt: '2026-09-23T00:00:00.000Z',
-          updatedAt: '2026-09-23T00:00:00.000Z',
-          archivedAt: null,
-        },
-      ];
-      localStorage.setItem(key, JSON.stringify(cache));
-    },
-    { key: cacheKey, id: personId, name: oldPersonName },
-  );
+  await expect
+    .poll(async () => {
+      const stored = await page.evaluate(
+        (key) => JSON.parse(localStorage.getItem(key) ?? '{}'),
+        cacheKey,
+      );
+      return stored.people?.find(
+        (person: { id?: string }) => person.id === personId,
+      )?.fullName;
+    })
+    .toBe(updatedPerson.name);
 
-  let releasePeopleResponse!: () => void;
-  const peopleResponseReleased = new Promise<void>((resolve) => {
-    releasePeopleResponse = resolve;
-  });
+  let failNextPeopleList = true;
   await page.route('**/api/sync/people', async (route) => {
-    if (route.request().method() === 'GET') {
-      await peopleResponseReleased;
+    if (route.request().method() === 'GET' && failNextPeopleList) {
+      failNextPeopleList = false;
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Temporarily unavailable' }),
+      });
+      return;
     }
     await route.fallback();
   });
 
-  await page.reload();
-  await expect(page.getByTestId(`open-person-${personId}`)).toContainText(
-    oldPersonName,
+  const failedPeopleResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'GET' &&
+      new URL(response.url()).pathname === '/api/sync/people' &&
+      response.status() === 503,
   );
-  await page.getByTestId(`open-person-${personId}`).click();
-  await expect(page.getByTestId('edit-person-name')).toHaveValue(oldPersonName);
+  await page.reload();
+  await failedPeopleResponse;
+  await expect(page.getByTestId(`open-person-${personId}`)).toContainText(
+    updatedPerson.name,
+  );
 
+  const cachedPerson = await page.evaluate(
+    ({ key, id }) => {
+      const stored = JSON.parse(localStorage.getItem(key) ?? '{}');
+      return stored.people?.find((person: { id?: string }) => person.id === id);
+    },
+    { key: cacheKey, id: personId },
+  );
+  expect(cachedPerson).toMatchObject({
+    fullName: updatedPerson.name,
+    nationalId: updatedPerson.nationalId,
+    phone: updatedPerson.phone,
+    tentNumber: updatedPerson.tentNumber,
+    familySize: Number(updatedPerson.familySize),
+    notes: updatedPerson.notes,
+  });
+
+  const syncBanner = page.getByTestId('retry-sync');
+  await expect(syncBanner).toBeVisible();
+  await expect(syncBanner).toContainText(/تعذرت المزامنة|غير متصل/);
+  await expect(syncBanner).toHaveAttribute('aria-label', /إعادة المحاولة/);
   const peopleResponse = page.waitForResponse(
     (response) =>
       response.request().method() === 'GET' &&
       new URL(response.url()).pathname === '/api/sync/people' &&
       response.ok(),
   );
-  releasePeopleResponse();
+  await syncBanner.click();
   await peopleResponse;
 
+  await page.getByTestId(`open-person-${personId}`).click();
   await expect(page.getByTestId('edit-person-name')).toHaveValue(
     updatedPerson.name,
   );
