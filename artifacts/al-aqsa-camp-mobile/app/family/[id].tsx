@@ -1,21 +1,84 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { View, StyleSheet, ScrollView, Text, Pressable, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, Text, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { ScreenHeader, Card, fonts, StatusPill, PrimaryButton } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/context/AppContext';
-import { useGetFamily, getGetFamilyQueryKey } from '@workspace/api-client-react';
+import {
+  approveFamily, archiveFamily, useGetFamily, getGetFamilyQueryKey, getListFamiliesQueryKey,
+  useApproveFamily, useArchiveFamily,
+} from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { getErrorStatus } from '@/lib/mutationErrors';
+
+function getFamilyErrorMessage(error: unknown): string {
+  const status = getErrorStatus(error);
+  if (status === 401 || status === 403) return 'لا تملك الصلاحية لتنفيذ هذا الإجراء.';
+  if (status === 404) return 'لم تعد العائلة متاحة. حدّث البيانات ثم حاول مرة أخرى.';
+  if (status === 409) return 'تغيّرت بيانات العائلة. أعد تحميلها ثم حاول مرة أخرى.';
+  if (status !== undefined && status >= 500) return 'تعذر الاتصال بالخادم. لم يُحفظ التغيير؛ حاول مرة أخرى.';
+  return 'لم يُحفظ التغيير. حاول مرة أخرى.';
+}
 
 export default function FamilyScreen() {
   const colors = useColors();
+  const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { canManagePeople } = useApp();
+  const { canManagePeople, signedIn, user } = useApp();
+  const canReviewFamilies = user?.role === 'ADMIN' || user?.role === 'MANAGER';
 
-  const { data: family, isLoading, isError } = useGetFamily(id as string, {
+  const { data: family, isLoading, isError, refetch } = useGetFamily(id as string, {
     query: { enabled: !!id && canManagePeople, queryKey: getGetFamilyQueryKey(id as string) }
   });
 
-  if (!canManagePeople) {
+  const refreshFamilyData = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: getGetFamilyQueryKey(id as string) }),
+      queryClient.invalidateQueries({ queryKey: getListFamiliesQueryKey() }),
+    ]);
+    await refetch();
+  };
+  const handleMutationError = async (error: unknown) => {
+    if (getErrorStatus(error) === 409) {
+      try { await refreshFamilyData(); } catch { /* Keep the conflict message primary. */ }
+    }
+    Alert.alert(getErrorStatus(error) === 409 ? 'تعارض في تحديث العائلة' : 'تعذر تحديث العائلة', getFamilyErrorMessage(error));
+  };
+  const approveMutation = useApproveFamily({
+    mutation: {
+      mutationFn: ({ familyId, data }) => approveFamily(familyId, data, {
+        headers: { 'Idempotency-Key': `mobile-family-approve-${Date.now()}-${Math.random().toString(36).slice(2)}` }
+      }),
+      onSuccess: () => { void refreshFamilyData(); },
+      onError: (error) => { void handleMutationError(error); },
+    }
+  });
+  const archiveMutation = useArchiveFamily({
+    mutation: {
+      mutationFn: ({ familyId, data }) => archiveFamily(familyId, data, {
+        headers: { 'Idempotency-Key': `mobile-family-archive-${Date.now()}-${Math.random().toString(36).slice(2)}` }
+      }),
+      onSuccess: () => { void refreshFamilyData(); },
+      onError: (error) => { void handleMutationError(error); },
+    }
+  });
+
+  const confirmApproval = () => {
+    if (!family || !canReviewFamilies || family.status !== 'PENDING_APPROVAL' || approveMutation.isPending) return;
+    Alert.alert('اعتماد الأسرة', 'سيتم تفعيل الأسرة بعد اعتمادها. هل تريد المتابعة؟', [
+      { text: 'إلغاء', style: 'cancel' },
+      { text: 'اعتماد وتفعيل', onPress: () => approveMutation.mutate({ familyId: family.id, data: {} }) },
+    ]);
+  };
+  const confirmArchive = () => {
+    if (!family || !canReviewFamilies || family.status === 'ARCHIVED' || archiveMutation.isPending) return;
+    Alert.alert('أرشفة الأسرة', 'لن تظهر الأسرة ضمن السجلات النشطة. هل تريد المتابعة؟', [
+      { text: 'إلغاء', style: 'cancel' },
+      { text: 'أرشفة', style: 'destructive', onPress: () => archiveMutation.mutate({ familyId: family.id, data: { expectedVersion: family.version } }) },
+    ]);
+  };
+
+  if (!signedIn || !canManagePeople) {
     return (
       <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
         <ScreenHeader title="تفاصيل العائلة" />
@@ -45,6 +108,15 @@ export default function FamilyScreen() {
         {isError && (
           <Card style={styles.center}>
             <Text style={[styles.errorText, { color: colors.destructive }]}>تعذر جلب تفاصيل العائلة.</Text>
+            <Pressable onPress={() => void refetch()} style={{ marginTop: 10 }}>
+              <Text style={{ color: colors.primary, fontFamily: fonts.bold }}>إعادة المحاولة</Text>
+            </Pressable>
+          </Card>
+        )}
+
+        {!isLoading && !isError && !family && (
+          <Card style={styles.center}>
+            <Text style={[styles.errorText, { color: colors.destructive }]}>لم يتم العثور على العائلة أو لم تعد متاحة.</Text>
           </Card>
         )}
 
@@ -102,11 +174,39 @@ export default function FamilyScreen() {
 
             {canManagePeople && (
               <View style={styles.actions}>
+                {canReviewFamilies && family.status === 'PENDING_APPROVAL' && (
+                  <PrimaryButton
+                    testID="approve-family"
+                    label={approveMutation.isPending ? 'جارٍ الاعتماد...' : 'اعتماد وتفعيل الأسرة'}
+                    icon="checkmark-circle-outline"
+                    disabled={approveMutation.isPending || archiveMutation.isPending}
+                    onPress={confirmApproval}
+                  />
+                )}
                 <PrimaryButton 
+                  testID="edit-family"
                   label="تعديل بيانات العائلة" 
                   icon="pencil" 
                   onPress={() => router.push(`/family-form?id=${id}` as never)} 
                 />
+                {canReviewFamilies && family.status !== 'ARCHIVED' && (
+                  <Pressable
+                    testID="archive-family"
+                    accessibilityRole="button"
+                    disabled={archiveMutation.isPending || approveMutation.isPending}
+                    onPress={confirmArchive}
+                    style={[styles.archiveButton, { borderColor: colors.destructive, opacity: archiveMutation.isPending ? 0.6 : 1 }]}
+                  >
+                    <Text style={[styles.archiveButtonText, { color: colors.destructive }]}>
+                      {archiveMutation.isPending ? 'جارٍ الأرشفة...' : 'أرشفة الأسرة'}
+                    </Text>
+                  </Pressable>
+                )}
+                {(approveMutation.isError || archiveMutation.isError) && (
+                  <Text style={[styles.actionError, { color: colors.destructive }]}>
+                    {getFamilyErrorMessage(approveMutation.error || archiveMutation.error)}
+                  </Text>
+                )}
               </View>
             )}
           </>
@@ -135,7 +235,10 @@ const styles = StyleSheet.create({
   memberDetails: { fontFamily: fonts.regular, fontSize: 13, marginTop: 4 },
   memberBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
   memberRelationship: { fontFamily: fonts.bold, fontSize: 12 },
-  actions: { marginTop: 16 },
+  actions: { marginTop: 16, gap: 10 },
+  archiveButton: { minHeight: 48, borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+  archiveButtonText: { fontFamily: fonts.bold, fontSize: 15 },
+  actionError: { fontFamily: fonts.medium, fontSize: 13, textAlign: 'right' },
   center: { alignItems: 'center', justifyContent: 'center', padding: 20 },
   errorText: { fontFamily: fonts.bold, fontSize: 16, textAlign: 'center' },
   emptyText: { fontFamily: fonts.regular, fontSize: 16, textAlign: 'center' },

@@ -1,4 +1,4 @@
-import { AidType, getListAidsQueryKey, useArchiveAid, useUpdateSyncAid, useListAidDistributions, useCreateAidDistribution, useReceiveAidDistribution, useCancelAidDistribution } from '@workspace/api-client-react';
+import { AidType, getListAidsQueryKey, getListFamiliesQueryKey, getListNeedsQueryKey, getListAidDistributionsQueryKey, useListFamilies, useListNeeds, useArchiveAid, useUpdateSyncAid, useListAidDistributions, useCreateAidDistribution, useReceiveAidDistribution, useCancelAidDistribution } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
@@ -30,7 +30,7 @@ export default function AidDetailScreen() {
 function AidDetailForm({ aid }: { aid: Aid }) {
   const colors = useColors();
   const queryClient = useQueryClient();
-  const { aidsSyncMessage, aidsSyncState, canManageAids, lastAidsSyncAt, retryAids } = useApp();
+  const { aidsSyncMessage, aidsSyncState, canManageAids, user, lastAidsSyncAt, retryAids } = useApp();
   const updateMutation = useUpdateSyncAid();
   const archiveMutation = useArchiveAid();
   const [title, setTitle] = useState(aid?.title ?? '');
@@ -45,7 +45,10 @@ function AidDetailForm({ aid }: { aid: Aid }) {
   const saveInFlightRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const { data: distributions = [], refetch: refetchDistributions } = useListAidDistributions(aid.id);
+  const canReadDistributions = canManageAids || user?.role === 'SECURITY_OFFICER';
+  const { data: distributions = [], isError: distributionsError, refetch: refetchDistributions } = useListAidDistributions(aid.id, { query: { enabled: canReadDistributions, queryKey: getListAidDistributionsQueryKey(aid.id) } });
+  const { data: families = [] } = useListFamilies({ query: { enabled: canManageAids, queryKey: getListFamiliesQueryKey() } });
+  const { data: needs = [] } = useListNeeds({ query: { enabled: canManageAids, queryKey: getListNeedsQueryKey() } });
   const createDist = useCreateAidDistribution();
   const receiveDist = useReceiveAidDistribution();
   const cancelDist = useCancelAidDistribution();
@@ -53,6 +56,18 @@ function AidDetailForm({ aid }: { aid: Aid }) {
   const [newFamilyId, setNewFamilyId] = useState('');
   const [newNeedId, setNewNeedId] = useState('');
   const [newQuantity, setNewQuantity] = useState('1');
+  const [distributionError, setDistributionError] = useState<string | null>(null);
+  const distributionInFlight = useRef(false);
+  const approvedNeeds = needs.filter(need => need.familyId === newFamilyId && need.status === 'APPROVED');
+  const validDistribution = !!newFamilyId && approvedNeeds.some(need => need.id === newNeedId) && Number.isInteger(Number(newQuantity)) && Number(newQuantity) > 0;
+  const mutateDistribution = async (operation: () => Promise<unknown>) => {
+    if (distributionInFlight.current) return;
+    distributionInFlight.current = true;
+    setDistributionError(null);
+    try { await operation(); await refresh(); await queryClient.invalidateQueries({ queryKey: getListNeedsQueryKey() }); }
+    catch (error) { setDistributionError(getMutationErrorMessage(error)); await refetchDistributions(); }
+    finally { distributionInFlight.current = false; }
+  };
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: getListAidsQueryKey() });
@@ -136,27 +151,26 @@ function AidDetailForm({ aid }: { aid: Aid }) {
           <PrimaryButton testID="save-aid-edits" label={isSaving || updateMutation.isPending ? 'جارٍ الحفظ…' : 'حفظ التعديلات'} icon="checkmark" disabled={!valid || isSaving || updateMutation.isPending || archiveMutation.isPending} onPress={() => void save()} />
           <Pressable accessibilityRole="button" accessibilityLabel="أرشفة الحملة" testID="archive-aid" disabled={archiveMutation.isPending} onPress={() => setArchiveOpen(true)} style={[styles.archive, { borderColor: colors.destructive }]}><Text style={[styles.archiveText, { color: colors.destructive }]}>أرشفة الحملة</Text></Pressable>
 
-          <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 16 }} />
-          <Text style={[styles.label, { color: colors.foreground }]}>تخصيص المساعدة لأسرة</Text>
-          <Field label="معرف الأسرة المستفيدة" value={newFamilyId} onChangeText={setNewFamilyId} />
-          <Field label="معرف طلب الاحتياج" value={newNeedId} onChangeText={setNewNeedId} />
-          <Field label="الكمية" value={newQuantity} onChangeText={setNewQuantity} keyboardType="number-pad" />
+        </> : null}
+        {canReadDistributions ? <>
+           <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 16 }} />
+           {canManageAids ? <>
+           <Text style={[styles.label, { color: colors.foreground }]}>تخصيص المساعدة لأسرة</Text>
+           <Text style={[styles.label, { color: colors.foreground }]}>اختر أسرة نشطة</Text>
+           {families.filter(f => f.status === 'ACTIVE').map(f => <Pressable key={f.id} accessibilityRole="button" accessibilityState={{ selected: newFamilyId === f.id }} onPress={() => { setNewFamilyId(f.id); setNewNeedId(''); }} style={[styles.option, { backgroundColor: newFamilyId === f.id ? colors.primary : colors.muted }]}><Text style={{ color: newFamilyId === f.id ? colors.primaryForeground : colors.foreground, fontFamily: fonts.bold, textAlign: 'right' }}>{f.headName}</Text></Pressable>)}
+           {newFamilyId ? <Text style={[styles.label, { color: colors.foreground }]}>احتياج معتمد</Text> : null}
+           {newFamilyId && !approvedNeeds.length ? <Text style={{ color: colors.mutedForeground, textAlign: 'right' }}>لا توجد احتياجات معتمدة لهذه الأسرة.</Text> : null}
+           {approvedNeeds.map(need => <Pressable key={need.id} accessibilityRole="button" accessibilityState={{ selected: newNeedId === need.id }} onPress={() => setNewNeedId(need.id)} style={[styles.option, { backgroundColor: newNeedId === need.id ? colors.primary : colors.muted }]}><Text style={{ color: newNeedId === need.id ? colors.primaryForeground : colors.foreground, fontFamily: fonts.bold, textAlign: 'right' }}>{need.title}</Text></Pressable>)}
+           <Field label="الكمية" value={newQuantity} onChangeText={setNewQuantity} keyboardType="number-pad" />
           <PrimaryButton
             label="تخصيص وتوزيع"
             icon="add"
-            disabled={!newFamilyId || !newNeedId || createDist.isPending}
-            onPress={() => {
-              createDist.mutate({ aidId: aid.id, data: { familyId: newFamilyId, needId: newNeedId, quantity: Number(newQuantity) } }, {
-                onSuccess: () => {
-                  setNewFamilyId('');
-                  setNewNeedId('');
-                  setNewQuantity('1');
-                  refetchDistributions();
-                },
-                onError: (e) => Alert.alert('خطأ', 'تعذر تخصيص المساعدة')
-              });
-            }}
+            disabled={!validDistribution || createDist.isPending}
+            onPress={() => void mutateDistribution(async () => { await createDist.mutateAsync({ aidId: aid.id, data: { familyId: newFamilyId, needId: newNeedId, quantity: Number(newQuantity) } }); setNewFamilyId(''); setNewNeedId(''); setNewQuantity('1'); })}
           />
+           </> : null}
+           {distributionError ? <Text accessibilityRole="alert" style={{ color: colors.destructive, textAlign: 'right' }}>{distributionError}</Text> : null}
+           {distributionsError ? <Pressable accessibilityRole="button" onPress={() => void refetchDistributions()}><Text style={{ color: colors.destructive, textAlign: 'right' }}>تعذر تحميل التوزيعات. إعادة المحاولة</Text></Pressable> : null}
 
           {distributions.length > 0 && (
             <View style={{ marginTop: 24, gap: 12 }}>
@@ -174,13 +188,13 @@ function AidDetailForm({ aid }: { aid: Aid }) {
                           label="تأكيد الاستلام"
                           icon="checkmark"
                           disabled={receiveDist.isPending}
-                          onPress={() => receiveDist.mutate({ distributionId: dist.id }, { onSuccess: () => refetchDistributions() })}
+                          onPress={() => void mutateDistribution(() => receiveDist.mutateAsync({ distributionId: dist.id }))}
                         />
                         <PrimaryButton
                           label="إلغاء التخصيص"
                           icon="close"
                           disabled={cancelDist.isPending}
-                          onPress={() => cancelDist.mutate({ distributionId: dist.id }, { onSuccess: () => refetchDistributions() })}
+                          onPress={() => void mutateDistribution(() => cancelDist.mutateAsync({ distributionId: dist.id }))}
                         />
                       </>
                     )}

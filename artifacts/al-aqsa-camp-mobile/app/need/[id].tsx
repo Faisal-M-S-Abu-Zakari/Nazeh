@@ -2,22 +2,26 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { View, StyleSheet, Text, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
-import { ScreenHeader, Card, fonts, StatusPill, PrimaryButton } from '@/components/ui';
+import { ScreenHeader, Card, Field, fonts, StatusPill, PrimaryButton } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/context/AppContext';
-import { useListNeeds, useUpdateNeed, getListNeedsQueryKey, NeedStatus, NeedCategory, NeedPriority } from '@workspace/api-client-react';
+import { useListNeeds, useUpdateNeed, useArchiveNeed, getListNeedsQueryKey, NeedStatus } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { getMutationErrorMessage } from '@/lib/mutationErrors';
 
 export default function NeedScreen() {
   const colors = useColors();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { signedIn } = useApp();
+  const { user, canManagePeople } = useApp();
+  const canReadNeeds = canManagePeople || user?.role === 'SECURITY_OFFICER';
+  const canArchive = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+  const inFlight = useRef(false);
+  const [note, setNote] = useState('');
   const queryClient = useQueryClient();
 
-  const { data: needsPage, isLoading } = useListNeeds({
-    query: { enabled: signedIn, queryKey: getListNeedsQueryKey() }
+  const { data: needsPage, isLoading, isError, refetch } = useListNeeds({
+    query: { enabled: canReadNeeds, queryKey: getListNeedsQueryKey() }
   });
 
   const need = useMemo(() => {
@@ -35,16 +39,19 @@ export default function NeedScreen() {
       }
     }
   });
+  const archiveMutation = useArchiveNeed();
 
   const handleUpdateStatus = (status: NeedStatus) => {
-    if (!need) return;
+    if (!need || inFlight.current) return;
+    inFlight.current = true;
     updateMutation.mutate({
       needId: need.id,
       data: {
         status,
         expectedVersion: need.version,
+        note: note.trim() || undefined,
       }
-    });
+    }, { onSettled: () => { inFlight.current = false; } });
   };
 
   const getStatusText = (status: string) => {
@@ -79,11 +86,11 @@ export default function NeedScreen() {
     }
   };
 
-  if (!signedIn) {
+  if (!canReadNeeds) {
     return (
       <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
         <ScreenHeader title="تفاصيل الاحتياج" />
-        <View style={styles.center}><Text style={[styles.errorText, { color: colors.destructive }]}>يرجى تسجيل الدخول.</Text></View>
+        <View style={styles.center}><Text style={[styles.errorText, { color: colors.destructive }]}>ليس لديك صلاحية لعرض الاحتياج.</Text></View>
       </View>
     );
   }
@@ -96,6 +103,7 @@ export default function NeedScreen() {
       </View>
     );
   }
+  if (isError) return <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}><ScreenHeader title="تفاصيل الاحتياج" /><Card style={styles.center}><Text style={{ color: colors.destructive }}>تعذر تحميل الاحتياج.</Text><Pressable accessibilityRole="button" onPress={() => void refetch()}><Text style={{ color: colors.primary }}>إعادة المحاولة</Text></Pressable></Card></View>;
 
   if (!need) {
     return (
@@ -137,7 +145,7 @@ export default function NeedScreen() {
           </View>
         </Card>
 
-        <Pressable onPress={() => router.push(`/family/${need.familyId}` as never)}>
+        {canManagePeople ? <Pressable onPress={() => router.push(`/family/${need.familyId}` as never)}>
           <Card style={styles.familyCard}>
             <View style={styles.familyRow}>
               <View style={styles.familyInfo}>
@@ -149,11 +157,13 @@ export default function NeedScreen() {
               </View>
             </View>
           </Card>
-        </Pressable>
+        </Pressable> : null}
 
         <View style={styles.actions}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>تحديث حالة الاحتياج:</Text>
-          {need.status !== 'IN_PROGRESS' && (
+          <Field label="ملاحظة التحديث (اختياري)" value={note} onChangeText={setNote} multiline />
+          {need.status === 'REQUIRED' ? <PrimaryButton label="اعتماد الاحتياج" icon="checkmark" onPress={() => handleUpdateStatus('APPROVED')} disabled={updateMutation.isPending} /> : null}
+          {need.status === 'APPROVED' && (
             <PrimaryButton 
               label={updateMutation.isPending ? "جارٍ الحفظ..." : "تحديث إلى: قيد التنفيذ"} 
               icon="play-outline" 
@@ -161,7 +171,7 @@ export default function NeedScreen() {
               disabled={updateMutation.isPending}
             />
           )}
-          {need.status !== 'FULFILLED' && (
+          {need.status === 'IN_PROGRESS' && (
             <View style={{ marginTop: 8 }}>
               <PrimaryButton 
                 label={updateMutation.isPending ? "جارٍ الحفظ..." : "تحديث إلى: مكتمل"} 
@@ -171,6 +181,16 @@ export default function NeedScreen() {
               />
             </View>
           )}
+          {(['REQUIRED', 'APPROVED', 'IN_PROGRESS'] as const).includes(need.status as 'REQUIRED' | 'APPROVED' | 'IN_PROGRESS') ? <PrimaryButton label="إلغاء الاحتياج" icon="close-circle-outline" onPress={() => handleUpdateStatus('CANCELLED')} disabled={updateMutation.isPending} /> : null}
+          {canArchive ? <PrimaryButton label={archiveMutation.isPending ? 'جارٍ الأرشفة...' : 'أرشفة الاحتياج'} icon="archive-outline" disabled={archiveMutation.isPending || updateMutation.isPending} onPress={() => {
+            if (inFlight.current) return;
+            Alert.alert('تأكيد الأرشفة', 'هل تريد أرشفة هذا الاحتياج؟', [{ text: 'تراجع', style: 'cancel' }, { text: 'أرشفة', style: 'destructive', onPress: async () => {
+              inFlight.current = true;
+              try { await archiveMutation.mutateAsync({ needId: need.id, data: { expectedVersion: need.version } }); await queryClient.invalidateQueries({ queryKey: getListNeedsQueryKey() }); router.back(); }
+              catch (error) { Alert.alert('تعذر الأرشفة', getMutationErrorMessage(error)); }
+              finally { inFlight.current = false; }
+            } }]);
+          }} /> : null}
         </View>
       </ScrollView>
     </View>

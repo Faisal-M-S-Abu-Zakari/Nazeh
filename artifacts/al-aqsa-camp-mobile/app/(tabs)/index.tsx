@@ -15,6 +15,7 @@ export default function HomeScreen() {
 
   const isStaff = signedIn && !signedInAsFamilyHead;
   const isManager = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+  const canReadShelters = isManager || user?.role === 'DELEGATE' || user?.role === 'SECURITY_OFFICER';
 
   const { data: dashboard, refetch: refetchDashboard } = useGetDashboard({
     query: { enabled: isManager, retry: false, queryKey: getGetDashboardQueryKey() }
@@ -71,18 +72,54 @@ export default function HomeScreen() {
               <Ionicons name="hand-right-outline" size={28} color={colors.primary} />
               <Text style={[styles.actionText, { color: colors.foreground }]}>الاحتياجات</Text>
             </Pressable>
+            {canReadShelters && (
+              <Pressable
+                testID="home-shelters"
+                accessibilityRole="button"
+                accessibilityLabel="إدارة وحدات الإيواء"
+                style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                onPress={() => router.push('/shelters' as never)}
+              >
+                <Ionicons name="business-outline" size={28} color={colors.primary} />
+                <Text style={[styles.actionText, { color: colors.foreground }]}>وحدات الإيواء</Text>
+              </Pressable>
+            )}
             {isManager && (
               <>
                 <Pressable style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => router.push('/reports' as never)}>
                   <Ionicons name="stats-chart-outline" size={28} color={colors.primary} />
                   <Text style={[styles.actionText, { color: colors.foreground }]}>التقارير</Text>
                 </Pressable>
-                <Pressable style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => router.push('/content' as never)}>
+                {user?.role === 'MANAGER' ? <Pressable style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => router.push('/content' as never)}>
                   <Ionicons name="megaphone-outline" size={28} color={colors.primary} />
                   <Text style={[styles.actionText, { color: colors.foreground }]}>الإعلانات</Text>
-                </Pressable>
+                </Pressable> : null}
               </>
             )}
+          </View>
+        )}
+
+        {signedIn && !canManagePeople && canReadShelters && (
+          <View style={styles.actionGrid}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="عرض الاحتياجات"
+              style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => router.push('/needs' as never)}
+            >
+              <Ionicons name="hand-right-outline" size={28} color={colors.primary} />
+              <Text style={[styles.actionText, { color: colors.foreground }]}>الاحتياجات</Text>
+            </Pressable>
+            <Pressable
+              testID="home-shelters"
+              accessibilityRole="button"
+              accessibilityLabel="عرض وحدات الإيواء"
+              style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => router.push('/shelters' as never)}
+            >
+              <Ionicons name="business-outline" size={28} color={colors.primary} />
+              <Text style={[styles.actionText, { color: colors.foreground }]}>وحدات الإيواء</Text>
+            </Pressable>
           </View>
         )}
 

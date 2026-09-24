@@ -152,20 +152,20 @@ async function assigneeValidationError(
 ): Promise<{ statusCode: 400 | 404; responseBody: { error: string } } | undefined> {
   if (assignedToId == null) return undefined;
   const [staff] = await tx
-    .select({ role: staffUsers.role })
+  .select({ role: staffUsers.role, active: staffUsers.active })
     .from(staffUsers)
     .where(eq(staffUsers.id, assignedToId))
     .limit(1);
   if (!staff) {
     return { statusCode: 404, responseBody: { error: "Assigned staff member not found" } };
   }
-  if (staff.role !== "SECURITY_OFFICER" && staff.role !== "SECURITY_MEMBER") {
+  if (!staff.active || (staff.role !== "SECURITY_OFFICER" && staff.role !== "SECURITY_MEMBER")) {
     return { statusCode: 400, responseBody: { error: "Tasks may only be assigned to security staff" } };
   }
   return undefined;
 }
 
-router.get("/aids", allowRoles(...recordManagers), async (_req, res): Promise<void> => {
+router.get("/aids", allowRoles(...recordManagers, "SECURITY_OFFICER"), async (_req, res): Promise<void> => {
   const rows = await db
     .select({
       id: aids.id,
@@ -869,6 +869,16 @@ router.patch("/needs/:needId", allowRoles(...familyManagers, ...securityLeads), 
       .where(eq(familyNeedsTable.id, params.needId)).limit(1);
     if (!current || (staff.role === "DELEGATE" && current.family.delegateId !== actorId)) {
       return { statusCode: 404, responseBody: { error: "Need not found", code: "NEED_NOT_FOUND" } };
+    }
+    const allowedTransitions: Record<string, string[]> = {
+      REQUIRED: ["APPROVED", "CANCELLED"],
+      APPROVED: ["IN_PROGRESS", "CANCELLED"],
+      IN_PROGRESS: ["FULFILLED", "CANCELLED"],
+      FULFILLED: [],
+      CANCELLED: [],
+    };
+    if (body.status && body.status !== current.need.status && !allowedTransitions[current.need.status]?.includes(body.status)) {
+      return { statusCode: 400, responseBody: { error: "Invalid need status transition", code: "NEED_INVALID_TRANSITION" } };
     }
     const [updated] = await tx.update(familyNeedsTable).set({
       ...(body.status !== undefined ? { status: body.status, ...(body.status === "FULFILLED" ? { fulfilledAt: new Date() } : {}) } : {}),

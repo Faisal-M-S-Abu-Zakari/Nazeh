@@ -44,10 +44,15 @@ export default function AccountScreen() {
               </View>
             </Card>
             <Card><Text style={[styles.heading, { color: colors.foreground }]}>المزامنة المشتركة</Text><Text style={[styles.copy, { color: colors.mutedForeground }]}>تتم مزامنة بيانات العمليات مع الخادم وأجهزة الفريق. تتوفر آخر نسخة ناجحة للقراءة عند انقطاع الاتصال.</Text></Card>
-            {user?.role === 'ADMIN' ? <Card>
+            {user?.role === 'ADMIN' || user?.role === 'MANAGER' ? <Card>
               <Text style={[styles.heading, { color: colors.foreground }]}>إدارة فريق العمل</Text>
               <Text style={[styles.copy, { color: colors.mutedForeground }]}>دعوة الموظفين وتعديل الأدوار وحالة الحسابات دون مشاركة كلمات المرور.</Text>
               <View style={styles.gap}><PrimaryButton testID="open-staff-management" label="إدارة الموظفين" icon="people-outline" onPress={() => router.push('/staff-management' as never)} /></View>
+            </Card> : null}
+            {user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'SECURITY_OFFICER' ? <Card>
+              <Text style={[styles.heading, { color: colors.foreground }]}>فريق الأمن</Text>
+              <Text style={[styles.copy, { color: colors.mutedForeground }]}>عرض حسابات مسؤول الأمن وأعضاء الأمن وحالة حساباتهم.</Text>
+              <View style={styles.gap}><PrimaryButton testID="open-security-members" label="أعضاء الأمن" icon="shield-checkmark-outline" onPress={() => router.push('/security-members' as never)} /></View>
             </Card> : null}
             {pendingWrites.length ? <Card>
               <Text style={[styles.heading, { color: colors.foreground }]}>إجراءات بانتظار المزامنة</Text>

@@ -1,11 +1,15 @@
-import { ComplaintStatus, TaskStatus } from '@workspace/api-client-react';
+import {
+  ComplaintStatus, TaskStatus, getListComplaintsQueryKey, getListTasksQueryKey,
+} from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card, fonts, ScreenHeader, StatusPill, SyncBanner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
-import { getErrorStatus } from '@/lib/mutationErrors';
+import { getErrorStatus, getMutationErrorMessage } from '@/lib/mutationErrors';
 
 const taskStatus = { PENDING: 'معلّقة', IN_PROGRESS: 'قيد التنفيذ', COMPLETED: 'مكتملة', CANCELLED: 'ملغاة' } as const;
 const complaintStatus = { OPEN: 'مفتوحة', IN_REVIEW: 'قيد المراجعة', RESOLVED: 'محلولة', REJECTED: 'مرفوضة' } as const;
@@ -13,23 +17,52 @@ const priority = { LOW: 'منخفضة', MEDIUM: 'متوسطة', HIGH: 'عالي�
 
 export default function AlertsScreen() {
   const colors = useColors();
-  const { complaints, tasks, canManageComplaints, canManageTasks, setComplaintStatus, setTaskStatus, retrySync } = useApp();
-  const run = async (operation: () => Promise<{ queued: boolean }>) => {
+  const queryClient = useQueryClient();
+  const { complaints, tasks, canManageComplaints, setComplaintStatus, setTaskStatus, retrySync, user } = useApp();
+  const taskManagers = user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'SECURITY_OFFICER';
+  const writeLocks = useRef(new Set<string>());
+  const [pendingActions, setPendingActions] = useState<Set<string>>(() => new Set());
+  const refreshTasks = async () => {
+    await queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
+    await queryClient.refetchQueries({ queryKey: getListTasksQueryKey() });
+  };
+  const refreshComplaints = async () => {
+    await queryClient.invalidateQueries({ queryKey: getListComplaintsQueryKey() });
+    await queryClient.refetchQueries({ queryKey: getListComplaintsQueryKey() });
+  };
+  const run = async (kind: 'task' | 'complaint', id: string, operation: () => Promise<{ queued: boolean }>) => {
+    const lockKey = `${kind}:${id}`;
+    if (writeLocks.current.has(lockKey)) return;
+    writeLocks.current.add(lockKey);
+    setPendingActions((current) => new Set(current).add(lockKey));
     try {
       const result = await operation();
       Alert.alert(result.queued ? 'بانتظار المزامنة' : 'تم التحديث', result.queued ? 'الإجراء معلّق ولم يرسل إلى الخادم بعد.' : 'تمت مزامنة الحالة مع الفريق.');
+      if (kind === 'task') await refreshTasks();
+      else await refreshComplaints();
     } catch (cause) {
       if (getErrorStatus(cause) === 409) {
-        try { await retrySync(); } catch { /* keep the conflict message as the primary feedback */ }
+        try {
+          if (kind === 'task') await refreshTasks();
+          else await refreshComplaints();
+          await retrySync();
+        } catch { /* keep the conflict message as the primary feedback */ }
         Alert.alert('تعارض في التحديث', 'عدّل مستخدم آخر هذا السجل. تم تحميل أحدث نسخة؛ راجعها ثم أعد المحاولة.');
-      } else Alert.alert('تعذر التحديث', cause instanceof Error ? cause.message : 'حدث خطأ غير متوقع.');
+      } else Alert.alert('تعذر التحديث', getMutationErrorMessage(cause));
+    } finally {
+      writeLocks.current.delete(lockKey);
+      setPendingActions((current) => {
+        const next = new Set(current);
+        next.delete(lockKey);
+        return next;
+      });
     }
   };
   return (
     <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
-      <ScreenHeader title="التنبيهات والمهام" subtitle="المهام والشكاوى المشتركة" action={(canManageComplaints || canManageTasks) ? <View style={styles.headerActions}>
+      <ScreenHeader title="التنبيهات والمهام" subtitle="المهام والشكاوى المشتركة" action={(canManageComplaints || taskManagers) ? <View style={styles.headerActions}>
         {canManageComplaints ? <Pressable testID="add-complaint" onPress={() => router.push('/complaint-form' as never)}><Ionicons name="chatbox-ellipses" size={25} color={colors.primary} /></Pressable> : null}
-        {canManageTasks ? <Pressable testID="add-task" onPress={() => router.push('/task-form' as never)}><Ionicons name="shield-checkmark" size={27} color={colors.primary} /></Pressable> : null}
+        {taskManagers ? <Pressable testID="add-task" onPress={() => router.push('/task-form' as never)}><Ionicons name="shield-checkmark" size={27} color={colors.primary} /></Pressable> : null}
       </View> : undefined} />
       <ScrollView contentContainerStyle={styles.content}>
         <SyncBanner />
@@ -41,9 +74,13 @@ export default function AlertsScreen() {
               <View style={styles.text}><Text style={[styles.title, { color: colors.foreground }]}>{task.title}</Text><Text style={[styles.body, { color: colors.mutedForeground }]}>{task.description} · {task.location}</Text></View>
               <Ionicons name="shield-checkmark-outline" size={25} color={colors.primary} />
             </View>
-            {canManageTasks ? <View style={styles.manageRow}>
-              {task.status !== TaskStatus.COMPLETED ? <Pressable testID={`complete-task-${task.id}`} onPress={() => void run(() => setTaskStatus(task.id, TaskStatus.COMPLETED, task.version))}><Text style={[styles.action, { color: colors.primary }]}>تحديد كمكتملة</Text></Pressable> : null}
+            {taskManagers ? <View style={styles.manageRow}>
+              {task.status !== TaskStatus.COMPLETED ? <Pressable testID={`complete-task-${task.id}`} disabled={pendingActions.has(`task:${task.id}`)} onPress={() => void run('task', task.id, () => setTaskStatus(task.id, TaskStatus.COMPLETED, task.version))}><Text style={[styles.action, { color: colors.primary }]}>تحديد كمكتملة</Text></Pressable> : null}
               <Pressable testID={`edit-task-${task.id}`} onPress={() => router.push({ pathname: '/task-form', params: { id: task.id } } as never)}><Text style={[styles.action, { color: colors.primary }]}>إدارة</Text></Pressable>
+            </View> : null}
+            {user?.role === 'SECURITY_MEMBER' && task.status !== TaskStatus.COMPLETED ? <View style={styles.manageRow}>
+              {task.status === TaskStatus.PENDING ? <Pressable testID={`start-task-${task.id}`} disabled={pendingActions.has(`task:${task.id}`)} onPress={() => void run('task', task.id, () => setTaskStatus(task.id, TaskStatus.IN_PROGRESS, task.version))}><Text style={[styles.action, { color: colors.primary }]}>بدء المهمة</Text></Pressable> : null}
+              {task.status === TaskStatus.IN_PROGRESS ? <Pressable testID={`submit-task-result-${task.id}`} onPress={() => router.push({ pathname: '/task-form', params: { id: task.id } } as never)}><Text style={[styles.action, { color: colors.primary }]}>رفع النتيجة</Text></Pressable> : null}
             </View> : null}
           </Card>
         ))}
@@ -56,7 +93,7 @@ export default function AlertsScreen() {
               <Ionicons name="chatbox-ellipses-outline" size={25} color={colors.primary} />
             </View>
             {canManageComplaints ? <View style={styles.manageRow}>
-              {complaint.status !== ComplaintStatus.RESOLVED ? <Pressable testID={`resolve-complaint-${complaint.id}`} onPress={() => void run(() => setComplaintStatus(complaint.id, ComplaintStatus.RESOLVED, complaint.version))}><Text style={[styles.action, { color: colors.primary }]}>تحديد كمحلولة</Text></Pressable> : null}
+              {complaint.status !== ComplaintStatus.RESOLVED ? <Pressable testID={`resolve-complaint-${complaint.id}`} disabled={pendingActions.has(`complaint:${complaint.id}`)} onPress={() => void run('complaint', complaint.id, () => setComplaintStatus(complaint.id, ComplaintStatus.RESOLVED, complaint.version))}><Text style={[styles.action, { color: colors.primary }]}>تحديد كمحلولة</Text></Pressable> : null}
               <Pressable testID={`edit-complaint-${complaint.id}`} onPress={() => router.push({ pathname: '/complaint-form', params: { id: complaint.id } } as never)}><Text style={[styles.action, { color: colors.primary }]}>إدارة</Text></Pressable>
             </View> : null}
           </Card>

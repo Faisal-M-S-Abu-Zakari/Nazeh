@@ -1,6 +1,6 @@
 import {
-  getListSecurityOfficersQueryKey, getListTasksQueryKey, TaskPriority, TaskStatus, useArchiveSyncTask,
-  useListSecurityOfficers, useUpdateTaskStatus, useSubmitTask, useApproveTask
+  getListSecurityMembersQueryKey, getListTasksQueryKey, TaskPriority, TaskStatus, useArchiveSyncTask,
+  useListSecurityMembers, useUpdateTaskStatus, useSubmitTask, useApproveTask
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -21,10 +21,14 @@ export default function TaskFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { tasks, canManageTasks, addTask, user } = useApp();
   const task = tasks.find((item) => item.id === id);
+  const canManageTaskRecords = user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'SECURITY_OFFICER';
   const updateMutation = useUpdateTaskStatus();
   const archiveMutation = useArchiveSyncTask();
-  const officersQuery = useListSecurityOfficers({ query: { queryKey: getListSecurityOfficersQueryKey(), enabled: canManageTasks } });
+  const officersQuery = useListSecurityMembers({ query: { queryKey: getListSecurityMembersQueryKey(), enabled: canManageTaskRecords } });
   const saveInFlight = useRef(false);
+  const archiveInFlight = useRef(false);
+  const resultInFlight = useRef(false);
+  const approvalInFlight = useRef(false);
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [title, setTitle] = useState(task?.title ?? '');
@@ -39,8 +43,8 @@ export default function TaskFormScreen() {
 
   const [resultText, setResultText] = useState(task?.result ?? '');
   const [approvalNote, setApprovalNote] = useState('');
-  const canSubmitResult = user?.role === 'SECURITY_MEMBER' || user?.role === 'SECURITY_OFFICER' || user?.role === 'ADMIN' || user?.role === 'MANAGER';
-  const canApproveResult = user?.role === 'SECURITY_OFFICER' || user?.role === 'ADMIN' || user?.role === 'MANAGER';
+  const canSubmitResult = user?.role === 'SECURITY_MEMBER';
+  const canApproveResult = canManageTaskRecords;
 
   const submitResultMutation = useSubmitTask();
   const approveMutation = useApproveTask();
@@ -53,8 +57,34 @@ export default function TaskFormScreen() {
     await queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
     await queryClient.refetchQueries({ queryKey: getListTasksQueryKey() });
   };
+  const submitResult = async () => {
+    if (!task || !canSubmitResult || !resultText.trim() || resultInFlight.current) return;
+    resultInFlight.current = true;
+    setSaveError(null);
+    try {
+      await submitResultMutation.mutateAsync({ taskId: task.id, data: { result: resultText.trim(), expectedVersion: task.version } });
+      await refresh();
+    } catch (error) {
+      await showMutationError(error, refresh);
+    } finally {
+      resultInFlight.current = false;
+    }
+  };
+  const approveResult = async () => {
+    if (!task || !canApproveResult || approvalInFlight.current) return;
+    approvalInFlight.current = true;
+    setSaveError(null);
+    try {
+      await approveMutation.mutateAsync({ taskId: task.id, data: { note: approvalNote.trim() || undefined, expectedVersion: task.version } });
+      await refresh();
+    } catch (error) {
+      await showMutationError(error, refresh);
+    } finally {
+      approvalInFlight.current = false;
+    }
+  };
   const save = async () => {
-    if (!canManageTasks || saveInFlight.current) return;
+    if (!canManageTaskRecords || !canManageTasks || saveInFlight.current) return;
     saveInFlight.current = true;
     setSaving(true);
     setSaveError(null);
@@ -80,7 +110,8 @@ export default function TaskFormScreen() {
     }
   };
   const archive = async () => {
-    if (!task) return;
+    if (!task || !canManageTaskRecords || archiveInFlight.current) return;
+    archiveInFlight.current = true;
     try {
       await archiveMutation.mutateAsync({ taskId: task.id, data: { expectedVersion: task.version } });
       setArchiveOpen(false);
@@ -89,6 +120,8 @@ export default function TaskFormScreen() {
     } catch (error) {
       setArchiveOpen(false);
       await showMutationError(error, refresh);
+    } finally {
+      archiveInFlight.current = false;
     }
   };
   const busy = saving || creating || updateMutation.isPending || archiveMutation.isPending;
@@ -96,7 +129,12 @@ export default function TaskFormScreen() {
 
   return (<>
     <KeyboardAwareScrollViewCompat contentContainerStyle={styles.content} bottomOffset={60}>
-      <Text style={[styles.intro, { color: colors.mutedForeground }]}>{task ? 'تحديث تفاصيل المهمة وحالتها' : 'إنشاء مهمة أمنية جديدة'}</Text>
+      <Text style={[styles.intro, { color: colors.mutedForeground }]}>{task ? canManageTaskRecords ? 'تحديث تفاصيل المهمة وحالتها' : 'تفاصيل المهمة الأمنية' : 'إنشاء مهمة أمنية جديدة'}</Text>
+      {task && !canManageTaskRecords ? <>
+        <Text style={[styles.label, { color: colors.foreground }]}>{task.title}</Text>
+        <Text style={[styles.intro, { color: colors.mutedForeground }]}>{task.description} · {task.location}</Text>
+      </> : null}
+      {canManageTaskRecords ? <>
       <Field testID="task-title" label="عنوان المهمة" value={title} onChangeText={setTitle} />
       <Field testID="task-description" label="التفاصيل" value={description} onChangeText={setDescription} multiline />
       <Field testID="task-location" label="الموقع" value={location} onChangeText={setLocation} />
@@ -106,7 +144,7 @@ export default function TaskFormScreen() {
       <Text style={[styles.label, { color: colors.foreground }]}>المكلّف بالمهمة (اختياري)</Text>
       <View style={styles.options}>
         <Pressable testID="task-assignee-none" onPress={() => setAssignedToId(null)} style={[styles.option, { backgroundColor: assignedToId === null ? colors.primary : colors.muted }]}><Text style={[styles.optionText, { color: assignedToId === null ? colors.primaryForeground : colors.foreground }]}>غير مكلّف</Text></Pressable>
-        {(officersQuery.data ?? []).map((officer) => <Pressable testID={`task-assignee-${officer.id}`} key={officer.id} onPress={() => setAssignedToId(officer.id)} style={[styles.option, { backgroundColor: assignedToId === officer.id ? colors.primary : colors.muted }]}><Text style={[styles.optionText, { color: assignedToId === officer.id ? colors.primaryForeground : colors.foreground }]}>{officer.name}</Text></Pressable>)}
+        {(officersQuery.data ?? []).filter((officer) => officer.active).map((officer) => <Pressable testID={`task-assignee-${officer.id}`} key={officer.id} onPress={() => setAssignedToId(officer.id)} style={[styles.option, { backgroundColor: assignedToId === officer.id ? colors.primary : colors.muted }]}><Text style={[styles.optionText, { color: assignedToId === officer.id ? colors.primaryForeground : colors.foreground }]}>{officer.name}</Text></Pressable>)}
       </View>
       {officersQuery.isLoading ? <Text style={[styles.helper, { color: colors.mutedForeground }]}>جارٍ تحميل مسؤولي الأمن…</Text> : null}
       {officersQuery.isError ? <Text style={[styles.helper, { color: colors.destructive }]}>تعذر تحميل قائمة مسؤولي الأمن.</Text> : null}
@@ -114,14 +152,16 @@ export default function TaskFormScreen() {
         <Text style={[styles.label, { color: colors.foreground }]}>الحالة</Text>
         <View style={styles.options}>{statuses.map(([value, label]) => <Pressable testID={`task-status-${value}`} key={value} onPress={() => setStatus(value)} style={[styles.option, { backgroundColor: status === value ? colors.primary : colors.muted }]}><Text style={[styles.optionText, { color: status === value ? colors.primaryForeground : colors.foreground }]}>{label}</Text></Pressable>)}</View>
       </> : null}
+      {!task && !canManageTaskRecords ? <Text style={[styles.intro, { color: colors.destructive }]}>لا تملك الصلاحية لإنشاء المهام.</Text> : null}
+      </> : null}
       {saveError ? (
         <View testID="task-save-error" accessibilityRole="alert" style={[styles.saveError, { backgroundColor: colors.errorSurface, borderColor: colors.destructive }]}>
           <Text testID="task-save-error-message" style={[styles.saveErrorMessage, { color: colors.foreground }]}>{saveError}</Text>
           <PrimaryButton testID="task-save-error-retry" label="إعادة المحاولة" icon="refresh" disabled={busy} onPress={() => void save()} />
         </View>
       ) : null}
-      <PrimaryButton testID="save-task" label={busy ? 'جارٍ الحفظ…' : task ? 'حفظ التعديلات' : 'إنشاء المهمة'} icon="checkmark" disabled={!valid || busy || !canManageTasks} onPress={() => void save()} />
-      {task ? <Pressable testID="archive-task" disabled={busy} onPress={() => setArchiveOpen(true)} style={[styles.archive, { borderColor: colors.destructive }]}><Text style={[styles.archiveText, { color: colors.destructive }]}>أرشفة المهمة</Text></Pressable> : null}
+      {canManageTaskRecords ? <PrimaryButton testID="save-task" label={busy ? 'جارٍ الحفظ…' : task ? 'حفظ التعديلات' : 'إنشاء المهمة'} icon="checkmark" disabled={!valid || busy || !canManageTasks} onPress={() => void save()} /> : null}
+      {task && canManageTaskRecords ? <Pressable testID="archive-task" disabled={busy} onPress={() => setArchiveOpen(true)} style={[styles.archive, { borderColor: colors.destructive }]}><Text style={[styles.archiveText, { color: colors.destructive }]}>أرشفة المهمة</Text></Pressable> : null}
 
       {task && task.status === TaskStatus.IN_PROGRESS && canSubmitResult && (
         <View style={{ marginTop: 24, gap: 12, paddingTop: 24, borderTopWidth: 1, borderTopColor: colors.border }}>
@@ -130,8 +170,8 @@ export default function TaskFormScreen() {
           <PrimaryButton
             label="تقديم"
             icon="send"
-            disabled={!resultText || submitResultMutation.isPending}
-            onPress={() => submitResultMutation.mutate({ taskId: task.id, data: { result: resultText, expectedVersion: task.version } }, { onSuccess: () => refresh() })}
+            disabled={!resultText.trim() || submitResultMutation.isPending || resultInFlight.current}
+            onPress={() => void submitResult()}
           />
         </View>
       )}
@@ -144,8 +184,8 @@ export default function TaskFormScreen() {
           <PrimaryButton
             label="اعتماد المهمة"
             icon="checkmark-done"
-            disabled={approveMutation.isPending}
-            onPress={() => approveMutation.mutate({ taskId: task.id, data: { note: approvalNote || undefined, expectedVersion: task.version } }, { onSuccess: () => refresh() })}
+            disabled={approveMutation.isPending || approvalInFlight.current}
+            onPress={() => void approveResult()}
           />
         </View>
       )}

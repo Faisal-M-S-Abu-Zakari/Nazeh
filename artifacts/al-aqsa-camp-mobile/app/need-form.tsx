@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { View, StyleSheet, Text, Alert } from 'react-native';
+import { View, StyleSheet, Text, Alert, Pressable, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { ScreenHeader, Card, fonts, Field, PrimaryButton } from '@/components/ui';
@@ -14,7 +14,7 @@ export default function NeedFormScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
-  const { signedIn } = useApp();
+  const { canManagePeople } = useApp();
   
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -22,8 +22,8 @@ export default function NeedFormScreen() {
   const [priority, setPriority] = useState<NeedPriority>('MEDIUM');
   const [familyId, setFamilyId] = useState('');
 
-  const { data: familiesPage } = useListFamilies({
-    query: { enabled: signedIn, queryKey: getListFamiliesQueryKey() }
+  const { data: familiesPage, isLoading: familiesLoading, isError: familiesError, refetch: refetchFamilies } = useListFamilies({
+    query: { enabled: canManagePeople, queryKey: getListFamiliesQueryKey() }
   });
   const families = familiesPage || [];
 
@@ -40,13 +40,13 @@ export default function NeedFormScreen() {
   });
 
   const handleSave = () => {
-    if (!title || !category || !familyId) {
+    if (title.trim().length < 2 || !familyId || !families.some(f => f.id === familyId)) {
       Alert.alert('تنبيه', 'يرجى تعبئة الحقول الإلزامية (العنوان، العائلة)');
       return;
     }
     createMutation.mutate({
       data: {
-        title,
+        title: title.trim(),
         description: description || undefined,
         category,
         priority,
@@ -57,11 +57,11 @@ export default function NeedFormScreen() {
 
   const isSaving = createMutation.isPending;
 
-  if (!signedIn) {
+  if (!canManagePeople) {
     return (
       <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
         <ScreenHeader title="إضافة احتياج" />
-        <View style={styles.center}><Text style={[styles.errorText, { color: colors.destructive }]}>يرجى تسجيل الدخول.</Text></View>
+        <View style={styles.center}><Text style={[styles.errorText, { color: colors.destructive }]}>ليس لديك صلاحية لإضافة احتياج.</Text></View>
       </View>
     );
   }
@@ -76,18 +76,12 @@ export default function NeedFormScreen() {
       >
         <Card style={styles.card}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>الأسرة المستفيدة</Text>
-          <Field 
-            label="معرف الأسرة *" 
-            value={familyId} 
-            onChangeText={setFamilyId} 
-            placeholder="أدخل معرف الأسرة (مثال: uuid)" 
-          />
-          {families.length > 0 && (
-             <View style={styles.hints}>
-               <Text style={{ fontFamily: fonts.medium, color: colors.mutedForeground, textAlign: 'right' }}>عائلات مقترحة من السجل:</Text>
-               {families.slice(0, 3).map(f => <Text key={f.id} style={{ fontFamily: fonts.regular, color: colors.foreground, textAlign: 'right' }}>{f.headName} ({f.id})</Text>)}
-             </View>
-          )}
+          {familiesLoading ? <ActivityIndicator color={colors.primary} /> : null}
+          {familiesError ? <Pressable onPress={() => void refetchFamilies()} accessibilityRole="button"><Text style={{ color: colors.destructive, textAlign: 'right' }}>تعذر تحميل الأسر. إعادة المحاولة</Text></Pressable> : null}
+          {!familiesLoading && !familiesError && !families.length ? <Text style={{ color: colors.mutedForeground, textAlign: 'right' }}>لا توجد أسر متاحة لإضافة احتياج.</Text> : null}
+          {families.map(f => <Pressable key={f.id} accessibilityRole="button" accessibilityState={{ selected: familyId === f.id }} onPress={() => setFamilyId(f.id)} style={[styles.choice, { backgroundColor: familyId === f.id ? colors.primary : colors.muted }]}>
+            <Text style={{ color: familyId === f.id ? colors.primaryForeground : colors.foreground, fontFamily: fonts.bold, textAlign: 'right' }}>{f.headName}</Text>
+          </Pressable>)}
         </Card>
 
         <Card style={styles.card}>
@@ -98,18 +92,12 @@ export default function NeedFormScreen() {
             onChangeText={setTitle} 
             placeholder="مثال: حليب أطفال، خيمة بديلة" 
           />
-          <Field 
-            label="التصنيف (FOOD, WATER, MEDICAL, SHELTER, HYGIENE, OTHER)" 
-            value={category} 
-            onChangeText={(t) => setCategory(t as NeedCategory)} 
-            placeholder="FOOD" 
-          />
-          <Field 
-            label="الأهمية (LOW, MEDIUM, HIGH, CRITICAL)" 
-            value={priority} 
-            onChangeText={(t) => setPriority(t as NeedPriority)} 
-            placeholder="MEDIUM" 
-          />
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>التصنيف</Text>
+          <View style={styles.options}>{([['FOOD','غذاء'], ['WATER','مياه'], ['MEDICAL','صحة'], ['SHELTER','إيواء'], ['HYGIENE','نظافة'], ['OTHER','أخرى']] as const).map(([value, label]) =>
+            <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: category === value }} onPress={() => setCategory(value)} style={[styles.choice, { backgroundColor: category === value ? colors.primary : colors.muted }]}><Text style={{ color: category === value ? colors.primaryForeground : colors.foreground, fontFamily: fonts.bold }}>{label}</Text></Pressable>)}</View>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>الأولوية</Text>
+          <View style={styles.options}>{([['LOW','منخفضة'], ['MEDIUM','متوسطة'], ['HIGH','عالية'], ['CRITICAL','حرجة']] as const).map(([value, label]) =>
+            <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: priority === value }} onPress={() => setPriority(value)} style={[styles.choice, { backgroundColor: priority === value ? colors.primary : colors.muted }]}><Text style={{ color: priority === value ? colors.primaryForeground : colors.foreground, fontFamily: fonts.bold }}>{label}</Text></Pressable>)}</View>
           <Field 
             label="الوصف (اختياري)" 
             value={description} 
@@ -125,7 +113,7 @@ export default function NeedFormScreen() {
           label={isSaving ? "جارٍ الحفظ..." : "إضافة الاحتياج"} 
           icon="save-outline" 
           onPress={handleSave} 
-          disabled={!title || !familyId || isSaving}
+          disabled={title.trim().length < 2 || !familyId || isSaving}
         />
       </KeyboardAwareScrollViewCompat>
     </View>
@@ -149,5 +137,6 @@ const styles = StyleSheet.create({
   },
   center: { alignItems: 'center', justifyContent: 'center', padding: 20 },
   errorText: { fontFamily: fonts.bold, fontSize: 16, textAlign: 'center' },
-  hints: { backgroundColor: '#00000008', padding: 10, borderRadius: 8 },
+  options: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
+  choice: { minHeight: 44, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, justifyContent: 'center' },
 });

@@ -18,3 +18,4 @@
 - [Expo web mutation errors](expo-web-mutation-errors.md) — critical mutation failures need inline UI because React Native Alert is not observable as a browser dialog.
 - [Playwright test formatting](playwright-test-formatting.md) — narrow browser specs use the repository's single-quote Prettier style even without a root config file.
 - [React Native Web disabled selectors](react-native-web-disabled-selectors.md) — assert `aria-disabled` for Pressable buttons; Playwright's disabled matcher targets native controls.
+- [Need lifecycle transitions](need-lifecycle-transitions.md) — keep status transitions enforced by the server, not just hidden in mobile controls.

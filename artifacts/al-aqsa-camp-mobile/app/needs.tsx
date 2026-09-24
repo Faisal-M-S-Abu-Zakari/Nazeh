@@ -8,10 +8,11 @@ import { useApp } from '@/context/AppContext';
 
 export default function NeedsScreen() {
   const colors = useColors();
-  const { signedIn } = useApp();
+  const { user, canManagePeople } = useApp();
+  const canReadNeeds = canManagePeople || user?.role === 'SECURITY_OFFICER';
   
   const { data: needsPage, isLoading, isError, refetch } = useListNeeds({
-    query: { enabled: signedIn, queryKey: getListNeedsQueryKey() }
+    query: { enabled: canReadNeeds, queryKey: getListNeedsQueryKey() }
   });
 
   const needs = needsPage || [];
@@ -38,12 +39,12 @@ export default function NeedsScreen() {
     }
   };
 
-  if (!signedIn) {
+  if (!canReadNeeds) {
     return (
       <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
         <ScreenHeader title="الاحتياجات" subtitle="طلبات واحتياجات العائلات" />
         <View style={styles.center}>
-          <Text style={[styles.errorText, { color: colors.destructive }]}>يرجى تسجيل الدخول لعرض الاحتياجات.</Text>
+          <Text style={[styles.errorText, { color: colors.destructive }]}>ليس لديك صلاحية لعرض الاحتياجات.</Text>
         </View>
       </View>
     );
@@ -54,11 +55,11 @@ export default function NeedsScreen() {
       <ScreenHeader 
         title="الاحتياجات" 
         subtitle="طلبات واحتياجات العائلات" 
-        action={
-          <Pressable onPress={() => router.push('/need-form' as never)}>
+        action={canManagePeople ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="إضافة احتياج" onPress={() => router.push('/need-form' as never)}>
             <Ionicons name="add-circle" size={28} color={colors.primary} />
           </Pressable>
-        }
+        ) : undefined}
       />
       <ScrollView contentContainerStyle={styles.content}>
         {isLoading && <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 20 }} />}

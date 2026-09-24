@@ -4,7 +4,7 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { ArchiveConfirmModal } from '@/components/ArchiveConfirmModal';
@@ -25,6 +25,8 @@ export default function ComplaintFormScreen() {
   const complaint = complaints.find((item) => item.id === id);
   const updateMutation = useUpdateComplaintStatus();
   const archiveMutation = useArchiveSyncComplaint();
+  const saveInFlight = useRef(false);
+  const archiveInFlight = useRef(false);
   const [creating, setCreating] = useState(false);
   const [complainantName, setComplainantName] = useState(complaint?.complainantName ?? '');
   const [subject, setSubject] = useState(complaint?.subject ?? '');
@@ -44,7 +46,8 @@ export default function ComplaintFormScreen() {
     await queryClient.refetchQueries({ queryKey: getListComplaintsQueryKey() });
   };
   const save = async () => {
-    if (!canManageComplaints) return;
+    if (!canManageComplaints || saveInFlight.current) return;
+    saveInFlight.current = true;
     setSaveError(null);
     try {
       if (complaint) {
@@ -69,10 +72,12 @@ export default function ComplaintFormScreen() {
       if (getErrorStatus(error) === 409) router.back();
     } finally {
       setCreating(false);
+      saveInFlight.current = false;
     }
   };
   const archive = async () => {
-    if (!complaint) return;
+    if (!complaint || !canManageComplaints || archiveInFlight.current) return;
+    archiveInFlight.current = true;
     try {
       await archiveMutation.mutateAsync({ complaintId: complaint.id, data: { expectedVersion: complaint.version } });
       setArchiveOpen(false);
@@ -81,6 +86,8 @@ export default function ComplaintFormScreen() {
     } catch (error) {
       setArchiveOpen(false);
       await showMutationError(error, refresh);
+    } finally {
+      archiveInFlight.current = false;
     }
   };
   const busy = creating || updateMutation.isPending || archiveMutation.isPending;
@@ -89,23 +96,33 @@ export default function ComplaintFormScreen() {
   return (<>
     <KeyboardAwareScrollViewCompat contentContainerStyle={styles.content} bottomOffset={60}>
       <Text style={[styles.intro, { color: colors.mutedForeground }]}>{complaint ? 'تحديث بيانات الشكوى وحالتها' : 'تسجيل شكوى جديدة للفريق'}</Text>
-      <Field testID="complaint-name" label="اسم مقدم الشكوى" value={complainantName} onChangeText={setComplainantName} />
-      <Field testID="complaint-subject" label="الموضوع" value={subject} onChangeText={setSubject} />
-      <Field testID="complaint-description" label="التفاصيل" value={description} onChangeText={setDescription} multiline />
-      <Field testID="complaint-location" label="الموقع (اختياري)" value={location} onChangeText={setLocation} />
-      {complaint ? <>
+      {canManageComplaints ? <>
+        <Field testID="complaint-name" label="اسم مقدم الشكوى" value={complainantName} onChangeText={setComplainantName} />
+        <Field testID="complaint-subject" label="الموضوع" value={subject} onChangeText={setSubject} />
+        <Field testID="complaint-description" label="التفاصيل" value={description} onChangeText={setDescription} multiline />
+        <Field testID="complaint-location" label="الموقع (اختياري)" value={location} onChangeText={setLocation} />
+      </> : null}
+      {complaint && canManageComplaints ? <>
         <Text style={[styles.label, { color: colors.foreground }]}>الحالة</Text>
         <View style={styles.options}>{statuses.map(([value, label]) => <Pressable testID={`complaint-status-${value}`} key={value} onPress={() => setStatus(value)} style={[styles.option, { backgroundColor: status === value ? colors.primary : colors.muted }]}><Text style={[styles.optionText, { color: status === value ? colors.primaryForeground : colors.foreground }]}>{label}</Text></Pressable>)}</View>
         <Field testID="complaint-reply" label="رد الفريق (اختياري)" value={reply} onChangeText={setReply} multiline />
       </> : null}
-      {saveError ? (
+      {complaint && !canManageComplaints ? <>
+        <Text style={[styles.label, { color: colors.foreground }]}>{complaint.subject}</Text>
+        <Text style={[styles.intro, { color: colors.mutedForeground }]}>{complaint.complainantName}: {complaint.description}</Text>
+        <Text style={[styles.label, { color: colors.foreground }]}>الحالة: {statuses.find(([value]) => value === complaint.status)?.[1] ?? complaint.status}</Text>
+        {complaint.location ? <Text style={[styles.intro, { color: colors.mutedForeground }]}>الموقع: {complaint.location}</Text> : null}
+        {complaint.reply ? <Text style={[styles.intro, { color: colors.mutedForeground }]}>رد الفريق: {complaint.reply}</Text> : null}
+      </> : null}
+      {!complaint && !canManageComplaints ? <Text style={[styles.intro, { color: colors.destructive }]}>لا تملك الصلاحية لتسجيل الشكاوى.</Text> : null}
+      {saveError && canManageComplaints ? (
         <View testID="complaint-save-error" accessibilityRole="alert" style={[styles.saveError, { backgroundColor: colors.errorSurface, borderColor: colors.destructive }]}>
           <Text testID="complaint-save-error-message" style={[styles.saveErrorMessage, { color: colors.foreground }]}>{saveError}</Text>
           <PrimaryButton testID="complaint-save-error-retry" label="إعادة المحاولة" icon="refresh" disabled={busy} onPress={() => void save()} />
         </View>
       ) : null}
-      <PrimaryButton testID="save-complaint" label={busy ? 'جارٍ الحفظ…' : complaint ? 'حفظ التعديلات' : 'إنشاء الشكوى'} icon="checkmark" disabled={!valid || busy || !canManageComplaints} onPress={() => void save()} />
-      {complaint ? <Pressable testID="archive-complaint" disabled={busy} onPress={() => setArchiveOpen(true)} style={[styles.archive, { borderColor: colors.destructive }]}><Text style={[styles.archiveText, { color: colors.destructive }]}>أرشفة الشكوى</Text></Pressable> : null}
+      {canManageComplaints ? <PrimaryButton testID="save-complaint" label={busy ? 'جارٍ الحفظ…' : complaint ? 'حفظ التعديلات' : 'إنشاء الشكوى'} icon="checkmark" disabled={!valid || busy} onPress={() => void save()} /> : null}
+      {complaint && canManageComplaints ? <Pressable testID="archive-complaint" disabled={busy} onPress={() => setArchiveOpen(true)} style={[styles.archive, { borderColor: colors.destructive }]}><Text style={[styles.archiveText, { color: colors.destructive }]}>أرشفة الشكوى</Text></Pressable> : null}
     </KeyboardAwareScrollViewCompat>
     <ArchiveConfirmModal
       visible={archiveOpen}

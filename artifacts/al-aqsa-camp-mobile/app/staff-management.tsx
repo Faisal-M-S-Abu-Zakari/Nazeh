@@ -18,13 +18,14 @@ import { Card, Field, fonts, PrimaryButton, ScreenHeader, StatusPill } from '@/c
 import { getRoleArabic, useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 
-const roles = [Role.MANAGER, Role.DELEGATE, Role.SECURITY_OFFICER, Role.ADMIN] as const;
+const roles = [Role.DELEGATE, Role.SECURITY_OFFICER, Role.SECURITY_MEMBER] as const;
 
 export default function StaffManagementScreen() {
   const colors = useColors();
   const { user } = useApp();
   const queryClient = useQueryClient();
-  const staffQuery = useListStaff({ query: { queryKey: getListStaffQueryKey(), enabled: user?.role === Role.ADMIN, retry: false } });
+  const isManager = user?.role === Role.ADMIN || user?.role === Role.MANAGER;
+  const staffQuery = useListStaff({ query: { queryKey: getListStaffQueryKey(), enabled: isManager, retry: false } });
   const createStaff = useCreateStaff();
   const updateStaff = useUpdateStaff();
   const renewInvite = useRenewStaffInvite();
@@ -92,7 +93,7 @@ export default function StaffManagementScreen() {
     } catch { fail('لا يمكن إصدار رمز إعادة التعيين لهذا الحساب. تأكد من أن الحساب نشط وقد عيّن كلمة مرور.'); }
   };
 
-  if (user?.role !== Role.ADMIN) {
+  if (!isManager) {
     return <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}><ScreenHeader title="إدارة الموظفين" subtitle="للمدير فقط" /><View style={styles.denied}><Card><Text style={[styles.heading, { color: colors.foreground }]}>ليس لديك صلاحية لعرض هذه الصفحة.</Text><View style={styles.topGap}><PrimaryButton testID="staff-go-back" label="العودة" icon="arrow-back" onPress={() => router.back()} /></View></Card></View></View>;
   }
 

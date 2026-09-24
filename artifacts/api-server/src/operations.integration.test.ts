@@ -361,6 +361,12 @@ test("aid distributions link approved needs, prevent duplicate delivery, and rec
       body: JSON.stringify({ familyId, needId: requiredNeedId, quantity: 1 }),
     });
     assert.equal(unapproved.status, 400);
+    const skippedApproval = await fetch(`${baseUrl}/sync/needs/${requiredNeedId}`, {
+      method: "PATCH",
+      headers: headers(managerToken),
+      body: JSON.stringify({ status: "FULFILLED", expectedVersion: 1 }),
+    });
+    assert.equal(skippedApproval.status, 400, "a need cannot skip approval and execution");
 
     const visibleToDelegate = await fetch(`${baseUrl}/sync/aids/${aidId}/distributions`, {
       headers: headers(delegateToken),
@@ -421,6 +427,12 @@ test("aid distributions link approved needs, prevent duplicate delivery, and rec
     assert.equal(repeatedReceipt.status, 409);
     const [need] = await db.select().from(familyNeedsTable).where(eq(familyNeedsTable.id, approvedNeedId));
     assert.equal(need.status, "FULFILLED");
+    const reopened = await fetch(`${baseUrl}/sync/needs/${approvedNeedId}`, {
+      method: "PATCH",
+      headers: headers(managerToken),
+      body: JSON.stringify({ status: "IN_PROGRESS", expectedVersion: need.version }),
+    });
+    assert.equal(reopened.status, 400, "fulfilled needs cannot be reopened by a status patch");
     const auditRows = await db.select().from(syncAuditEvents).where(eq(syncAuditEvents.entityId, distribution.id));
     assert(auditRows.some((row) => row.action === "DUPLICATE_ATTEMPT"));
     assert(auditRows.some((row) => row.action === "DUPLICATE_RECEIVE_ATTEMPT"));

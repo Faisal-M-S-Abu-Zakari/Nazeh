@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { View, StyleSheet, ScrollView, Pressable, Text, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable, Text, ActivityIndicator, RefreshControl } from 'react-native';
 import { ScreenHeader, Card, fonts, StatusPill } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useListFamilies, getListFamiliesQueryKey } from '@workspace/api-client-react';
@@ -9,8 +9,8 @@ import { useApp } from '@/context/AppContext';
 export default function FamiliesScreen() {
   const colors = useColors();
   const { canManagePeople, signedIn } = useApp();
-  const { data: familyPage, isLoading, isError, refetch } = useListFamilies({
-    query: { enabled: canManagePeople, queryKey: getListFamiliesQueryKey() }
+  const { data: familyPage, isLoading, isFetching, isError, refetch } = useListFamilies({
+    query: { enabled: signedIn && canManagePeople, queryKey: getListFamiliesQueryKey() }
   });
 
   const families = familyPage || [];
@@ -37,7 +37,10 @@ export default function FamiliesScreen() {
           </Pressable>
         }
       />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={() => void refetch()} tintColor={colors.primary} />}
+      >
         {isLoading && <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 20 }} />}
         
         {isError && (
