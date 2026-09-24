@@ -1,7 +1,6 @@
 {
   "name": "workspace",
   "version": "0.0.0",
-  "license": "MIT",
   "scripts": {
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
@@ -14,6 +13,7 @@
     "test:task121:browser": "playwright test --config playwright.task121.config.ts",
     "test:task144:browser": "playwright test --config playwright.task144.config.ts",
     "test:task145:browser": "playwright test --config playwright.task145.config.ts",
+    "test:task147:browser": "playwright test --config playwright.task147.config.ts",
     "test:workspace-failures:browser": "playwright test --config playwright.workspace-failures.config.ts",
     "test:task60:browser": "playwright test --config playwright.task60.config.ts"
   },

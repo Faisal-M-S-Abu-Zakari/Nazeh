@@ -17,6 +17,7 @@ import { Platform } from 'react-native';
 import { cacheStorageKey, createMobileAuthLifecycle, loadOwnerStorage, queueStorageKey, replayOwnerQueue } from './offlineSync';
 import { getReceivedDistributionCount, selectLatestAids } from '@/lib/aidPresentation';
 import { getLastSuccessfulAidsSyncAt, retryAidList } from '@/lib/aidSyncPresentation';
+import { selectLatestPeople } from '@/lib/personPresentation';
 
 export type Aid = { id: string; title: string; type: string; apiType: AidType; families: number; receivedDistributionCount: number; unit: string; location: string; distributionDate: string; notes?: string | null; version: number; status: 'نشطة' | 'مكتملة'; date: string };
 export type Person = { id: string; name: string; role: 'نازح'; phone: string; nationalId: string; gender: ApiPerson['gender']; birthDate: string; tentNumber: string; familySize: number; notes?: string | null; version: number; location: string };
@@ -164,10 +165,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .finally(() => { if (identityEpoch.current === hydrationEpoch) setProtectedHydrated(true); });
   }, [ownerUserId, rotateIdentity, user]);
 
-  const serverCache = useMemo<Cache>(() => ({ aids: selectLatestAids(aidsQuery.data, cache.aids), people: peopleQuery.data ?? cache.people, complaints: complaintsQuery.data ?? cache.complaints, tasks: tasksQuery.data ?? cache.tasks, familyProfile: familyProfileQuery.data ?? cache.familyProfile, familyNeeds: familyNeedsQuery.data ?? cache.familyNeeds, lastAidsSyncAt }), [aidsQuery.data, cache, complaintsQuery.data, familyNeedsQuery.data, familyProfileQuery.data, lastAidsSyncAt, peopleQuery.data, tasksQuery.data]);
+  const serverCache = useMemo<Cache>(() => ({ aids: selectLatestAids(aidsQuery.data, cache.aids), people: selectLatestPeople(peopleQuery.data, cache.people), complaints: complaintsQuery.data ?? cache.complaints, tasks: tasksQuery.data ?? cache.tasks, familyProfile: familyProfileQuery.data ?? cache.familyProfile, familyNeeds: familyNeedsQuery.data ?? cache.familyNeeds, lastAidsSyncAt }), [aidsQuery.data, cache, complaintsQuery.data, familyNeedsQuery.data, lastAidsSyncAt, peopleQuery.data, tasksQuery.data]);
   useEffect(() => {
     if (!user || !protectedHydrated || (!aidsQuery.data && !peopleQuery.data && !complaintsQuery.data && !tasksQuery.data && !familyProfileQuery.data && !familyNeedsQuery.data)) return;
-    const next: Cache = { aids: aidsQuery.data ?? cache.aids, people: peopleQuery.data ?? cache.people, complaints: complaintsQuery.data ?? cache.complaints, tasks: tasksQuery.data ?? cache.tasks, familyProfile: familyProfileQuery.data ?? cache.familyProfile, familyNeeds: familyNeedsQuery.data ?? cache.familyNeeds, lastAidsSyncAt };
+    const next: Cache = { aids: aidsQuery.data ?? cache.aids, people: selectLatestPeople(peopleQuery.data, cache.people), complaints: complaintsQuery.data ?? cache.complaints, tasks: tasksQuery.data ?? cache.tasks, familyProfile: familyProfileQuery.data ?? cache.familyProfile, familyNeeds: familyNeedsQuery.data ?? cache.familyNeeds, lastAidsSyncAt };
     setCache(next);
     AsyncStorage.setItem(cacheStorageKey(user.id), JSON.stringify(next)).catch(() => setManualError('تمت المزامنة، لكن تعذر حفظ نسخة القراءة دون اتصال.'));
     // eslint-disable-next-line react-hooks/exhaustive-deps

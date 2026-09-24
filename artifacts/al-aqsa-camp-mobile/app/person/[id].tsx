@@ -1,7 +1,7 @@
 import { Gender, getListPeopleQueryKey, useArchivePerson, useUpdatePerson } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { ArchiveConfirmModal } from '@/components/ArchiveConfirmModal';
@@ -32,6 +32,18 @@ export default function PersonDetailScreen() {
   const archiveInFlight = useRef(false);
   const [saving, setSaving] = useState(false);
   const [archiving, setArchiving] = useState(false);
+
+  useEffect(() => {
+    if (!person) return;
+    setName(person.name);
+    setNationalId(person.nationalId);
+    setPhone(person.phone === 'لا يوجد هاتف' ? '' : person.phone);
+    setGender(person.gender);
+    setBirthDate(person.birthDate.slice(0, 10));
+    setTentNumber(person.tentNumber);
+    setFamilySize(String(person.familySize));
+    setNotes(person.notes ?? '');
+  }, [person?.id, person?.version]);
 
   if (!person) return <View style={[styles.center, { backgroundColor: colors.background }]}><Text style={{ color: colors.foreground, fontFamily: fonts.bold }}>لم يتم العثور على السجل</Text></View>;
 
