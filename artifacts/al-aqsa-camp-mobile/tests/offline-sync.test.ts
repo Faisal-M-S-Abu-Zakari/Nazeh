@@ -62,6 +62,23 @@ test('last successful aid sync time survives reload without crossing account cac
   assert.notEqual(accountAAfterReload.cache?.lastAidsSyncAt, accountBAfterReload.cache?.lastAidsSyncAt);
 });
 
+test('received family aid snapshots, including an empty history, stay with their owner after reload', async () => {
+  const updatedAt = '2026-09-24T08:15:00.000Z';
+  type Snapshot = { receivedAids: Array<{ id: string; title: string }>; lastReceivedAidsSyncAt: string };
+  const storage = new Map<string, string>([
+    [cacheStorageKey('family-a'), JSON.stringify({ receivedAids: [{ id: 'aid-a', title: 'طرد غذائي' }], lastReceivedAidsSyncAt: updatedAt })],
+    [cacheStorageKey('family-b'), JSON.stringify({ receivedAids: [], lastReceivedAidsSyncAt: updatedAt })],
+  ]);
+  const getItem = async (key: string) => storage.get(key) ?? null;
+
+  const accountA = await loadOwnerStorage<Snapshot, Write>('family-a', getItem);
+  const accountB = await loadOwnerStorage<Snapshot, Write>('family-b', getItem);
+  assert.deepEqual(accountA.cache?.receivedAids.map((aid) => aid.id), ['aid-a']);
+  assert.deepEqual(accountB.cache?.receivedAids, []);
+  assert.equal(accountA.cache?.lastReceivedAidsSyncAt, updatedAt);
+  assert.equal(accountB.cache?.lastReceivedAidsSyncAt, updatedAt);
+});
+
 test('an in-flight replay is cancelled without touching the next account queue', async () => {
   const controller = new AbortController();
   let activeOwner = 'account-a';

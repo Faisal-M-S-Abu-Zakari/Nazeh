@@ -3,12 +3,12 @@ import * as SecureStore from 'expo-secure-store';
 import {
   type Aid as ApiAid, type AidType, type Complaint, type ComplaintInput, type ComplaintStatus,
   type CreateAidRequest, type CreatePersonRequest, type Person as ApiPerson, type StaffUser,
-  type FamilyHeadNeed, type FamilyHeadNeedInput, type FamilyHeadProfile,
+  type FamilyHeadNeed, type FamilyHeadNeedInput, type FamilyHeadProfile, type FamilyReceivedAid,
   type Task, type TaskInput, type TaskStatus, createAid, createPerson, createSyncComplaint,
   createFamilyMeNeed, createSyncTask, customFetch, getGetCurrentUserQueryKey, getGetFamilyMeNeedsQueryKey,
-  getGetFamilyMeQueryKey, getListAidsQueryKey, getListComplaintsQueryKey,
+  getGetFamilyMeQueryKey, getGetFamilyMeAidDistributionsQueryKey, getListAidsQueryKey, getListComplaintsQueryKey,
   getListPeopleQueryKey, getListTasksQueryKey, setAuthTokenGetter, setBaseUrl,
-  updateComplaintStatus, updateTaskStatus, useGetCurrentUser, useGetFamilyMe, useGetFamilyMeNeeds, useListAids, useListComplaints,
+  updateComplaintStatus, updateTaskStatus, useGetCurrentUser, useGetFamilyMe, useGetFamilyMeNeeds, useGetFamilyMeAidDistributions, useListAids, useListComplaints,
   useListPeople, useListTasks, useLogin, useLogout,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -24,7 +24,7 @@ export type Aid = { id: string; title: string; type: string; apiType: AidType; f
 export type Person = { id: string; name: string; role: 'نازح'; phone: string; nationalId: string; gender: ApiPerson['gender']; birthDate: string; tentNumber: string; familySize: number; notes?: string | null; version: number; location: string };
 export type SyncState = 'syncing' | 'synced' | 'offline' | 'error';
 export type AppUser = StaffUser | (Omit<FamilyHeadProfile['headUser'], 'id' | 'role'> & { id: string; role: 'DISPLACED' });
-type Cache = { aids: ApiAid[]; people: ApiPerson[]; complaints: Complaint[]; tasks: Task[]; familyProfile?: FamilyHeadProfile; familyNeeds?: FamilyHeadNeed[]; lastAidsSyncAt?: string | null; lastPeopleSyncAt?: string | null };
+type Cache = { aids: ApiAid[]; people: ApiPerson[]; complaints: Complaint[]; tasks: Task[]; familyProfile?: FamilyHeadProfile; familyNeeds?: FamilyHeadNeed[]; receivedAids?: FamilyReceivedAid[]; lastReceivedAidsSyncAt?: string | null; lastAidsSyncAt?: string | null; lastPeopleSyncAt?: string | null };
 type QueuedWrite =
   | { id: string; idempotencyKey: string; ownerUserId: string; kind: 'aid'; data: CreateAidRequest }
   | { id: string; idempotencyKey: string; ownerUserId: string; kind: 'person'; data: CreatePersonRequest }
@@ -36,6 +36,8 @@ type QueuedWrite =
 type MutationResult = { queued: boolean };
 type AppValue = {
   signedIn: boolean; authLoading: boolean; user: AppUser | null; familyProfile: FamilyHeadProfile | null; familyNeeds: FamilyHeadNeed[];
+  receivedAids: FamilyReceivedAid[]; receivedAidsLoading: boolean; receivedAidsError: boolean; receivedAidsHasSnapshot: boolean;
+  lastReceivedAidsSyncAt: string | null; retryReceivedAids: () => Promise<void>;
   signedInAsFamilyHead: boolean; aids: Aid[]; people: Person[];
   complaints: Complaint[]; tasks: Task[]; syncState: SyncState; syncMessage: string; queuedCount: number;
   aidsSyncState: SyncState; aidsSyncMessage: string; lastAidsSyncAt: string | null; retryAids: () => Promise<void>;
@@ -142,6 +144,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const me = useGetCurrentUser({ query: { queryKey: getGetCurrentUserQueryKey(), enabled: staffEnabled, retry: false } });
   const familyProfileQuery = useGetFamilyMe({ query: { queryKey: getGetFamilyMeQueryKey(), enabled: familyEnabled, retry: false } });
   const familyNeedsQuery = useGetFamilyMeNeeds({ query: { queryKey: getGetFamilyMeNeedsQueryKey(), enabled: familyEnabled, retry: false } });
+  const receivedAidsQuery = useGetFamilyMeAidDistributions({
+    query: { queryKey: [...getGetFamilyMeAidDistributionsQueryKey(), storedFamilyUser?.id], enabled: familyEnabled && !!storedFamilyUser?.id, retry: false },
+  });
   const aidsQuery = useListAids({ query: { queryKey: getListAidsQueryKey(), enabled: staffEnabled, retry: false } });
   const peopleQuery = useListPeople({ query: { queryKey: getListPeopleQueryKey(), enabled: staffEnabled, retry: false } });
   const lastPeopleSyncAt = getLastSuccessfulPeopleSyncAt(storedLastPeopleSyncAt, peopleQuery.dataUpdatedAt);
@@ -154,9 +159,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     : me.data ?? null;
 
   useEffect(() => {
-    if (!user) return;
-    const hydrationEpoch = identityEpoch.current;
+    if (!user || ownerUserId === user.id) return;
     if (ownerUserId && ownerUserId !== user.id) { rotateIdentity(); setCache(emptyCache); setLastAidsSyncAt(null); setStoredLastPeopleSyncAt(null); setHasLocalPeopleCache(false); setQueue([]); setProtectedHydrated(false); }
+    const hydrationEpoch = identityEpoch.current;
     activeOwner.current = user.id;
     setOwnerUserId(user.id); setProtectedHydrated(false);
     loadOwnerStorage<Cache, QueuedWrite>(user.id, (key) => AsyncStorage.getItem(key))
@@ -170,17 +175,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => setManualError('تعذر تحميل بيانات الحساب المحفوظة على الجهاز.'))
       .finally(() => { if (identityEpoch.current === hydrationEpoch) setProtectedHydrated(true); });
-  }, [ownerUserId, rotateIdentity, user]);
+  }, [ownerUserId, rotateIdentity, user?.id]);
 
-  const serverCache = useMemo<Cache>(() => ({ aids: selectLatestAids(aidsQuery.data, cache.aids), people: selectLatestPeople(peopleQuery.data, cache.people), complaints: complaintsQuery.data ?? cache.complaints, tasks: tasksQuery.data ?? cache.tasks, familyProfile: familyProfileQuery.data ?? cache.familyProfile, familyNeeds: familyNeedsQuery.data ?? cache.familyNeeds, lastAidsSyncAt }), [aidsQuery.data, cache, complaintsQuery.data, familyNeedsQuery.data, lastAidsSyncAt, peopleQuery.data, tasksQuery.data]);
+  const receivedAidsOwnerReady = familyEnabled && !!storedFamilyUser?.id && ownerUserId === storedFamilyUser.id && user?.id === ownerUserId && protectedHydrated;
+  const lastReceivedAidsSyncAt = receivedAidsOwnerReady
+    ? receivedAidsQuery.data !== undefined && receivedAidsQuery.dataUpdatedAt
+      ? new Date(receivedAidsQuery.dataUpdatedAt).toISOString()
+      : cache.lastReceivedAidsSyncAt ?? null
+    : null;
+  const serverCache = useMemo<Cache>(() => ({ aids: selectLatestAids(aidsQuery.data, cache.aids), people: selectLatestPeople(peopleQuery.data, cache.people), complaints: complaintsQuery.data ?? cache.complaints, tasks: tasksQuery.data ?? cache.tasks, familyProfile: familyProfileQuery.data ?? cache.familyProfile, familyNeeds: familyNeedsQuery.data ?? cache.familyNeeds, receivedAids: receivedAidsQuery.data ?? cache.receivedAids, lastReceivedAidsSyncAt, lastAidsSyncAt }), [aidsQuery.data, cache, complaintsQuery.data, familyNeedsQuery.data, lastAidsSyncAt, lastReceivedAidsSyncAt, peopleQuery.data, receivedAidsQuery.data, tasksQuery.data]);
   useEffect(() => {
-    if (!user || !protectedHydrated || (!aidsQuery.data && !peopleQuery.data && !complaintsQuery.data && !tasksQuery.data && !familyProfileQuery.data && !familyNeedsQuery.data)) return;
-    const next: Cache = { aids: aidsQuery.data ?? cache.aids, people: selectLatestPeople(peopleQuery.data, cache.people), complaints: complaintsQuery.data ?? cache.complaints, tasks: tasksQuery.data ?? cache.tasks, familyProfile: familyProfileQuery.data ?? cache.familyProfile, familyNeeds: familyNeedsQuery.data ?? cache.familyNeeds, lastAidsSyncAt };
+    if (!user || ownerUserId !== user.id || activeOwner.current !== user.id || !protectedHydrated || (familyEnabled && storedFamilyUser?.id !== user.id) || (!aidsQuery.data && !peopleQuery.data && !complaintsQuery.data && !tasksQuery.data && !familyProfileQuery.data && !familyNeedsQuery.data && !receivedAidsQuery.data)) return;
+    const next: Cache = { aids: aidsQuery.data ?? cache.aids, people: selectLatestPeople(peopleQuery.data, cache.people), complaints: complaintsQuery.data ?? cache.complaints, tasks: tasksQuery.data ?? cache.tasks, familyProfile: familyProfileQuery.data ?? cache.familyProfile, familyNeeds: familyNeedsQuery.data ?? cache.familyNeeds, receivedAids: receivedAidsQuery.data ?? cache.receivedAids, lastReceivedAidsSyncAt, lastAidsSyncAt };
     setCache({ ...next, lastPeopleSyncAt });
     if (peopleQuery.data !== undefined) setHasLocalPeopleCache(true);
     AsyncStorage.setItem(cacheStorageKey(user.id), JSON.stringify({ ...next, lastPeopleSyncAt })).catch(() => setManualError('تمت المزامنة، لكن تعذر حفظ نسخة القراءة دون اتصال.'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aidsQuery.data, complaintsQuery.data, familyNeedsQuery.data, familyProfileQuery.data, lastAidsSyncAt, lastPeopleSyncAt, peopleQuery.data, protectedHydrated, tasksQuery.data, user]);
+  }, [aidsQuery.data, complaintsQuery.data, familyNeedsQuery.data, familyProfileQuery.data, lastAidsSyncAt, lastPeopleSyncAt, lastReceivedAidsSyncAt, peopleQuery.data, protectedHydrated, receivedAidsQuery.data, tasksQuery.data, user]);
   useEffect(() => {
     if (!user || !protectedHydrated || !aidsQuery.data || !aidsQuery.dataUpdatedAt) return;
     setLastAidsSyncAt((current) => getLastSuccessfulAidsSyncAt(current, aidsQuery.dataUpdatedAt));
@@ -209,14 +220,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [ownerUserId, saveQueueForOwner]);
   const refetchAll = useCallback(async () => {
     setManualError('');
-    await mobileAuthLifecycle.synchronizedRefresh(async () => { await Promise.all([aidsQuery.refetch(), peopleQuery.refetch(), complaintsQuery.refetch(), tasksQuery.refetch(), familyProfileQuery.refetch(), familyNeedsQuery.refetch()]); });
-  }, [aidsQuery.refetch, complaintsQuery.refetch, familyNeedsQuery.refetch, familyProfileQuery.refetch, peopleQuery.refetch, tasksQuery.refetch]);
+    await mobileAuthLifecycle.synchronizedRefresh(async () => { await Promise.all([aidsQuery.refetch(), peopleQuery.refetch(), complaintsQuery.refetch(), tasksQuery.refetch(), familyProfileQuery.refetch(), familyNeedsQuery.refetch(), ...(familyEnabled ? [receivedAidsQuery.refetch()] : [])]); });
+  }, [aidsQuery.refetch, complaintsQuery.refetch, familyEnabled, familyNeedsQuery.refetch, familyProfileQuery.refetch, peopleQuery.refetch, receivedAidsQuery.refetch, tasksQuery.refetch]);
   const retryAids = useCallback(async () => {
     await retryAidList(mobileAuthLifecycle.synchronizedRefresh, aidsQuery.refetch);
   }, [aidsQuery.refetch]);
   const retryPeople = useCallback(async () => {
     await mobileAuthLifecycle.synchronizedRefresh(async () => { await peopleQuery.refetch(); });
   }, [peopleQuery.refetch]);
+  const retryReceivedAids = useCallback(async () => {
+    await mobileAuthLifecycle.synchronizedRefresh(async () => { await receivedAidsQuery.refetch(); });
+  }, [receivedAidsQuery.refetch]);
   const invalidateFor = useCallback(async (item: QueuedWrite) => {
     if (item.kind === 'aid') await queryClient.invalidateQueries({ queryKey: getListAidsQueryKey() });
     if (item.kind === 'person') await queryClient.invalidateQueries({ queryKey: getListPeopleQueryKey() });
@@ -278,7 +292,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const manager = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const delegate = user?.role === 'DELEGATE';
   const security = user?.role === 'SECURITY_OFFICER';
-  const queries = [me, aidsQuery, peopleQuery, complaintsQuery, tasksQuery, familyProfileQuery, familyNeedsQuery];
+  const queries = [me, aidsQuery, peopleQuery, complaintsQuery, tasksQuery, familyProfileQuery, familyNeedsQuery, receivedAidsQuery];
   const queryError = queries.find((query) => query.error)?.error;
   const syncState: SyncState = queries.some((query) => query.isFetching) ? 'syncing' : queryError && isNetworkFailure(queryError) ? 'offline' : queryError || manualError ? 'error' : 'synced';
   const syncMessage = queue.length ? `${queue.length} إجراء بانتظار المزامنة` : syncState === 'syncing' ? 'جارٍ مزامنة بيانات الفريق…' : syncState === 'offline' ? 'غير متصل — تُعرض آخر نسخة محفوظة' : syncState === 'error' ? (manualError || 'تعذرت المزامنة. اسحب للتحديث أو أعد المحاولة.') : 'متزامن مع خادم الفريق';
@@ -304,7 +318,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (error) { return queueOnNetworkError(error, item, epoch); }
   }, [invalidateFor, queueOnNetworkError, user]);
   const value = useMemo<AppValue>(() => ({
-    signedIn: !!user, authLoading: !!token && !user, user, familyProfile: serverCache.familyProfile ?? null, familyNeeds: serverCache.familyNeeds ?? [], signedInAsFamilyHead: authRole === 'displaced', aids: serverCache.aids.map(mapAid), people: serverCache.people.map(mapPerson), complaints: serverCache.complaints, tasks: serverCache.tasks, syncState, syncMessage, queuedCount: queue.length, aidsSyncState, aidsSyncMessage, lastAidsSyncAt, retryAids, pendingWrites: queue,
+    signedIn: !!user, authLoading: !!token && !user, user, familyProfile: serverCache.familyProfile ?? null, familyNeeds: serverCache.familyNeeds ?? [], receivedAids: receivedAidsOwnerReady ? serverCache.receivedAids ?? [] : [], receivedAidsHasSnapshot: receivedAidsOwnerReady && serverCache.receivedAids !== undefined, receivedAidsLoading: receivedAidsOwnerReady && receivedAidsQuery.isPending && serverCache.receivedAids === undefined, receivedAidsError: receivedAidsOwnerReady && receivedAidsQuery.isError, lastReceivedAidsSyncAt, retryReceivedAids, signedInAsFamilyHead: authRole === 'displaced', aids: serverCache.aids.map(mapAid), people: serverCache.people.map(mapPerson), complaints: serverCache.complaints, tasks: serverCache.tasks, syncState, syncMessage, queuedCount: queue.length, aidsSyncState, aidsSyncMessage, lastAidsSyncAt, retryAids, pendingWrites: queue,
     peopleSyncState: peopleSync.state, peopleSyncMessage: peopleSync.message, lastPeopleSyncAt, retryPeople,
     canManageAids: !!user && (manager || delegate), canManagePeople: !!user && (manager || delegate), canManageComplaints: !!user && (manager || delegate), canManageTasks: !!user && (manager || security),
     signIn, signOut,
@@ -322,7 +336,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     retrySync: async () => { await replayQueue(); await refetchAll(); },
     discardQueuedWrite: async (id) => saveQueue(queue.filter((item) => item.id !== id)),
-  }), [aidsSyncMessage, aidsSyncState, authRole, createOperation, delegate, lastAidsSyncAt, lastPeopleSyncAt, manager, peopleSync.message, peopleSync.state, queryClient, queue, queueOnNetworkError, refetchAll, replayQueue, retryAids, retryPeople, saveQueue, security, serverCache, signIn, signOut, syncMessage, syncState, token, user]);
+  }), [aidsSyncMessage, aidsSyncState, authRole, createOperation, delegate, lastAidsSyncAt, lastPeopleSyncAt, lastReceivedAidsSyncAt, manager, peopleSync.message, peopleSync.state, queryClient, queue, queueOnNetworkError, receivedAidsOwnerReady, receivedAidsQuery.isError, receivedAidsQuery.isPending, refetchAll, replayQueue, retryAids, retryPeople, retryReceivedAids, saveQueue, security, serverCache, signIn, signOut, syncMessage, syncState, token, user]);
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 export function useApp() {
