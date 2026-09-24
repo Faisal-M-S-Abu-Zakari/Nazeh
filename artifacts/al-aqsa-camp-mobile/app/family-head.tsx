@@ -1,13 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { Card, Field, fonts, PrimaryButton, ScreenHeader, StatusPill, SyncBanner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import type { FamilyHeadNeedInput } from '@workspace/api-client-react';
-import { useListNotifications, useListContent, useListComplaints, useMarkNotificationRead, getListNotificationsQueryKey, getListContentQueryKey, getListComplaintsQueryKey } from '@workspace/api-client-react';
+import { useListNotifications, useListContent, useListComplaints, useMarkNotificationRead, useGetFamilyMeAidDistributions, getGetFamilyMeAidDistributionsQueryKey, getListNotificationsQueryKey, getListContentQueryKey, getListComplaintsQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 const categories: Array<[FamilyHeadNeedInput['category'], string]> = [['FOOD', 'غذاء'], ['WATER', 'ماء'], ['MEDICAL', 'طبابة'], ['SHELTER', 'مأوى'], ['HYGIENE', 'نظافة'], ['OTHER', 'أخرى']];
@@ -26,6 +26,13 @@ export default function FamilyHeadScreen() {
   const { data: notificationsPage } = useListNotifications(undefined, { query: { enabled: signedInAsFamilyHead, queryKey: getListNotificationsQueryKey() } });
   const { data: contentPage } = useListContent(undefined, { query: { enabled: signedInAsFamilyHead, queryKey: getListContentQueryKey() } });
   const { data: complaintsPage } = useListComplaints({ query: { enabled: signedInAsFamilyHead, queryKey: getListComplaintsQueryKey() } });
+  const receivedAids = useGetFamilyMeAidDistributions({
+    query: {
+      enabled: signedInAsFamilyHead && !!familyProfile && !!ownerId,
+      queryKey: [...getGetFamilyMeAidDistributionsQueryKey(), ownerId],
+      retry: false,
+    },
+  });
 
   const notifications = notificationsPage?.items || [];
   const announcements = contentPage?.items?.filter(c => c.status === 'published') || [];
@@ -139,7 +146,24 @@ export default function FamilyHeadScreen() {
 
       <Card>
         <Text style={[styles.section, { color: colors.foreground }]}>المساعدات المستلمة</Text>
-        <Text style={[styles.body, { color: colors.mutedForeground }]}>سجل المساعدات المستلمة غير متاح لهذا الحساب حالياً.</Text>
+        {receivedAids.isPending ? (
+          <View style={styles.row}><ActivityIndicator color={colors.primary} /><Text style={[styles.body, { color: colors.mutedForeground }]}>جارٍ تحميل سجل المساعدات…</Text></View>
+        ) : receivedAids.isError ? (
+          <View>
+            <Text style={[styles.body, { color: colors.destructive }]}>تعذر تحميل سجل المساعدات. تحقق من الاتصال وحاول مجدداً.</Text>
+            <PrimaryButton testID="family-aids-retry" label="إعادة المحاولة" icon="refresh-outline" onPress={() => void receivedAids.refetch()} />
+          </View>
+        ) : receivedAids.data?.length ? receivedAids.data.map((aid) => (
+          <View key={aid.id} style={[styles.need, { borderBottomColor: colors.border }]}>
+            <View style={styles.row}>
+              <StatusPill text="مستلمة" tone="green" />
+              <Text style={[styles.body, { color: colors.foreground, flex: 1, textAlign: 'right', fontFamily: fonts.bold }]}>{aid.title}</Text>
+            </View>
+            <Text style={[styles.meta, { color: colors.mutedForeground }]}>
+              {categories.find(([type]) => type === aid.type)?.[1] ?? aid.type} · {aid.quantity} {aid.unit} · {new Date(aid.deliveredAt).toLocaleDateString('ar')}
+            </Text>
+          </View>
+        )) : <Text style={[styles.body, { color: colors.mutedForeground }]}>لم تستلم الأسرة أي مساعدات بعد.</Text>}
       </Card>
 
     </KeyboardAwareScrollViewCompat>

@@ -324,18 +324,24 @@ router.get("/family/me/aid-distributions", requireRoles("displaced"), async (req
     .limit(1);
   if (!family) { res.status(404).json({ error: "Active family record not found" }); return; }
   const rows = await db
-    .select({ distribution: aidDistributionsTable, aid: syncAids, need: familyNeedsTable, executedBy: staffUsers })
+    .select({
+      id: aidDistributionsTable.id,
+      title: syncAids.title,
+      type: syncAids.type,
+      quantity: aidDistributionsTable.quantity,
+      unit: aidDistributionsTable.unit,
+      deliveredAt: aidDistributionsTable.deliveredAt,
+    })
     .from(aidDistributionsTable)
     .innerJoin(syncAids, eq(aidDistributionsTable.aidId, syncAids.id))
-    .innerJoin(familyNeedsTable, eq(aidDistributionsTable.needId, familyNeedsTable.id))
-    .innerJoin(staffUsers, eq(aidDistributionsTable.executedById, staffUsers.id))
+    .innerJoin(familiesTable, eq(aidDistributionsTable.familyId, familiesTable.id))
     .where(and(
       eq(aidDistributionsTable.familyId, family.id),
-      isNull(syncAids.archivedAt),
-      isNull(familyNeedsTable.archivedAt),
+      familyHeadScope(req),
+      eq(aidDistributionsTable.status, "RECEIVED"),
     ))
-    .orderBy(desc(aidDistributionsTable.createdAt));
-  res.json(rows);
+    .orderBy(desc(aidDistributionsTable.deliveredAt), desc(aidDistributionsTable.id));
+  res.json(V.GetFamilyMeAidDistributionsResponse.parse(rows));
 });
 
 router.post("/family/me/needs", requireRoles("displaced"), async (req, res): Promise<void> => {

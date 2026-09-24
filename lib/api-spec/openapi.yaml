@@ -103,6 +103,22 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+  /family/me/aid-distributions:
+    get:
+      operationId: getFamilyMeAidDistributions
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Received aid history for the authenticated family head's active family
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/FamilyReceivedAid" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /dashboard:
     get:
       operationId: getDashboard
@@ -1981,6 +1997,17 @@ components:
     AidDistributionStatus:
       type: string
       enum: [ASSIGNED, RECEIVED, CANCELLED]
+    FamilyReceivedAid:
+      type: object
+      additionalProperties: false
+      required: [id, title, type, quantity, unit, deliveredAt]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        type: { $ref: "#/components/schemas/AidType" }
+        quantity: { type: integer, minimum: 1 }
+        unit: { type: string }
+        deliveredAt: { type: string, format: date-time }
     AidDistribution:
       type: object
       required: [id, aidId, needId, familyId, quantity, unit, status, executedById, deliveredById, deliveredAt, createdAt, updatedAt]

@@ -184,6 +184,20 @@ export const CreateFamilyMeNeedResponse = zod.object({
 })
 
 
+
+
+
+export const GetFamilyMeAidDistributionsResponseItem = zod.object({
+  "id": zod.uuid(),
+  "title": zod.string(),
+  "type": zod.enum(['FOOD', 'WATER', 'MEDICAL', 'SHELTER', 'HYGIENE', 'OTHER']),
+  "quantity": zod.int().min(1),
+  "unit": zod.string(),
+  "deliveredAt": zod.coerce.date()
+})
+export const GetFamilyMeAidDistributionsResponse = zod.array(GetFamilyMeAidDistributionsResponseItem)
+
+
 export const GetDashboardResponse = zod.object({
   "totalDelegates": zod.int(),
   "totalDisplacedPersons": zod.int(),

@@ -74,6 +74,7 @@ import type {
   FamilyHeadProfile,
   FamilyInput,
   FamilyList,
+  FamilyReceivedAid,
   FamilyUpdate,
   ForbiddenResponse,
   GetDisplacedPersonAidHistoryParams,
@@ -558,6 +559,77 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getCreateFamilyMeNeedMutationOptions(options));
     }
+
+export const getGetFamilyMeAidDistributionsUrl = () => {
+
+
+
+
+  return `/api/family/me/aid-distributions`
+}
+
+export const getFamilyMeAidDistributions = async ( options?: Parameters<typeof customFetch>[1]): Promise<FamilyReceivedAid[]> => {
+
+  return customFetch<FamilyReceivedAid[]>(getGetFamilyMeAidDistributionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFamilyMeAidDistributionsQueryKey = () => {
+    return [
+    `/api/family/me/aid-distributions`
+    ] as const;
+    }
+
+
+export const getGetFamilyMeAidDistributionsQueryOptions = <TData = Awaited<ReturnType<typeof getFamilyMeAidDistributions>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFamilyMeAidDistributions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFamilyMeAidDistributionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFamilyMeAidDistributions>>> = ({ signal }) => getFamilyMeAidDistributions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFamilyMeAidDistributions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFamilyMeAidDistributionsQueryResult = NonNullable<Awaited<ReturnType<typeof getFamilyMeAidDistributions>>>
+export type GetFamilyMeAidDistributionsQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
+
+
+
+export function useGetFamilyMeAidDistributions<TData = Awaited<ReturnType<typeof getFamilyMeAidDistributions>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFamilyMeAidDistributions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFamilyMeAidDistributionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetDashboardUrl = () => {
 

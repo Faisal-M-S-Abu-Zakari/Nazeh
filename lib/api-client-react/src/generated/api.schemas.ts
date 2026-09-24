@@ -663,6 +663,16 @@ export const AidDistributionStatus = {
   CANCELLED: 'CANCELLED',
 } as const;
 
+export interface FamilyReceivedAid {
+  id: string;
+  title: string;
+  type: AidType;
+  /** @minimum 1 */
+  quantity: number;
+  unit: string;
+  deliveredAt: string;
+}
+
 export interface AidDistribution {
   id: string;
   aidId: string;

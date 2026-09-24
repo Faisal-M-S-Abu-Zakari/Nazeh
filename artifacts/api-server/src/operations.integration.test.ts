@@ -498,6 +498,10 @@ test("displaced family-head access stays linked to the authenticated active fami
   const otherFamilyId = randomUUID();
   const archivedFamilyId = randomUUID();
   const existingNeedId = randomUUID();
+  const otherNeedId = randomUUID();
+  const receivedAidId = randomUUID();
+  const pendingAidId = randomUUID();
+  const otherAidId = randomUUID();
   let userId: number | undefined;
   let otherUserId: number | undefined;
   let unlinkedUserId: number | undefined;
@@ -594,6 +598,7 @@ test("displaced family-head access stays linked to the authenticated active fami
       createdByLegacyUserId: userId,
     });
     await db.insert(familyNeedsTable).values({
+      id: otherNeedId,
       familyId: otherFamilyId,
       category: "FOOD",
       title: "Private other-family need",
@@ -609,6 +614,19 @@ test("displaced family-head access stays linked to the authenticated active fami
       status: "REQUIRED",
       createdByLegacyUserId: unlinkedUserId,
     });
+    const [manager] = await db.select({ id: staffUsers.id }).from(staffUsers)
+      .where(eq(staffUsers.email, "manager@alaqsa.local")).limit(1);
+    assert(manager, "seed manager required");
+    await db.insert(aids).values([
+      { id: receivedAidId, title: "Received parcel", type: "FOOD", quantity: 10, unit: "parcel", location: "Test", distributionDate: "2030-01-01", createdById: manager.id },
+      { id: pendingAidId, title: "Pending parcel", type: "FOOD", quantity: 10, unit: "parcel", location: "Test", distributionDate: "2030-01-01", createdById: manager.id },
+      { id: otherAidId, title: "Private other-family aid", type: "FOOD", quantity: 10, unit: "parcel", location: "Test", distributionDate: "2030-01-01", createdById: manager.id },
+    ]);
+    await db.insert(aidDistributionsTable).values([
+      { aidId: receivedAidId, needId: existingNeedId, familyId, quantity: 2, unit: "parcel", status: "RECEIVED", executedById: manager.id, deliveredById: manager.id, deliveredAt: new Date("2030-01-02T10:00:00Z") },
+      { aidId: pendingAidId, needId: existingNeedId, familyId, quantity: 1, unit: "parcel", status: "ASSIGNED", executedById: manager.id },
+      { aidId: otherAidId, needId: otherNeedId, familyId: otherFamilyId, quantity: 3, unit: "parcel", status: "RECEIVED", executedById: manager.id, deliveredById: manager.id, deliveredAt: new Date("2030-01-03T10:00:00Z") },
+    ]);
 
     const login = await fetch(`${baseUrl}/auth/login`, {
       method: "POST",
@@ -656,6 +674,23 @@ test("displaced family-head access stays linked to the authenticated active fami
     assert.deepEqual(needsBody.map((need) => need.familyId), [familyId]);
     assert(needsBody.some((need) => need.id === existingNeedId && need.title === "Existing linked need"));
     assert(!needsBody.some((need) => need.familyId === otherFamilyId));
+    const historyResponse = await fetch(`${baseUrl}/family/me/aid-distributions`, { headers });
+    assert.equal(historyResponse.status, 200);
+    const historyBody = await historyResponse.json() as Array<Record<string, unknown>>;
+    assert.equal(historyBody.length, 1, "only received distributions of the linked family are returned");
+    assert.deepEqual({
+      title: historyBody[0].title,
+      quantity: historyBody[0].quantity,
+      unit: historyBody[0].unit,
+      deliveredAt: historyBody[0].deliveredAt,
+    }, { title: "Received parcel", quantity: 2, unit: "parcel", deliveredAt: "2030-01-02T10:00:00.000Z" });
+    assert.deepEqual(Object.keys(historyBody[0]).sort(), ["deliveredAt", "id", "quantity", "title", "type", "unit"].sort());
+    assert(!JSON.stringify(historyBody).includes("Private other-family aid"));
+    const otherHistoryResponse = await fetch(`${baseUrl}/family/me/aid-distributions?familyId=${familyId}`, { headers: otherHeaders });
+    assert.equal(otherHistoryResponse.status, 200);
+    const otherHistory = await otherHistoryResponse.json() as Array<{ title: string }>;
+    assert.deepEqual(otherHistory.map((aid) => aid.title), ["Private other-family aid"], "query parameters cannot change family scope");
+    assert(!JSON.stringify(otherHistory).includes("Received parcel"));
 
     const injectedNeedTitle = `Should stay linked ${randomUUID()}`;
     const createdNeedResponse = await fetch(`${baseUrl}/family/me/needs`, {
@@ -709,6 +744,8 @@ test("displaced family-head access stays linked to the authenticated active fami
     assert.equal(inactiveNeedsResponse.status, 401);
     const inactiveNeedsBody = await inactiveNeedsResponse.text();
     assert(!inactiveNeedsBody.includes("Existing linked need"));
+    const inactiveHistoryResponse = await fetch(`${baseUrl}/family/me/aid-distributions`, { headers });
+    assert.equal(inactiveHistoryResponse.status, 401);
 
     const inactiveCreateResponse = await fetch(`${baseUrl}/family/me/needs`, {
       method: "POST",
@@ -753,6 +790,9 @@ test("displaced family-head access stays linked to the authenticated active fami
     assert.equal(unlinkedNeedsResponse.status, 404);
     const unlinkedNeedsBody = await unlinkedNeedsResponse.text();
     assert(!unlinkedNeedsBody.includes("Archived-only family need"));
+    const unlinkedHistoryResponse = await fetch(`${baseUrl}/family/me/aid-distributions`, { headers: unlinkedHeaders });
+    assert.equal(unlinkedHistoryResponse.status, 404);
+    assert(!(await unlinkedHistoryResponse.text()).includes("Private other-family aid"));
 
     const unlinkedCreateResponse = await fetch(`${baseUrl}/family/me/needs`, {
       method: "POST",
@@ -767,6 +807,8 @@ test("displaced family-head access stays linked to the authenticated active fami
     const unlinkedCreateBody = await unlinkedCreateResponse.text();
     assert(!unlinkedCreateBody.includes("Must not be created without family"));
   } finally {
+    await db.delete(aidDistributionsTable).where(inArray(aidDistributionsTable.aidId, [receivedAidId, pendingAidId, otherAidId]));
+    await db.delete(aids).where(inArray(aids.id, [receivedAidId, pendingAidId, otherAidId]));
     if (token) {
       await db.delete(sessionsTable).where(eq(sessionsTable.tokenHash, hashToken(token)));
     }
