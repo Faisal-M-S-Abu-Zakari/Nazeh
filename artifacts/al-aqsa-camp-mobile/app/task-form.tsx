@@ -1,6 +1,6 @@
 import {
   getListSecurityOfficersQueryKey, getListTasksQueryKey, TaskPriority, TaskStatus, useArchiveSyncTask,
-  useListSecurityOfficers, useUpdateTaskStatus,
+  useListSecurityOfficers, useUpdateTaskStatus, useSubmitTask, useApproveTask
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -19,7 +19,7 @@ export default function TaskFormScreen() {
   const colors = useColors();
   const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const { tasks, canManageTasks, addTask } = useApp();
+  const { tasks, canManageTasks, addTask, user } = useApp();
   const task = tasks.find((item) => item.id === id);
   const updateMutation = useUpdateTaskStatus();
   const archiveMutation = useArchiveSyncTask();
@@ -36,6 +36,14 @@ export default function TaskFormScreen() {
   const [assignedToId, setAssignedToId] = useState<string | null>(task?.assignedToId ?? null);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  const [resultText, setResultText] = useState(task?.result ?? '');
+  const [approvalNote, setApprovalNote] = useState('');
+  const canSubmitResult = user?.role === 'SECURITY_MEMBER' || user?.role === 'SECURITY_OFFICER' || user?.role === 'ADMIN' || user?.role === 'MANAGER';
+  const canApproveResult = user?.role === 'SECURITY_OFFICER' || user?.role === 'ADMIN' || user?.role === 'MANAGER';
+
+  const submitResultMutation = useSubmitTask();
+  const approveMutation = useApproveTask();
 
   if (id && !task) {
     return <View style={styles.missing}><Text style={[styles.intro, { color: colors.foreground }]}>لم يتم العثور على المهمة أو تمت أرشفتها.</Text></View>;
@@ -114,6 +122,34 @@ export default function TaskFormScreen() {
       ) : null}
       <PrimaryButton testID="save-task" label={busy ? 'جارٍ الحفظ…' : task ? 'حفظ التعديلات' : 'إنشاء المهمة'} icon="checkmark" disabled={!valid || busy || !canManageTasks} onPress={() => void save()} />
       {task ? <Pressable testID="archive-task" disabled={busy} onPress={() => setArchiveOpen(true)} style={[styles.archive, { borderColor: colors.destructive }]}><Text style={[styles.archiveText, { color: colors.destructive }]}>أرشفة المهمة</Text></Pressable> : null}
+
+      {task && task.status === TaskStatus.IN_PROGRESS && canSubmitResult && (
+        <View style={{ marginTop: 24, gap: 12, paddingTop: 24, borderTopWidth: 1, borderTopColor: colors.border }}>
+          <Text style={[styles.label, { color: colors.foreground }]}>تقديم نتيجة المهمة</Text>
+          <Field label="النتيجة" value={resultText} onChangeText={setResultText} multiline />
+          <PrimaryButton
+            label="تقديم"
+            icon="send"
+            disabled={!resultText || submitResultMutation.isPending}
+            onPress={() => submitResultMutation.mutate({ taskId: task.id, data: { result: resultText, expectedVersion: task.version } }, { onSuccess: () => refresh() })}
+          />
+        </View>
+      )}
+
+      {task && task.status === TaskStatus.COMPLETED && !task.approvedAt && canApproveResult && (
+        <View style={{ marginTop: 24, gap: 12, paddingTop: 24, borderTopWidth: 1, borderTopColor: colors.border }}>
+          <Text style={[styles.label, { color: colors.foreground }]}>اعتماد نتيجة المهمة</Text>
+          <Text style={{ fontFamily: fonts.regular, color: colors.mutedForeground, textAlign: 'right' }}>النتيجة المقدمة: {task.result}</Text>
+          <Field label="ملاحظة الاعتماد (اختياري)" value={approvalNote} onChangeText={setApprovalNote} multiline />
+          <PrimaryButton
+            label="اعتماد المهمة"
+            icon="checkmark-done"
+            disabled={approveMutation.isPending}
+            onPress={() => approveMutation.mutate({ taskId: task.id, data: { note: approvalNote || undefined, expectedVersion: task.version } }, { onSuccess: () => refresh() })}
+          />
+        </View>
+      )}
+
     </KeyboardAwareScrollViewCompat>
     <ArchiveConfirmModal
       visible={archiveOpen}
