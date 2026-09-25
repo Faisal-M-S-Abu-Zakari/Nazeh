@@ -41,7 +41,7 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
-      <ScreenHeader title="مخيم الأقصى" subtitle="معاً لخدمة أهلنا بكرامة" />
+      <ScreenHeader title="منصة إدارة المخيمات الإنسانية" subtitle="معاً لخدمة أهلنا بكرامة" />
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={colors.primary} onRefresh={doRefresh} />}
         contentContainerStyle={styles.content}
@@ -57,7 +57,7 @@ export default function HomeScreen() {
         >
           <View style={styles.heroContent}>
             <StatusPill text="الرؤية العامة" tone="gold" />
-            <Text style={[styles.heroTitle, { color: colors.primaryForeground }]}>مخيم الأقصى - نظام إدارة العمليات</Text>
+            <Text style={[styles.heroTitle, { color: colors.primaryForeground }]}>منصة إدارة المخيمات الإنسانية</Text>
             <Text style={[styles.body, { color: colors.accent }]}>مرحباً بك في لوحة القيادة. يرجى مراجعة التنبيهات بانتظام ومتابعة المهام.</Text>
           </View>
         </LinearGradient>

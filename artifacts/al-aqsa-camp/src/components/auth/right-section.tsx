@@ -5,7 +5,7 @@ export default function Right_Section() {
   return (
     <Stack align='center' justify='center' h={{ base: '100%', lg: '100vh' }}>
       <Text c='white' fw={500} fz={{ base: 30, md: 40 }} lh={1.4}>
-        مرحباً بك في مخيم الأقصى <br />
+        مرحباً بك في منصة إدارة المخيمات الإنسانية <br />
         لإيواء النازحين 👋
       </Text>
 

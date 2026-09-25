@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "مخيم الأقصى",
+    "name": "منصة إدارة المخيمات الإنسانية",
     "slug": "al-aqsa-camp-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,14 +11,18 @@
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#345e40"
+      "backgroundColor": "#F6F9F7"
     },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.alaqsacamp.mobile"
     },
     "android": {
-      "package": "com.alaqsacamp.mobile"
+      "package": "com.alaqsacamp.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#F6F9F7"
+      }
     },
     "web": {
       "favicon": "./assets/images/icon.png"
