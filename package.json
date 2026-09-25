@@ -16,6 +16,7 @@
     "test:task147:browser": "playwright test --config playwright.task147.config.ts",
     "test:mobile-role-journeys:browser": "playwright test --config playwright.mobile-role-journeys.config.ts",
     "test:task162:browser": "playwright test --config playwright.task162.config.ts",
+    "test:task163:browser": "playwright test --config playwright.task163.config.ts",
     "test:workspace-failures:browser": "playwright test --config playwright.workspace-failures.config.ts",
     "test:task60:browser": "playwright test --config playwright.task60.config.ts"
   },

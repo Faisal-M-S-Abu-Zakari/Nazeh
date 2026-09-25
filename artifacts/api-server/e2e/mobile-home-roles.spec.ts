@@ -110,6 +110,94 @@ async function expectFits375(page: Page, home: ReturnType<Page['getByTestId']>) 
   expect(tabBounds!.x + tabBounds!.width).toBeLessThanOrEqual(376);
 }
 
+async function expectReadableAtLargeText(page: Page, home: ReturnType<Page['getByTestId']>) {
+  const scaledTextCount = await home.evaluate((dashboard, scale) => {
+    const roots = [
+      dashboard,
+      ...Array.from(document.querySelectorAll<HTMLElement>('[role="tablist"]'))
+        .filter((root) => root.getBoundingClientRect().width > 0),
+    ];
+    const textElements = new Set<HTMLElement>();
+    for (const root of roots) {
+      for (const element of Array.from(root.querySelectorAll<HTMLElement>('*'))) {
+        const text = Array.from(element.childNodes)
+          .filter((node): node is Text => node.nodeType === Node.TEXT_NODE)
+          .map((node) => node.textContent?.trim() ?? '')
+          .filter(Boolean)
+          .join('');
+        if (!text || Array.from(text).every((character) => {
+          const codePoint = character.codePointAt(0) ?? 0;
+          return (codePoint >= 0xe000 && codePoint <= 0xf8ff) ||
+            (codePoint >= 0xf0000 && codePoint <= 0xffffd) ||
+            (codePoint >= 0x100000 && codePoint <= 0x10fffd);
+        })) continue;
+        textElements.add(element);
+      }
+    }
+    for (const element of textElements) {
+      const style = getComputedStyle(element);
+      const fontSize = Number.parseFloat(style.fontSize);
+      const lineHeight = Number.parseFloat(style.lineHeight);
+      if (!Number.isFinite(fontSize)) continue;
+      element.style.setProperty('font-size', `${fontSize * scale}px`, 'important');
+      element.style.setProperty(
+        'line-height',
+        `${(Number.isFinite(lineHeight) ? lineHeight : fontSize * 1.25) * scale}px`,
+        'important',
+      );
+    }
+    return textElements.size;
+  }, 1.5);
+  expect(scaledTextCount).toBeGreaterThan(0);
+
+  const measurement = await home.evaluate((root) => {
+    const viewport = document.documentElement.clientWidth;
+    const selectors = [
+      '[data-testid^="home-metric-"]',
+      '[role="button"]',
+    ];
+    const targets = selectors.flatMap((selector) => Array.from(root.querySelectorAll<HTMLElement>(selector)));
+    const tabTargets = Array.from(document.querySelectorAll<HTMLElement>('[role="tablist"] [role="tab"]'))
+      .filter((tab) => tab.getBoundingClientRect().width > 0);
+    const clippedText = [...targets, ...tabTargets].flatMap((target) => {
+      const textElements = Array.from(target.querySelectorAll<HTMLElement>('*')).filter((element) =>
+        Array.from(element.childNodes).some((node) => node.nodeType === Node.TEXT_NODE && !!node.textContent?.trim()),
+      );
+      return textElements.flatMap((element) => {
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        const box = target.getBoundingClientRect();
+        const outside = Array.from(range.getClientRects()).some((line) =>
+          line.left < box.left - 3 || line.right > box.right + 3 ||
+          line.top < box.top - 3 || line.bottom > box.bottom + 3,
+        );
+        return outside ? [element.textContent?.trim() ?? ''] : [];
+      });
+    });
+    const overflowing = targets.filter((element) => {
+      const box = element.getBoundingClientRect();
+      return box.left < -1 || box.right > viewport + 1 ||
+        element.scrollWidth > element.clientWidth + 2;
+    }).map((element) => element.getAttribute('data-testid') ?? element.textContent?.slice(0, 40));
+    const metricBoxes = Array.from(root.querySelectorAll<HTMLElement>('[data-testid^="home-metric-"]'))
+      .map((element) => element.getBoundingClientRect());
+    const collidingMetrics = metricBoxes.some((box, index) => metricBoxes.slice(index + 1)
+      .some((other) => Math.min(box.right, other.right) - Math.max(box.left, other.left) > 1 &&
+        Math.min(box.bottom, other.bottom) - Math.max(box.top, other.top) > 1));
+    return { viewport, pageWidth: document.documentElement.scrollWidth, overflowing, clippedText, collidingMetrics };
+  });
+  expect(measurement.viewport).toBe(375);
+  expect(measurement.pageWidth).toBeLessThanOrEqual(375);
+  expect(measurement.overflowing).toEqual([]);
+  expect(measurement.clippedText).toEqual([]);
+  expect(measurement.collidingMetrics).toBe(false);
+
+  const buttons = home.getByRole('button').filter({ visible: true });
+  for (const button of await buttons.all()) await button.click({ trial: true });
+  const tabs = page.getByRole('tab').filter({ visible: true });
+  for (const tab of await tabs.all()) await tab.click({ trial: true });
+}
+
 test.beforeAll(async () => {
   expect(expoUrl, 'Set EXPO_E2E_URL to the running Expo web URL').toBeTruthy();
   const hash = await bcrypt.hash(password, 12);
@@ -150,7 +238,7 @@ test.afterAll(async () => {
   if (managerCreated) await db.delete(staffUsers).where(eq(staffUsers.id, managerId));
 });
 
-test('guest sees public feed and login but no private controls or counts at 375px', async ({ browser }) => {
+test('guest sees public feed and login but no private controls or counts at 375px and 150% text', async ({ browser }) => {
   const { context, page, home } = await openHome(browser, 'guest');
   await expect(home.getByTestId('home-login')).toBeVisible();
   await expect(home.getByTestId('home-notifications')).toHaveCount(0);
@@ -158,10 +246,11 @@ test('guest sees public feed and login but no private controls or counts at 375p
   await expect(home.getByTestId('home-family-alert')).toHaveCount(0);
   await expectNoManagement(page, home);
   await expectFits375(page, home);
+  await expectReadableAtLargeText(page, home);
   await context.close();
 });
 
-test('manager sees actions, all five figures and operations freshness at 375px', async ({ browser }) => {
+test('manager sees actions, all five figures and operations freshness at 375px and 150% text', async ({ browser }) => {
   const { context, page, home } = await openHome(browser, 'manager');
   for (const title of managementActions) {
     await expect(home.getByRole('button', { name: new RegExp(title) })).toBeVisible();
@@ -175,10 +264,11 @@ test('manager sees actions, all five figures and operations freshness at 375px',
   await expect(home.getByTestId('home-family-portal')).toHaveCount(0);
   await expect(home.getByTestId('home-family-alert')).toHaveCount(0);
   await expectFits375(page, home);
+  await expectReadableAtLargeText(page, home);
   await context.close();
 });
 
-test('limited security member sees assigned-task alert without management actions or figures at 375px', async ({ browser }) => {
+test('limited security member sees assigned-task alert without management actions or figures at 375px and 150% text', async ({ browser }) => {
   const { context, page, home } = await openHome(browser, 'member');
   await expect(home.getByTestId('home-notifications')).toBeVisible();
   await expect(home.getByTestId('home-staff-alert')).toContainText('1 مهام جارية أو معلّقة');
@@ -186,10 +276,11 @@ test('limited security member sees assigned-task alert without management action
   await expect(home.getByTestId('home-family-portal')).toHaveCount(0);
   await expectNoManagement(page, home);
   await expectFits375(page, home);
+  await expectReadableAtLargeText(page, home);
   await context.close();
 });
 
-test('family head sees only family portal and pending need alert at 375px', async ({ browser }) => {
+test('family head sees only family portal and pending need alert at 375px and 150% text', async ({ browser }) => {
   const { context, page, home } = await openHome(browser, 'family');
   await expect(home.getByTestId('home-notifications')).toBeVisible();
   await expect(home.getByTestId('home-family-portal')).toBeVisible();
@@ -197,5 +288,6 @@ test('family head sees only family portal and pending need alert at 375px', asyn
   await expect(home.getByTestId('home-staff-alert')).toHaveCount(0);
   await expectNoManagement(page, home);
   await expectFits375(page, home);
+  await expectReadableAtLargeText(page, home);
   await context.close();
 });
