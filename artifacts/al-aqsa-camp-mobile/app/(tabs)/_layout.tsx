@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
-import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
+import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { SymbolView } from 'expo-symbols';
 import { BlurView } from 'expo-blur';
 import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
@@ -12,11 +12,11 @@ import { useColors } from '@/hooks/useColors';
 function NativeTabLayout() {
   return (
     <NativeTabs>
-      <NativeTabs.Trigger name="index"><Icon sf={{ default: 'house', selected: 'house.fill' }} /><Label>الرئيسية</Label></NativeTabs.Trigger>
-      <NativeTabs.Trigger name="operations"><Icon sf={{ default: 'shippingbox', selected: 'shippingbox.fill' }} /><Label>المساعدات</Label></NativeTabs.Trigger>
-      <NativeTabs.Trigger name="people"><Icon sf={{ default: 'person.2', selected: 'person.2.fill' }} /><Label>السجل</Label></NativeTabs.Trigger>
-      <NativeTabs.Trigger name="alerts"><Icon sf={{ default: 'bell', selected: 'bell.fill' }} /><Label>التنبيهات</Label></NativeTabs.Trigger>
-      <NativeTabs.Trigger name="account"><Icon sf={{ default: 'person.crop.circle', selected: 'person.crop.circle.fill' }} /><Label>الحساب</Label></NativeTabs.Trigger>
+      <NativeTabs.Trigger name="index"><NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} /><NativeTabs.Trigger.Label>الرئيسية</NativeTabs.Trigger.Label></NativeTabs.Trigger>
+      <NativeTabs.Trigger name="operations"><NativeTabs.Trigger.Icon sf={{ default: 'shippingbox', selected: 'shippingbox.fill' }} /><NativeTabs.Trigger.Label>المساعدات</NativeTabs.Trigger.Label></NativeTabs.Trigger>
+      <NativeTabs.Trigger name="people"><NativeTabs.Trigger.Icon sf={{ default: 'person.2', selected: 'person.2.fill' }} /><NativeTabs.Trigger.Label>السجل</NativeTabs.Trigger.Label></NativeTabs.Trigger>
+      <NativeTabs.Trigger name="alerts"><NativeTabs.Trigger.Icon sf={{ default: 'bell', selected: 'bell.fill' }} /><NativeTabs.Trigger.Label>التنبيهات</NativeTabs.Trigger.Label></NativeTabs.Trigger>
+      <NativeTabs.Trigger name="account"><NativeTabs.Trigger.Icon sf={{ default: 'person.crop.circle', selected: 'person.crop.circle.fill' }} /><NativeTabs.Trigger.Label>الحساب</NativeTabs.Trigger.Label></NativeTabs.Trigger>
     </NativeTabs>
   );
 }
@@ -28,11 +28,14 @@ function ClassicTabLayout() {
   const isWeb = Platform.OS === 'web';
   const isDark = useColorScheme() === 'dark';
   const icon = (feather: keyof typeof Feather.glyphMap, symbol: string) =>
-    ({ focused, color }: { focused: boolean; color: string }) => (
-      <View style={[styles.iconSurface, focused && { backgroundColor: colors.accent }]}>
-        {isIOS ? <SymbolView name={symbol as never} tintColor={color} size={21} /> : <Feather name={feather} size={20} color={color} />}
-      </View>
-    );
+    ({ focused }: { focused: boolean }) => {
+      const color = focused ? colors.primary : colors.mutedForeground;
+      return (
+        <View style={[styles.iconSurface, focused && { backgroundColor: colors.accent }]}>
+          {isIOS ? <SymbolView name={symbol as never} tintColor={color} size={21} /> : <Feather name={feather} size={20} color={color} />}
+        </View>
+      );
+    };
 
   return (
     <Tabs screenOptions={{
