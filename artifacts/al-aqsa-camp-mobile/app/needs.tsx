@@ -56,7 +56,7 @@ export default function NeedsScreen() {
         title="الاحتياجات" 
         subtitle="طلبات واحتياجات العائلات" 
         action={canManagePeople ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="إضافة احتياج" onPress={() => router.push('/need-form' as never)}>
+          <Pressable testID="add-need" accessibilityRole="button" accessibilityLabel="إضافة احتياج" onPress={() => router.push('/need-form' as never)}>
             <Ionicons name="add-circle" size={28} color={colors.primary} />
           </Pressable>
         ) : undefined}

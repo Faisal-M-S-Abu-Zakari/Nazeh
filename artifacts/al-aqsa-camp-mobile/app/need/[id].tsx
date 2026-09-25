@@ -17,6 +17,7 @@ export default function NeedScreen() {
   const canReadNeeds = canManagePeople || user?.role === 'SECURITY_OFFICER';
   const canArchive = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const inFlight = useRef(false);
+  const requestKey = useRef(`mobile-need-update-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const [note, setNote] = useState('');
   const queryClient = useQueryClient();
 
@@ -29,8 +30,10 @@ export default function NeedScreen() {
   }, [needsPage, id]);
 
   const updateMutation = useUpdateNeed({
+    request: { headers: { 'Idempotency-Key': requestKey.current } },
     mutation: {
       onSuccess: () => {
+        requestKey.current = `mobile-need-update-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         queryClient.invalidateQueries({ queryKey: getListNeedsQueryKey() });
         Alert.alert('نجاح', 'تم تحديث حالة الاحتياج بنجاح');
       },

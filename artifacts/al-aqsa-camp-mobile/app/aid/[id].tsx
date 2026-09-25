@@ -43,13 +43,14 @@ function AidDetailForm({ aid }: { aid: Aid }) {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const saveInFlightRef = useRef(false);
+  const distributionKey = useRef(`mobile-distribution-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const [isSaving, setIsSaving] = useState(false);
 
   const canReadDistributions = canManageAids || user?.role === 'SECURITY_OFFICER';
   const { data: distributions = [], isError: distributionsError, refetch: refetchDistributions } = useListAidDistributions(aid.id, { query: { enabled: canReadDistributions, queryKey: getListAidDistributionsQueryKey(aid.id) } });
   const { data: families = [] } = useListFamilies({ query: { enabled: canManageAids, queryKey: getListFamiliesQueryKey() } });
   const { data: needs = [] } = useListNeeds({ query: { enabled: canManageAids, queryKey: getListNeedsQueryKey() } });
-  const createDist = useCreateAidDistribution();
+  const createDist = useCreateAidDistribution({ request: { headers: { 'Idempotency-Key': distributionKey.current } } });
   const receiveDist = useReceiveAidDistribution();
   const cancelDist = useCancelAidDistribution();
 
@@ -166,7 +167,7 @@ function AidDetailForm({ aid }: { aid: Aid }) {
             label="تخصيص وتوزيع"
             icon="add"
             disabled={!validDistribution || createDist.isPending}
-            onPress={() => void mutateDistribution(async () => { await createDist.mutateAsync({ aidId: aid.id, data: { familyId: newFamilyId, needId: newNeedId, quantity: Number(newQuantity) } }); setNewFamilyId(''); setNewNeedId(''); setNewQuantity('1'); })}
+            onPress={() => void mutateDistribution(async () => { await createDist.mutateAsync({ aidId: aid.id, data: { familyId: newFamilyId, needId: newNeedId, quantity: Number(newQuantity) } }); distributionKey.current = `mobile-distribution-${Date.now()}-${Math.random().toString(36).slice(2)}`; setNewFamilyId(''); setNewNeedId(''); setNewQuantity('1'); })}
           />
            </> : null}
            {distributionError ? <Text accessibilityRole="alert" style={{ color: colors.destructive, textAlign: 'right' }}>{distributionError}</Text> : null}

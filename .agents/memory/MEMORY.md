@@ -20,3 +20,4 @@
 - [React Native Web disabled selectors](react-native-web-disabled-selectors.md) — assert `aria-disabled` for Pressable buttons; Playwright's disabled matcher targets native controls.
 - [Need lifecycle transitions](need-lifecycle-transitions.md) — keep status transitions enforced by the server, not just hidden in mobile controls.
 - [Family aid offline retention](family-aid-offline-retention.md) — retain only owner-scoped read-only family history across logout so offline return works without exposing it to another account.
+- [Expo browser route visibility](expo-browser-route-visibility.md) — hidden prior screens can remain mounted; scope browser locators to visible nodes and navigate through the app stack for back actions.

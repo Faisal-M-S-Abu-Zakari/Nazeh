@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { View, StyleSheet, Text, Alert, Pressable, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
@@ -21,6 +21,7 @@ export default function NeedFormScreen() {
   const [category, setCategory] = useState<NeedCategory>('FOOD');
   const [priority, setPriority] = useState<NeedPriority>('MEDIUM');
   const [familyId, setFamilyId] = useState('');
+  const requestKey = useRef(`mobile-need-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
   const { data: familiesPage, isLoading: familiesLoading, isError: familiesError, refetch: refetchFamilies } = useListFamilies({
     query: { enabled: canManagePeople, queryKey: getListFamiliesQueryKey() }
@@ -28,6 +29,7 @@ export default function NeedFormScreen() {
   const families = familiesPage || [];
 
   const createMutation = useCreateNeed({
+    request: { headers: { 'Idempotency-Key': requestKey.current } },
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListNeedsQueryKey() });
