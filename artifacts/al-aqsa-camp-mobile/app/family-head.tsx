@@ -17,7 +17,7 @@ const draftKey = (id: string) => `al-aqsa-family-draft:${id}`;
 export default function FamilyHeadScreen() {
   const colors = useColors();
   const queryClient = useQueryClient();
-  const { signedInAsFamilyHead, familyProfile, familyNeeds, addFamilyNeed, queuedCount, user, receivedAids, receivedAidsLoading, receivedAidsError, receivedAidsHasSnapshot, lastReceivedAidsSyncAt, retryReceivedAids } = useApp();
+  const { signedInAsFamilyHead, familyProfile, familyNeeds, addFamilyNeed, queuedCount, user, receivedAidsHasSnapshot } = useApp();
   const ownerId = user?.id ?? '';
   const [draft, setDraft] = useState<FamilyHeadNeedInput>({ category: 'FOOD', title: '', description: '', priority: 'MEDIUM' });
   const [sending, setSending] = useState(false);
@@ -62,7 +62,16 @@ export default function FamilyHeadScreen() {
 
   const familyCount = useMemo(() => (familyProfile?.members.length ?? 0) + 1, [familyProfile]);
   if (!signedInAsFamilyHead) return <View style={[styles.center, { backgroundColor: colors.surfaceTint }]}><Text style={[styles.title, { color: colors.foreground }]}>هذه الشاشة مخصصة لرب الأسرة.</Text></View>;
-  if (!familyProfile) return <View style={[styles.center, { backgroundColor: colors.surfaceTint }]}><Text style={[styles.body, { color: colors.mutedForeground }]}>لا توجد أسرة نشطة مرتبطة بالحساب.</Text></View>;
+  if (!familyProfile) {
+    if (receivedAidsHasSnapshot) return <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
+      <ScreenHeader title="ملف أسرتي" subtitle="سجل المساعدات المحفوظ دون اتصال" />
+      <KeyboardAwareScrollViewCompat contentContainerStyle={styles.content}>
+        <SyncBanner />
+        <FamilyAidsCard />
+      </KeyboardAwareScrollViewCompat>
+    </View>;
+    return <View style={[styles.center, { backgroundColor: colors.surfaceTint }]}><Text style={[styles.body, { color: colors.mutedForeground }]}>لا توجد أسرة نشطة مرتبطة بالحساب.</Text></View>;
+  }
 
   return <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
     <ScreenHeader title="ملف أسرتي" subtitle="الاحتياجات والمتابعة" />
@@ -136,32 +145,38 @@ export default function FamilyHeadScreen() {
         </Card>
       )}
 
-      <Card>
-        <Text style={[styles.section, { color: colors.foreground }]}>المساعدات المستلمة</Text>
-        {receivedAidsHasSnapshot && <SyncTimestamp testID="family-aids-last-sync" lastSyncedAt={lastReceivedAidsSyncAt} />}
-        {receivedAidsError && (
-          <View>
-            <Text style={[styles.body, { color: colors.destructive }]}>{receivedAidsHasSnapshot ? 'تعذر تحديث السجل. تُعرض آخر نسخة محفوظة.' : 'تعذر تحميل سجل المساعدات. تحقق من الاتصال وحاول مجدداً.'}</Text>
-            <PrimaryButton testID="family-aids-retry" label="إعادة المحاولة" icon="refresh-outline" onPress={() => void retryReceivedAids()} />
-          </View>
-        )}
-        {receivedAidsLoading ? (
-          <View style={styles.row}><ActivityIndicator color={colors.primary} /><Text style={[styles.body, { color: colors.mutedForeground }]}>جارٍ تحميل سجل المساعدات…</Text></View>
-        ) : receivedAids.length ? receivedAids.map((aid) => (
-          <View key={aid.id} style={[styles.need, { borderBottomColor: colors.border }]}>
-            <View style={styles.row}>
-              <StatusPill text="مستلمة" tone="green" />
-              <Text style={[styles.body, { color: colors.foreground, flex: 1, textAlign: 'right', fontFamily: fonts.bold }]}>{aid.title}</Text>
-            </View>
-            <Text style={[styles.meta, { color: colors.mutedForeground }]}>
-              {categories.find(([type]) => type === aid.type)?.[1] ?? aid.type} · {aid.quantity} {aid.unit} · {new Date(aid.deliveredAt).toLocaleDateString('ar')}
-            </Text>
-          </View>
-        )) : receivedAidsHasSnapshot ? <Text style={[styles.body, { color: colors.mutedForeground }]}>لم تستلم الأسرة أي مساعدات بعد.</Text> : null}
-      </Card>
+      <FamilyAidsCard />
 
     </KeyboardAwareScrollViewCompat>
   </View>;
+}
+
+function FamilyAidsCard() {
+  const colors = useColors();
+  const { receivedAids, receivedAidsLoading, receivedAidsError, receivedAidsHasSnapshot, lastReceivedAidsSyncAt, retryReceivedAids } = useApp();
+  return <Card>
+    <Text style={[styles.section, { color: colors.foreground }]}>المساعدات المستلمة</Text>
+    {receivedAidsHasSnapshot && <SyncTimestamp testID="family-aids-last-sync" lastSyncedAt={lastReceivedAidsSyncAt} />}
+    {receivedAidsError && (
+      <View>
+        <Text style={[styles.body, { color: colors.destructive }]}>{receivedAidsHasSnapshot ? 'تعذر تحديث السجل. تُعرض آخر نسخة محفوظة.' : 'تعذر تحميل سجل المساعدات. تحقق من الاتصال وحاول مجدداً.'}</Text>
+        <PrimaryButton testID="family-aids-retry" label="إعادة المحاولة" icon="refresh-outline" onPress={() => void retryReceivedAids()} />
+      </View>
+    )}
+    {receivedAidsLoading ? (
+      <View style={styles.row}><ActivityIndicator color={colors.primary} /><Text style={[styles.body, { color: colors.mutedForeground }]}>جارٍ تحميل سجل المساعدات…</Text></View>
+    ) : receivedAids.length ? receivedAids.map((aid) => (
+      <View key={aid.id} style={[styles.need, { borderBottomColor: colors.border }]}>
+        <View style={styles.row}>
+          <StatusPill text="مستلمة" tone="green" />
+          <Text style={[styles.body, { color: colors.foreground, flex: 1, textAlign: 'right', fontFamily: fonts.bold }]}>{aid.title}</Text>
+        </View>
+        <Text style={[styles.meta, { color: colors.mutedForeground }]}>
+          {categories.find(([type]) => type === aid.type)?.[1] ?? aid.type} · {aid.quantity} {aid.unit} · {new Date(aid.deliveredAt).toLocaleDateString('ar')}
+        </Text>
+      </View>
+    )) : receivedAidsHasSnapshot ? <Text style={[styles.body, { color: colors.mutedForeground }]}>لم تستلم الأسرة أي مساعدات بعد.</Text> : null}
+  </Card>;
 }
 
 const styles = StyleSheet.create({

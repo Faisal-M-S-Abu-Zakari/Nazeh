@@ -59,6 +59,16 @@ const ROLE_KEY = 'al-aqsa-auth-role';
 const USER_KEY = 'al-aqsa-family-user';
 const emptyCache: Cache = { aids: [], people: [], complaints: [], tasks: [], familyNeeds: [] };
 
+// Keep only the read-only aid history on a shared device. The family profile
+// contains identifiers and medical notes and must not survive logout.
+function familyReadSnapshot(cache: Cache): Cache {
+  return {
+    ...emptyCache,
+    receivedAids: cache.receivedAids,
+    lastReceivedAidsSyncAt: cache.lastReceivedAidsSyncAt,
+  };
+}
+
 export function normalizeApiBaseUrl(domain?: string): string | null {
   const input = domain?.trim();
   if (!input) return null;
@@ -279,15 +289,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ? await customFetch<{ token: string; user: { id: number; name: string; email: string; role: string; phone: string | null; createdAt: string } }>('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password, role: 'displaced' }) })
       : await loginMutation.mutateAsync({ data: { email, password } });
     rotateIdentity();
-    if (ownerUserId) { await AsyncStorage.multiRemove([cacheStorageKey(ownerUserId), queueStorageKey(ownerUserId)]); activeOwner.current = null; setCache(emptyCache); setLastAidsSyncAt(null); setStoredLastPeopleSyncAt(null); setHasLocalPeopleCache(false); setQueue([]); setOwnerUserId(null); setProtectedHydrated(false); }
+    if (ownerUserId) {
+      if (authRole === 'displaced') {
+        await AsyncStorage.setItem(cacheStorageKey(ownerUserId), JSON.stringify(familyReadSnapshot(cache)));
+        await AsyncStorage.removeItem(queueStorageKey(ownerUserId));
+      } else await AsyncStorage.multiRemove([cacheStorageKey(ownerUserId), queueStorageKey(ownerUserId)]);
+      activeOwner.current = null; setCache(emptyCache); setLastAidsSyncAt(null); setStoredLastPeopleSyncAt(null); setHasLocalPeopleCache(false); setQueue([]); setOwnerUserId(null); setProtectedHydrated(false);
+    }
     queryClient.clear(); await mobileAuthLifecycle.login(session.token); await saveRole(accountType === 'family' ? 'displaced' : session.user.role); setAuthRole(accountType === 'family' ? 'displaced' : session.user.role); if (accountType === 'family') { const familyUser = { ...session.user, id: String(session.user.id), role: 'DISPLACED' as const }; await saveStoredFamilyUser(familyUser); setStoredFamilyUser(familyUser); } setToken(session.token); void queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() }); setManualError('');
-  }, [loginMutation, ownerUserId, queryClient, rotateIdentity]);
+  }, [authRole, cache, loginMutation, ownerUserId, queryClient, rotateIdentity]);
   const signOut = useCallback(async () => {
     rotateIdentity(); try { await logoutMutation.mutateAsync(); } catch { /* local logout must still clear credentials */ }
     await mobileAuthLifecycle.logout(); await clearRole(); await clearStoredFamilyUser(); setToken(null); setAuthRole(null); setStoredFamilyUser(null);
-    if (ownerUserId) await AsyncStorage.multiRemove([cacheStorageKey(ownerUserId), queueStorageKey(ownerUserId)]);
+    if (ownerUserId) {
+      if (authRole === 'displaced') {
+        await AsyncStorage.setItem(cacheStorageKey(ownerUserId), JSON.stringify(familyReadSnapshot(cache)));
+        await AsyncStorage.removeItem(queueStorageKey(ownerUserId));
+      } else await AsyncStorage.multiRemove([cacheStorageKey(ownerUserId), queueStorageKey(ownerUserId)]);
+    }
     activeOwner.current = null; setOwnerUserId(null); setProtectedHydrated(false); setCache(emptyCache); setLastAidsSyncAt(null); setStoredLastPeopleSyncAt(null); setHasLocalPeopleCache(false); setQueue([]); queryClient.clear();
-  }, [logoutMutation, ownerUserId, queryClient, rotateIdentity]);
+  }, [authRole, cache, logoutMutation, ownerUserId, queryClient, rotateIdentity]);
 
   const manager = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const delegate = user?.role === 'DELEGATE';

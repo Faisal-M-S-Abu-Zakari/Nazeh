@@ -19,3 +19,4 @@
 - [Playwright test formatting](playwright-test-formatting.md) — narrow browser specs use the repository's single-quote Prettier style even without a root config file.
 - [React Native Web disabled selectors](react-native-web-disabled-selectors.md) — assert `aria-disabled` for Pressable buttons; Playwright's disabled matcher targets native controls.
 - [Need lifecycle transitions](need-lifecycle-transitions.md) — keep status transitions enforced by the server, not just hidden in mobile controls.
+- [Family aid offline retention](family-aid-offline-retention.md) — retain only owner-scoped read-only family history across logout so offline return works without exposing it to another account.
