@@ -65,8 +65,8 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
 
 export function StatusPill({ text, tone = 'green' }: { text: string; tone?: 'green' | 'gold' | 'red' }) {
   const colors = useColors();
-  const backgroundColor = tone === 'green' ? colors.surfaceTint : tone === 'red' ? colors.errorSurface : colors.accent;
-  const color = tone === 'red' ? colors.destructive : tone === 'gold' ? colors.warning : colors.primary;
+  const backgroundColor = tone === 'green' ? colors.successSurface : tone === 'red' ? colors.errorSurface : colors.accent;
+  const color = tone === 'red' ? colors.destructive : tone === 'gold' ? colors.warning : colors.success;
   return <View style={[styles.pill, { backgroundColor }]}><Text style={[styles.pillText, { color }]}>{text}</Text></View>;
 }
 
@@ -86,6 +86,7 @@ export function SyncBanner({ scope = 'all' }: { scope?: 'all' | 'aids' | 'people
   const retry = scope === 'aids' ? retryAids : scope === 'people' ? retryPeople : retrySync;
   const lastSyncedAt = scope === 'aids' ? lastAidsSyncAt : lastPeopleSyncAt;
   const bad = scopedState === 'offline' || scopedState === 'error';
+  const statusColor = bad ? colors.destructive : scopedState === 'syncing' ? colors.warning : colors.success;
   return (
     <View style={styles.syncSection}>
       <Pressable
@@ -93,10 +94,10 @@ export function SyncBanner({ scope = 'all' }: { scope?: 'all' | 'aids' | 'people
         accessibilityRole="button"
         accessibilityLabel={`${scopedMessage}. اضغط لإعادة المحاولة`}
         onPress={() => void retry()}
-        style={[styles.sync, { backgroundColor: bad ? colors.errorSurface : colors.accent }]}
+        style={[styles.sync, { backgroundColor: bad ? colors.errorSurface : scopedState === 'syncing' ? colors.accent : colors.successSurface }]}
       >
-        <Text style={[styles.syncText, { color: bad ? colors.destructive : colors.primary }]}>{scopedMessage}</Text>
-        <Ionicons name={bad ? 'cloud-offline-outline' : scopedState === 'syncing' ? 'sync-outline' : 'cloud-done-outline'} size={17} color={bad ? colors.destructive : colors.primary} />
+        <Text style={[styles.syncText, { color: statusColor }]}>{scopedMessage}</Text>
+        <Ionicons name={bad ? 'cloud-offline-outline' : scopedState === 'syncing' ? 'sync-outline' : 'cloud-done-outline'} size={18} color={statusColor} />
       </Pressable>
       {scope !== 'all' ? (
         <SyncTimestamp testID={scope === 'aids' ? 'aids-last-successful-sync' : 'people-last-successful-sync'} lastSyncedAt={lastSyncedAt} />
@@ -135,8 +136,8 @@ const styles = StyleSheet.create({
   pill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   pillText: { fontFamily: fonts.bold, fontSize: 12 },
   syncSection: { gap: 5 },
-  sync: { minHeight: 38, borderRadius: 10, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  syncText: { fontFamily: fonts.bold, fontSize: 12, textAlign: 'center' },
+  sync: { minHeight: 42, borderRadius: 10, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 },
+  syncText: { fontFamily: fonts.bold, fontSize: 12, textAlign: 'right' },
   syncTimestamp: { flexShrink: 1, fontFamily: fonts.medium, fontSize: 12, textAlign: 'right' },
   freshnessNotice: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 9 },
   freshnessHeading: { flexDirection: 'row-reverse', alignItems: 'center', gap: 7 },

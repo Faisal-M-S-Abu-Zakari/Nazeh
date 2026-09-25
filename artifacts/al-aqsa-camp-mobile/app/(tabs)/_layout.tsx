@@ -1,105 +1,75 @@
-import React from 'react';
-import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
-import { useColors } from '@/hooks/useColors';
 import { Feather } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
-import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Tabs } from 'expo-router';
+import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { SymbolView } from 'expo-symbols';
+import { BlurView } from 'expo-blur';
+import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { fonts } from '@/components/ui';
+import { useColors } from '@/hooks/useColors';
 
-// IMPORTANT: iOS 26 uses NativeTabs for native tabs with liquid glass support.
-// NativeTabs intentionally does NOT use custom design tokens — liquid glass
-// is a system-level appearance provided by iOS and cannot be overridden.
-// Custom brand colors are applied only on the ClassicTabLayout path (older iOS / Android / web).
 function NativeTabLayout() {
   return (
     <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: 'house', selected: 'house.fill' }} />
-        <Label>الرئيسية</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="operations">
-        <Icon sf={{ default: 'shippingbox', selected: 'shippingbox.fill' }} />
-        <Label>المساعدات</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="people">
-        <Icon sf={{ default: 'person.2', selected: 'person.2.fill' }} />
-        <Label>السجل</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="alerts">
-        <Icon sf={{ default: 'bell', selected: 'bell.fill' }} />
-        <Label>التنبيهات</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="account">
-        <Icon sf={{ default: 'person.crop.circle', selected: 'person.crop.circle.fill' }} />
-        <Label>الحساب</Label>
-      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="index"><Icon sf={{ default: 'house', selected: 'house.fill' }} /><Label>الرئيسية</Label></NativeTabs.Trigger>
+      <NativeTabs.Trigger name="operations"><Icon sf={{ default: 'shippingbox', selected: 'shippingbox.fill' }} /><Label>المساعدات</Label></NativeTabs.Trigger>
+      <NativeTabs.Trigger name="people"><Icon sf={{ default: 'person.2', selected: 'person.2.fill' }} /><Label>السجل</Label></NativeTabs.Trigger>
+      <NativeTabs.Trigger name="alerts"><Icon sf={{ default: 'bell', selected: 'bell.fill' }} /><Label>التنبيهات</Label></NativeTabs.Trigger>
+      <NativeTabs.Trigger name="account"><Icon sf={{ default: 'person.crop.circle', selected: 'person.crop.circle.fill' }} /><Label>الحساب</Label></NativeTabs.Trigger>
     </NativeTabs>
   );
 }
 
 function ClassicTabLayout() {
   const colors = useColors();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const insets = useSafeAreaInsets();
   const isIOS = Platform.OS === 'ios';
   const isWeb = Platform.OS === 'web';
+  const isDark = useColorScheme() === 'dark';
+  const icon = (feather: keyof typeof Feather.glyphMap, symbol: string) =>
+    ({ focused, color }: { focused: boolean; color: string }) => (
+      <View style={[styles.iconSurface, focused && { backgroundColor: colors.accent }]}>
+        {isIOS ? <SymbolView name={symbol as never} tintColor={color} size={21} /> : <Feather name={feather} size={20} color={color} />}
+      </View>
+    );
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.mutedForeground,
-        headerShown: false,
-        tabBarStyle: {
-          position: 'absolute',
-          backgroundColor: isIOS ? 'transparent' : colors.background,
-          borderTopWidth: isWeb ? 1 : 0,
-          borderTopColor: colors.border,
-          elevation: 0,
-          ...(isWeb ? { height: 84 } : {}),
-        },
-        tabBarBackground: () =>
-          isIOS ? (
-            <BlurView
-              intensity={100}
-              tint={isDark ? 'dark' : 'light'}
-              style={StyleSheet.absoluteFill}
-            />
-          ) : isWeb ? (
-            <View
-              style={[
-                StyleSheet.absoluteFill,
-                { backgroundColor: colors.background },
-              ]}
-            />
-          ) : null,
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'الرئيسية',
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="house" tintColor={color} size={24} />
-            ) : (
-              <Feather name="home" size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen name="operations" options={{ title: 'المساعدات', tabBarIcon: ({ color }) => isIOS ? <SymbolView name="shippingbox" tintColor={color} size={24} /> : <Feather name="package" size={22} color={color} /> }} />
-      <Tabs.Screen name="people" options={{ title: 'السجل', tabBarIcon: ({ color }) => isIOS ? <SymbolView name="person.2" tintColor={color} size={24} /> : <Feather name="users" size={22} color={color} /> }} />
-      <Tabs.Screen name="alerts" options={{ title: 'التنبيهات', tabBarIcon: ({ color }) => isIOS ? <SymbolView name="bell" tintColor={color} size={24} /> : <Feather name="bell" size={22} color={color} /> }} />
-      <Tabs.Screen name="account" options={{ title: 'الحساب', tabBarIcon: ({ color }) => isIOS ? <SymbolView name="person.crop.circle" tintColor={color} size={24} /> : <Feather name="user" size={22} color={color} /> }} />
+    <Tabs screenOptions={{
+      headerShown: false,
+      tabBarActiveTintColor: colors.primary,
+      tabBarInactiveTintColor: colors.mutedForeground,
+      tabBarLabelStyle: styles.label,
+      tabBarItemStyle: styles.item,
+      tabBarStyle: {
+        position: 'absolute',
+        height: isWeb ? 84 : 64 + insets.bottom,
+        paddingTop: 7,
+        paddingBottom: isWeb ? 24 : Math.max(insets.bottom, 7),
+        backgroundColor: isIOS ? 'transparent' : colors.card,
+        borderTopWidth: 1,
+        borderTopColor: colors.border,
+        elevation: 0,
+      },
+      tabBarBackground: () => isIOS
+        ? <BlurView intensity={90} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+        : <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.card }]} />,
+    }}>
+      <Tabs.Screen name="index" options={{ title: 'الرئيسية', tabBarIcon: icon('home', 'house.fill') }} />
+      <Tabs.Screen name="operations" options={{ title: 'المساعدات', tabBarIcon: icon('package', 'shippingbox.fill') }} />
+      <Tabs.Screen name="people" options={{ title: 'السجل', tabBarIcon: icon('users', 'person.2.fill') }} />
+      <Tabs.Screen name="alerts" options={{ title: 'التنبيهات', tabBarIcon: icon('bell', 'bell.fill') }} />
+      <Tabs.Screen name="account" options={{ title: 'الحساب', tabBarIcon: icon('user', 'person.crop.circle.fill') }} />
     </Tabs>
   );
 }
 
+const styles = StyleSheet.create({
+  iconSurface: { width: 47, height: 29, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  item: { paddingVertical: 0 },
+  label: { fontFamily: fonts.bold, fontSize: 10, marginTop: 2 },
+});
+
 export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
-  return <ClassicTabLayout />;
+  return isLiquidGlassAvailable() ? <NativeTabLayout /> : <ClassicTabLayout />;
 }
