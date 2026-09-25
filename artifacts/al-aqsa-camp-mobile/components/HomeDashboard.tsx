@@ -37,7 +37,7 @@ function ShortcutRow({ item, index }: { item: Shortcut; index: number }) {
 function Metric({ value, label, icon, large = false }: { value: number; label: string; icon: IconName; large?: boolean }) {
   const colors = useColors();
   return (
-    <View style={[styles.metric, large && styles.metricLarge, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <View testID={`home-metric-${label}`} style={[styles.metric, large && styles.metricLarge, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <Ionicons name={icon} size={large ? 20 : 17} color={colors.primary} />
       <Text style={[styles.metricValue, large && styles.metricValueLarge, { color: colors.foreground }]}>{value.toLocaleString('ar')}</Text>
       <Text style={[styles.metricLabel, { color: colors.mutedForeground }]}>{label}</Text>
@@ -114,10 +114,10 @@ export default function HomeDashboard() {
   };
 
   return (
-    <View style={[styles.page, { backgroundColor: colors.background }]}>
+    <View testID="home-dashboard" style={[styles.page, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: Platform.OS === 'web' ? 67 : insets.top + 6, borderBottomColor: colors.border, backgroundColor: colors.card }]}>
         {signedIn ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="الإشعارات" onPress={() => router.push('/notifications' as never)} style={styles.headerAction}>
+          <Pressable testID="home-notifications" accessibilityRole="button" accessibilityLabel="الإشعارات" onPress={() => router.push('/notifications' as never)} style={styles.headerAction}>
             <Ionicons name="notifications-outline" size={23} color={colors.foreground} />
             {manager && !!dashboardQuery.data?.unreadNotifications ? <View style={[styles.notificationDot, { backgroundColor: colors.primary }]} /> : null}
           </Pressable>
@@ -148,7 +148,7 @@ export default function HomeDashboard() {
 
         {signedIn ? <SyncBanner /> : null}
         {signedIn && queuedCount > 0 ? (
-          <Pressable accessibilityRole="button" onPress={() => router.push('/account' as never)} style={[styles.queueNotice, { backgroundColor: colors.accent, borderColor: colors.border }]}>
+          <Pressable testID="home-queue-notice" accessibilityRole="button" onPress={() => router.push('/account' as never)} style={[styles.queueNotice, { backgroundColor: colors.accent, borderColor: colors.border }]}>
             <Ionicons name="chevron-back" size={16} color={colors.primary} />
             <Text style={[styles.queueText, { color: colors.foreground }]}>{queuedCount} إجراء بانتظار الإرسال · راجع قائمة المزامنة</Text>
             <Ionicons name="cloud-upload-outline" size={19} color={colors.primary} />
@@ -164,14 +164,14 @@ export default function HomeDashboard() {
         ) : null}
 
         {signedIn && shortcuts.length ? (
-          <View style={styles.block}>
+          <View testID="home-shortcuts" style={styles.block}>
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{signedInAsFamilyHead ? 'مساحتك' : 'ابدأ العمل'}</Text>
             <View style={styles.list}>{shortcuts.map((item, index) => <ShortcutRow key={item.route} item={item} index={index} />)}</View>
           </View>
         ) : null}
 
         {manager ? (
-          <View style={styles.block}>
+          <View testID="home-operations-summary" style={styles.block}>
             <View style={styles.sectionHeading}>
               <Text style={[styles.sectionHint, { color: colors.mutedForeground }]}>{syncState === 'synced' ? 'بيانات الخادم' : 'قد لا تكون الأرقام محدثة'}</Text>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>لمحة العمليات</Text>
@@ -198,7 +198,7 @@ export default function HomeDashboard() {
         ) : null}
 
         {staff && (outstandingTasks > 0 || openComplaints > 0) ? (
-          <Pressable accessibilityRole="button" onPress={() => router.push('/alerts' as never)} style={[styles.updateRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Pressable testID="home-staff-alert" accessibilityRole="button" onPress={() => router.push('/alerts' as never)} style={[styles.updateRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Ionicons name="chevron-back" size={17} color={colors.primary} />
             <View style={styles.updateCopy}>
               <Text style={[styles.shortcutTitle, { color: colors.foreground }]}>تحتاج متابعة</Text>
@@ -208,14 +208,14 @@ export default function HomeDashboard() {
           </Pressable>
         ) : null}
         {signedInAsFamilyHead && pendingNeeds > 0 ? (
-          <Pressable accessibilityRole="button" onPress={() => router.push('/family-head' as never)} style={[styles.updateRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Pressable testID="home-family-alert" accessibilityRole="button" onPress={() => router.push('/family-head' as never)} style={[styles.updateRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Ionicons name="chevron-back" size={17} color={colors.primary} />
             <Text style={[styles.shortcutTitle, { color: colors.foreground, flex: 1, textAlign: 'right' }]}>{pendingNeeds} طلبات احتياج قيد الانتظار</Text>
             <Ionicons name="document-text-outline" size={23} color={colors.primary} />
           </Pressable>
         ) : null}
 
-        {sections.length ? <View style={styles.block}>
+        {sections.length ? <View testID="home-sections" style={styles.block}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>انتقل إلى</Text>
           <View style={styles.list}>{sections.map((item, index) => <ShortcutRow key={item.route} item={item} index={index + 1} />)}</View>
         </View> : null}
