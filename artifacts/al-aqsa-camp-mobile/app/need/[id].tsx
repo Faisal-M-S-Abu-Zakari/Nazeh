@@ -175,14 +175,12 @@ export default function NeedScreen() {
             />
           )}
           {need.status === 'IN_PROGRESS' && (
-            <View style={{ marginTop: 8 }}>
-              <PrimaryButton 
-                label={updateMutation.isPending ? "جارٍ الحفظ..." : "تحديث إلى: مكتمل"} 
-                icon="checkmark-circle-outline" 
-                onPress={() => handleUpdateStatus('FULFILLED' as NeedStatus)} 
-                disabled={updateMutation.isPending}
-              />
-            </View>
+            <PrimaryButton
+              label={updateMutation.isPending ? "جارٍ الحفظ..." : "تحديث إلى: مكتمل"}
+              icon="checkmark-circle-outline"
+              onPress={() => handleUpdateStatus('FULFILLED' as NeedStatus)}
+              disabled={updateMutation.isPending}
+            />
           )}
           {(['REQUIRED', 'APPROVED', 'IN_PROGRESS'] as const).includes(need.status as 'REQUIRED' | 'APPROVED' | 'IN_PROGRESS') ? <PrimaryButton label="إلغاء الاحتياج" icon="close-circle-outline" onPress={() => handleUpdateStatus('CANCELLED')} disabled={updateMutation.isPending} /> : null}
           {canArchive ? <PrimaryButton label={archiveMutation.isPending ? 'جارٍ الأرشفة...' : 'أرشفة الاحتياج'} icon="archive-outline" disabled={archiveMutation.isPending || updateMutation.isPending} onPress={() => {
@@ -218,7 +216,7 @@ const styles = StyleSheet.create({
   familyName: { fontFamily: fonts.bold, fontSize: 18 },
   iconBox: { width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center' },
   sectionTitle: { fontFamily: fonts.bold, fontSize: 16, textAlign: 'right', marginBottom: 8 },
-  actions: { marginTop: 16 },
+  actions: { marginTop: 16, gap: 12 },
   center: { alignItems: 'center', justifyContent: 'center', padding: 20 },
   errorText: { fontFamily: fonts.bold, fontSize: 16, textAlign: 'center' },
 });
