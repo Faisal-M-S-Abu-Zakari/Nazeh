@@ -633,6 +633,36 @@ test('manager retries a failed task-list load from a direct edit link and can sa
   await context.close();
 });
 
+test('manager sees a not-found state for a missing task after a successful list load', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 400, height: 720 } });
+  await context.addInitScript(({ token }) => {
+    sessionStorage.setItem('al-aqsa-auth-token', token);
+    sessionStorage.setItem('al-aqsa-auth-role', 'MANAGER');
+  }, { token: managerToken });
+  const page = await context.newPage();
+  const missingTaskId = randomUUID();
+  const successfulTaskListResponse = page.waitForResponse((response) =>
+    response.url().includes('/api/sync/tasks') &&
+    response.request().method() === 'GET' &&
+    response.status() === 200);
+
+  await page.goto(`${expoUrl}/task-form?id=${missingTaskId}`);
+  const taskListResponse = await successfulTaskListResponse;
+  const listedTasks = await taskListResponse.json() as Array<{ id: string }>;
+  expect(Array.isArray(listedTasks)).toBe(true);
+  expect(listedTasks.some((task) => task.id === missingTaskId)).toBe(false);
+
+  await expect(page.getByTestId('task-form-not-found')).toBeVisible();
+  await expect(page.getByText('لم يتم العثور على المهمة أو تمت أرشفتها.', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('task-form-load-error')).toHaveCount(0);
+  await expect(page.getByTestId('task-form-load-retry')).toHaveCount(0);
+  await expect(page.getByTestId('task-form-scroll')).toHaveCount(0);
+  await expect(page.getByTestId('task-title')).toHaveCount(0);
+  await expect(page.getByTestId('save-task')).toHaveCount(0);
+  await expect(page.getByTestId('archive-task')).toHaveCount(0);
+  await context.close();
+});
+
 async function expectLargeTextActionsReachable(page: Page, screenTestId: string, testIds: string[]) {
   const layout = await page.getByTestId(screenTestId).evaluate((screen) => {
     const viewport = document.documentElement.clientWidth;

@@ -60,7 +60,7 @@ export default function TaskFormScreen() {
         </View>
       );
     }
-    return <View style={styles.missing}><Text allowFontScaling style={[styles.intro, { color: colors.foreground }]}>لم يتم العثور على المهمة أو تمت أرشفتها.</Text></View>;
+    return <View testID="task-form-not-found" style={styles.missing}><Text allowFontScaling style={[styles.intro, { color: colors.foreground }]}>لم يتم العثور على المهمة أو تمت أرشفتها.</Text></View>;
   }
 
   return <TaskFormEditor key={task?.id ?? 'new-task'} task={task} />;
