@@ -28,12 +28,20 @@ const aidTitle = `مساعدة التجربة ${suffix} - حملة المواد 
 const taskId = randomUUID();
 
 const directTaskId = randomUUID();
+const inactiveAssigneeTaskId = randomUUID();
 const newNeedTitle = `احتياج التجربة ${suffix}`;
 const taskTitle = `مهمة التجربة ${suffix}`;
+const inactiveAssigneeTaskTitle = `مهمة بمكلّف غير نشط ${suffix}`;
 
 const directTaskTitle = `مهمة رابط مباشر ${suffix}`;
 const directTaskDescription = `تفاصيل رابط مباشر ${suffix}`;
 const directTaskLocation = `موقع رابط مباشر ${suffix}`;
+const inactiveOfficer = {
+  id: randomUUID(),
+  email: `mobile-inactive-officer-${suffix}@example.invalid`,
+  name: `مسؤول غير نشط ${suffix}`,
+  role: 'SECURITY_OFFICER' as const,
+};
 let familyUserId: number;
 let managerId: string;
 let managerCreated = false;
@@ -231,6 +239,7 @@ test.beforeAll(async () => {
   await db.insert(staffUsers).values(staffRoles.map((role) => ({
     ...staff[role], name: `Presentation ${role}`, passwordHash,
   })));
+  await db.insert(staffUsers).values({ ...inactiveOfficer, active: false, passwordHash });
   managerToken = `presentation-${randomUUID()}`;
   await db.insert(sessions).values({
     userId: managerId, tokenHash: hashSessionToken(managerToken),
@@ -265,6 +274,15 @@ test.beforeAll(async () => {
     id: directTaskId, title: directTaskTitle, description: directTaskDescription,
     location: directTaskLocation, priority: 'HIGH', status: 'IN_PROGRESS', createdById: managerId,
   });
+  await db.insert(tasks).values({
+    id: inactiveAssigneeTaskId,
+    title: inactiveAssigneeTaskTitle,
+    description: 'مهمة لاختبار استبدال المسؤول غير النشط',
+    location: 'المخيم',
+    status: 'PENDING',
+    assignedToId: inactiveOfficer.id,
+    createdById: managerId,
+  });
 });
 
 test.afterAll(async () => {
@@ -275,6 +293,11 @@ test.afterAll(async () => {
   await db.delete(familyNeedsTable).where(eq(familyNeedsTable.familyId, familyId));
   await db.delete(familiesTable).where(eq(familiesTable.id, familyId));
   await db.delete(tasks).where(eq(tasks.id, taskId));
+  await db.delete(syncAuditEvents).where(and(
+    eq(syncAuditEvents.entityType, 'TASK'),
+    eq(syncAuditEvents.entityId, inactiveAssigneeTaskId),
+  ));
+  await db.delete(tasks).where(eq(tasks.id, inactiveAssigneeTaskId));
   await db.delete(syncAuditEvents).where(and(
     eq(syncAuditEvents.entityType, 'TASK'),
     eq(syncAuditEvents.entityId, directTaskId),
@@ -291,6 +314,8 @@ test.afterAll(async () => {
     await db.delete(sessions).where(eq(sessions.userId, staff[role].id));
     await db.delete(staffUsers).where(eq(staffUsers.id, staff[role].id));
   }
+  await db.delete(sessions).where(eq(sessions.userId, inactiveOfficer.id));
+  await db.delete(staffUsers).where(eq(staffUsers.id, inactiveOfficer.id));
   await db.delete(sessions).where(eq(sessions.tokenHash, hashSessionToken(managerToken)));
   if (managerCreated) await db.delete(staffUsers).where(eq(staffUsers.id, managerId));
 });
@@ -660,6 +685,32 @@ test('manager retries a failed task-list load from a direct edit link and can sa
     assignedToId: staff.SECURITY_MEMBER.id,
   });
   await context.close();
+});
+
+test('manager can replace an inactive current assignee from the mobile task form', async ({ browser }) => {
+  const manager = await openSession(browser, 'MANAGER', { width: 375, height: 812 });
+  await manager.page.goto(`${expoUrl}/task-form?id=${inactiveAssigneeTaskId}`);
+
+  const inactiveAssignee = manager.page.getByTestId('task-assignee-current-inactive');
+  await expect(inactiveAssignee).toContainText(inactiveOfficer.name);
+  await expect(inactiveAssignee).toContainText('غير نشط');
+  await expect(manager.page.getByTestId(`task-assignee-${inactiveOfficer.id}`)).toHaveCount(0);
+
+  const replacementAssignee = manager.page.getByTestId(`task-assignee-${staff.SECURITY_MEMBER.id}`);
+  await expect(replacementAssignee).toBeVisible();
+  await replacementAssignee.click();
+  await expect(inactiveAssignee).toContainText(inactiveOfficer.name);
+
+  const saveResponse = manager.page.waitForResponse((response) =>
+    response.url().includes(`/api/sync/tasks/${inactiveAssigneeTaskId}`) &&
+    response.request().method() === 'PATCH');
+  await manager.page.getByTestId('save-task').click();
+  expect((await saveResponse).ok()).toBe(true);
+  await expect.poll(async () => (await db.select({
+    assignedToId: tasks.assignedToId,
+  }).from(tasks).where(eq(tasks.id, inactiveAssigneeTaskId)))[0]?.assignedToId)
+    .toBe(staff.SECURITY_MEMBER.id);
+  await manager.context.close();
 });
 
 test('manager sees a not-found state for a missing task after a successful list load', async ({ browser }) => {

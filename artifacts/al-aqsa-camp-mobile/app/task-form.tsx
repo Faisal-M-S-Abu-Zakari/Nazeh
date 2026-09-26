@@ -90,6 +90,9 @@ function TaskFormEditor({ task }: { task?: Task }) {
   const [status, setStatus] = useState(task?.status ?? TaskStatus.PENDING);
   const [dueAt, setDueAt] = useState(task?.dueAt?.slice(0, 10) ?? '');
   const [assignedToId, setAssignedToId] = useState<string | null>(task?.assignedToId ?? null);
+  const currentInactiveAssignee = (officersQuery.data ?? []).find(
+    (officer) => officer.id === task?.assignedToId && !officer.active,
+  );
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [taskEditConflict, setTaskEditConflict] = useState<TaskEditConflict | null>(null);
@@ -385,6 +388,13 @@ function TaskFormEditor({ task }: { task?: Task }) {
         <Pressable testID="task-assignee-none" disabled={busy || refreshingTaskConflict} onPress={() => { setAssignedToId(null); resetTaskEditReview(); }} style={[styles.option, { backgroundColor: assignedToId === null ? colors.primary : colors.muted }]}><Text allowFontScaling style={[styles.optionText, { color: assignedToId === null ? colors.primaryForeground : colors.foreground }]}>غير مكلّف</Text></Pressable>
         {(officersQuery.data ?? []).filter((officer) => officer.active).map((officer) => <Pressable testID={`task-assignee-${officer.id}`} key={officer.id} disabled={busy || refreshingTaskConflict} onPress={() => { setAssignedToId(officer.id); resetTaskEditReview(); }} style={[styles.option, { backgroundColor: assignedToId === officer.id ? colors.primary : colors.muted }]}><Text allowFontScaling style={[styles.optionText, { color: assignedToId === officer.id ? colors.primaryForeground : colors.foreground }]}>{officer.name}</Text></Pressable>)}
       </View>
+      {currentInactiveAssignee ? (
+        <View testID="task-assignee-current-inactive" style={[styles.inactiveAssignee, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+          <Text allowFontScaling style={[styles.helper, { color: colors.foreground }]}>
+            المكلّف المسجّل حاليًا: {currentInactiveAssignee.name} (غير نشط). اختر مكلّفًا نشطًا أدناه أو حدّد «غير مكلّف».
+          </Text>
+        </View>
+      ) : null}
       {officersQuery.isLoading ? <Text allowFontScaling style={[styles.helper, { color: colors.mutedForeground }]}>جارٍ تحميل مسؤولي الأمن…</Text> : null}
       {officersQuery.isError ? (
         <View testID="task-assignees-load-error" accessibilityRole="alert" style={[styles.saveError, { backgroundColor: colors.errorSurface, borderColor: colors.destructive }]}>
@@ -501,6 +511,7 @@ const styles = StyleSheet.create({
   content: { padding: 22, gap: 16 }, intro: { fontFamily: fonts.regular, textAlign: 'right' },
   label: { fontFamily: fonts.bold, textAlign: 'right' }, options: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 7 },
   option: { paddingHorizontal: 11, paddingVertical: 9, borderRadius: 10 }, optionText: { fontFamily: fonts.bold },
+  inactiveAssignee: { borderWidth: 1, borderRadius: 10, padding: 10 },
   helper: { fontFamily: fonts.regular, textAlign: 'right', marginTop: -8 },
   archive: { minHeight: 48, borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, archiveText: { fontFamily: fonts.bold },
   saveError: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 10 },
