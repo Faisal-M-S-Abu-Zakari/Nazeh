@@ -24,8 +24,14 @@ export function getMutationErrorMessage(error: unknown): string {
   if (code === 'PERMISSION_DENIED' || status === 401 || status === 403) {
     return 'لا تملك الصلاحية لتنفيذ هذا الإجراء.';
   }
-  if (code === 'AID_NOT_FOUND' || status === 404) {
+  if (code === 'AID_NOT_FOUND') {
     return 'لم تعد الحملة متاحة. حدّث القائمة ثم حاول مرة أخرى.';
+  }
+  if (status === 404) {
+    return 'لم يعد السجل متاحاً. حدّث القائمة ثم حاول مرة أخرى.';
+  }
+  if (status === 409) {
+    return 'تغيّر السجل من مستخدم آخر. راجع أحدث البيانات ثم حاول مرة أخرى.';
   }
   if (status === 400) {
     return 'تعذر حفظ التغيير. راجع البيانات وحاول مرة أخرى.';

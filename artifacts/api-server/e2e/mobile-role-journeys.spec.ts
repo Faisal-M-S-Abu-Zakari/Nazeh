@@ -326,31 +326,66 @@ test('Expo web: security member submits a result and manager approves it at 375p
   await member.page.getByText('تقديم نتيجة المهمة', { exact: true }).waitFor();
   await expect(member.page.getByTestId('archive-task')).toHaveCount(0);
   await expect(member.page.getByTestId('save-task')).toHaveCount(0);
-  await member.page.getByTestId('task-result-input').fill('اكتملت الجولة الأمنية');
+  const submittedResult = 'اكتملت الجولة الأمنية';
+  await member.page.getByTestId('task-result-input').fill(submittedResult);
+  let submitAttempts = 0;
+  await member.page.route(`**/api/sync/tasks/${taskId}/submit`, async (route) => {
+    submitAttempts++;
+    if (submitAttempts === 1) {
+      await route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"offline"}' });
+      return;
+    }
+    await route.fallback();
+  });
+  await member.page.getByTestId('submit-task-result').click();
+  await expect(member.page.getByRole('alert')).toBeVisible();
+  await expect(member.page.getByTestId('task-result-error-message')).toHaveText('تعذر الاتصال بالخادم. لم تُحفظ البيانات؛ حاول مرة أخرى.');
+  await expect(member.page.getByTestId('task-result-input')).toHaveValue(submittedResult);
+  await expect.poll(async () => (await db.select({ result: tasks.result }).from(tasks).where(eq(tasks.id, taskId)))[0]?.result).toBeNull();
   await expectTaskFormReadableAtLargeText(member.page, [
     'تقديم نتيجة المهمة',
     'النتيجة',
+    'تعذر الاتصال بالخادم. لم تُحفظ البيانات؛ حاول مرة أخرى.',
   ], [
     'task-result-input',
-    'submit-task-result',
-  ], ['تقديم']);
-  await member.page.getByTestId('submit-task-result').click();
-  await expect.poll(async () => (await db.select({ result: tasks.result }).from(tasks).where(eq(tasks.id, taskId)))[0]?.result).toBe('اكتملت الجولة الأمنية');
+    'task-result-error-retry',
+  ], ['تقديم', 'إعادة المحاولة']);
+  await member.page.getByTestId('task-result-error-retry').click();
+  await expect.poll(async () => (await db.select({ result: tasks.result }).from(tasks).where(eq(tasks.id, taskId)))[0]?.result).toBe(submittedResult);
+  expect(submitAttempts).toBe(2);
   await member.context.close();
 
   const manager = await openSession(browser, 'MANAGER', { width: 375, height: 812 });
   await manager.page.goto(`${expoUrl}/task-form?id=${taskId}`);
   await expect(manager.page.getByText('اعتماد نتيجة المهمة', { exact: true })).toBeVisible();
+  const approvalNote = 'تم فحص الموقع بعد التسليم';
+  await manager.page.getByTestId('task-approval-note').fill(approvalNote);
+  let approvalAttempts = 0;
+  await manager.page.route(`**/api/sync/tasks/${taskId}/approve`, async (route) => {
+    approvalAttempts++;
+    if (approvalAttempts === 1) {
+      await route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"offline"}' });
+      return;
+    }
+    await route.fallback();
+  });
+  await manager.page.getByTestId('approve-task-result').click();
+  await expect(manager.page.getByRole('alert')).toBeVisible();
+  await expect(manager.page.getByTestId('task-approval-error-message')).toHaveText('تعذر الاتصال بالخادم. لم تُحفظ البيانات؛ حاول مرة أخرى.');
+  await expect(manager.page.getByTestId('task-approval-note')).toHaveValue(approvalNote);
+  await expect.poll(async () => (await db.select({ approvedAt: tasks.approvedAt }).from(tasks).where(eq(tasks.id, taskId)))[0]?.approvedAt).toBeNull();
   await expectTaskFormReadableAtLargeText(manager.page, [
     'اعتماد نتيجة المهمة',
-    `النتيجة المقدمة: اكتملت الجولة الأمنية`,
+    `النتيجة المقدمة: ${submittedResult}`,
     'ملاحظة الاعتماد (اختياري)',
+    'تعذر الاتصال بالخادم. لم تُحفظ البيانات؛ حاول مرة أخرى.',
   ], [
     'task-approval-note',
-    'approve-task-result',
-  ], ['اعتماد المهمة']);
-  await manager.page.getByTestId('approve-task-result').click();
+    'task-approval-error-retry',
+  ], ['اعتماد المهمة', 'إعادة المحاولة']);
+  await manager.page.getByTestId('task-approval-error-retry').click();
   await expect.poll(async () => (await db.select({ approvedAt: tasks.approvedAt }).from(tasks).where(eq(tasks.id, taskId)))[0]?.approvedAt).not.toBeNull();
+  expect(approvalAttempts).toBe(2);
   await manager.context.close();
 });
 

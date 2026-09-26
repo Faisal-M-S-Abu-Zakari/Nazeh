@@ -40,6 +40,10 @@ export default function TaskFormScreen() {
   const [assignedToId, setAssignedToId] = useState<string | null>(task?.assignedToId ?? null);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [taskActionError, setTaskActionError] = useState<{
+    action: 'result' | 'approval';
+    message: string;
+  } | null>(null);
 
   const [resultText, setResultText] = useState(task?.result ?? '');
   const [approvalNote, setApprovalNote] = useState('');
@@ -60,11 +64,12 @@ export default function TaskFormScreen() {
   const submitResult = async () => {
     if (!task || !canSubmitResult || !resultText.trim() || resultInFlight.current) return;
     resultInFlight.current = true;
-    setSaveError(null);
+    setTaskActionError(null);
     try {
       await submitResultMutation.mutateAsync({ taskId: task.id, data: { result: resultText.trim(), expectedVersion: task.version } });
       await refresh();
     } catch (error) {
+      setTaskActionError({ action: 'result', message: getMutationErrorMessage(error) });
       await showMutationError(error, refresh);
     } finally {
       resultInFlight.current = false;
@@ -73,11 +78,12 @@ export default function TaskFormScreen() {
   const approveResult = async () => {
     if (!task || !canApproveResult || approvalInFlight.current) return;
     approvalInFlight.current = true;
-    setSaveError(null);
+    setTaskActionError(null);
     try {
       await approveMutation.mutateAsync({ taskId: task.id, data: { note: approvalNote.trim() || undefined, expectedVersion: task.version } });
       await refresh();
     } catch (error) {
+      setTaskActionError({ action: 'approval', message: getMutationErrorMessage(error) });
       await showMutationError(error, refresh);
     } finally {
       approvalInFlight.current = false;
@@ -124,6 +130,17 @@ export default function TaskFormScreen() {
       archiveInFlight.current = false;
     }
   };
+  const renderTaskActionError = (
+    action: 'result' | 'approval',
+    testIDPrefix: string,
+    retry: () => void,
+    pending: boolean,
+  ) => taskActionError?.action === action ? (
+    <View testID={`${testIDPrefix}-error`} accessibilityRole="alert" style={[styles.saveError, { backgroundColor: colors.errorSurface, borderColor: colors.destructive }]}>
+      <Text testID={`${testIDPrefix}-error-message`} style={[styles.saveErrorMessage, { color: colors.foreground }]}>{taskActionError.message}</Text>
+      <PrimaryButton testID={`${testIDPrefix}-error-retry`} label="إعادة المحاولة" icon="refresh" disabled={pending} onPress={() => retry()} />
+    </View>
+  ) : null;
   const busy = saving || creating || updateMutation.isPending || archiveMutation.isPending;
   const valid = title.trim().length >= 2 && description.trim().length > 0 && location.trim().length >= 2 && (!dueAt.trim() || !Number.isNaN(new Date(dueAt).getTime()));
 
@@ -174,6 +191,7 @@ export default function TaskFormScreen() {
             disabled={!resultText.trim() || submitResultMutation.isPending || resultInFlight.current}
             onPress={() => void submitResult()}
           />
+          {renderTaskActionError('result', 'task-result', submitResult, submitResultMutation.isPending || resultInFlight.current)}
         </View>
       )}
 
@@ -189,6 +207,7 @@ export default function TaskFormScreen() {
             disabled={approveMutation.isPending || approvalInFlight.current}
             onPress={() => void approveResult()}
           />
+          {renderTaskActionError('approval', 'task-approval', approveResult, approveMutation.isPending || approvalInFlight.current)}
         </View>
       )}
 

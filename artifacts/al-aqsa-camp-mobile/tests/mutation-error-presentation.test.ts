@@ -25,6 +25,22 @@ test('staff record forms show a safe inline save error with a retry action', () 
   }
 });
 
+test('task result submission and approval show separate inline errors with retries', () => {
+  const screen = source('app/task-form.tsx');
+
+  for (const [action, testIDPrefix] of [
+    ['result', 'task-result'],
+    ['approval', 'task-approval'],
+  ] as const) {
+    assert.match(
+      screen,
+      new RegExp(`setTaskActionError\\(\\{ action: '${action}', message: getMutationErrorMessage\\(error\\) \\}\\)`),
+    );
+    assert.match(screen, new RegExp(`renderTaskActionError\\('${action}', '${testIDPrefix}'`));
+    assert.match(screen, /testID=\{`\$\{testIDPrefix\}-error-retry`\}/);
+  }
+});
+
 test('inline save errors stay safe and readable in narrow mobile layouts', () => {
   for (const [path] of screens) {
     const screen = source(`app/${path}`);
