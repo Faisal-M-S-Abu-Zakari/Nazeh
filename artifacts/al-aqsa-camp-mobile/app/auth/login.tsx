@@ -9,6 +9,7 @@ import { getErrorStatus } from '@/lib/mutationErrors';
 
 const logoSource = require('@/assets/images/nazeh-phoenix-logo.png');
 
+const CONNECTION_LOGIN_ERROR = 'تعذر تسجيل الدخول. تحقق من الاتصال وحاول مجدداً.';
 export default function LoginScreen() {
   const colors = useColors();
   const { signIn } = useApp();
@@ -30,7 +31,7 @@ export default function LoginScreen() {
       await signIn(email.trim(), password, accountType);
       router.replace('/');
     } catch (cause) {
-      const message = getErrorStatus(cause) === 401 ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' : 'تعذر تسجيل الدخول. تحقق من الاتصال وحاول مجدداً.';
+      const message = getErrorStatus(cause) === 401 ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' : CONNECTION_LOGIN_ERROR;
       setError(message);
     } finally { setSubmitting(false); }
   };

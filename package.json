@@ -22,7 +22,9 @@
     "test:task186:native-auth:ios": "bash artifacts/api-server/e2e/run-mobile-native-auth-large-text.sh ios",
     "test:task186:native-auth:android": "bash artifacts/api-server/e2e/run-mobile-native-auth-large-text.sh android",
     "test:task193:native-auth:ios": "bash artifacts/api-server/e2e/run-mobile-native-auth-large-text.sh ios",
-    "test:task193:native-auth:android": "bash artifacts/api-server/e2e/run-mobile-native-auth-large-text.sh android"
+    "test:task193:native-auth:android": "bash artifacts/api-server/e2e/run-mobile-native-auth-large-text.sh android",
+    "test:task194:native-auth:ios": "MAESTRO_FLOW=mobile-native-auth-connection-failure.yaml bash artifacts/api-server/e2e/run-mobile-native-auth-large-text.sh ios",
+    "test:task194:native-auth:android": "MAESTRO_FLOW=mobile-native-auth-connection-failure.yaml bash artifacts/api-server/e2e/run-mobile-native-auth-large-text.sh android"
   },
   "private": true,
   "dependencies": {

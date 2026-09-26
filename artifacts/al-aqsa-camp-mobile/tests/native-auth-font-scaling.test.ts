@@ -43,7 +43,7 @@ test('recovery and credential screens preserve native font scaling and vertical 
   assert.match(login, /AccessibilityInfo\.announceForAccessibility\(error\)/);
   assert.match(login, /Platform\.OS === 'ios'/);
   assert.match(login, /getErrorStatus\(cause\) === 401 \? 'البريد الإلكتروني أو كلمة المرور غير صحيحة\.'/);
-  assert.match(login, /: 'تعذر تسجيل الدخول\. تحقق من الاتصال وحاول مجدداً\.'/);
+  assert.match(login, /: CONNECTION_LOGIN_ERROR/);
   assert.doesNotMatch(login, /cause\.message/);
   assert.match(login, /testID="forgot-password-link" accessibilityRole="button" accessibilityLabel="نسيت كلمة المرور؟"/);
   assert.match(login, /testID="complete-invite-link" accessibilityRole="button" accessibilityLabel="لديّ رمز دعوة أو استعادة"/);
@@ -54,6 +54,7 @@ test('recovery and credential screens preserve native font scaling and vertical 
 
 test('native large-text flow covers rejected sign-in feedback and recovery actions', () => {
   const flow = source('../api-server/e2e/mobile-native-auth-large-text.yaml');
+
   const login = source('app/auth/login.tsx');
 
   for (const testId of [
@@ -126,4 +127,27 @@ test('native large-text flow checks reset fields, labels, focus, and save access
 
   assert.match(flow, /id: credential-submit[\s\S]*?enabled: true/);
   assert.doesNotMatch(flow, /tapOn:\s*\n\s+id: credential-submit/);
+});
+
+test('native connection failures are announced safely and leave sign-in retryable', () => {
+  const login = source('app/auth/login.tsx');
+  const flow = source('../api-server/e2e/mobile-native-auth-connection-failure.yaml');
+  const connectionMessage = 'تعذر تسجيل الدخول. تحقق من الاتصال وحاول مجدداً.';
+  const failureHandler = login.match(/catch \(cause\) \{([\s\S]*?)\n    \} finally/)?.[1];
+
+  assert.ok(failureHandler, 'expected sign-in failures to have a dedicated catch path');
+  assert.ok(login.includes(`const CONNECTION_LOGIN_ERROR = '${connectionMessage}'`));
+  assert.match(failureHandler, /CONNECTION_LOGIN_ERROR/);
+  assert.doesNotMatch(failureHandler, /setError\((?:cause|error)(?:\.message)?\)|setError\(\$\{/);
+  assert.match(login, /if \(error && Platform\.OS === 'ios'\) AccessibilityInfo\.announceForAccessibility\(error\)/);
+  assert.match(login, /testID="login-error" allowFontScaling accessibilityRole="alert" accessibilityLiveRegion="assertive"/);
+  assert.match(login, /finally \{ setSubmitting\(false\); \}/);
+  assert.match(login, /<PrimaryButton testID="login-submit" label=\{submitting \? 'جارٍ الدخول…' : 'دخول'\} icon="arrow-back" disabled=\{submitting\}/);
+
+  assert.ok(flow.includes(connectionMessage), 'native flow must check the connection-failure message');
+  assert.match(flow, /id: login-submit\n    text: "دخول"\n    enabled: true/);
+  assert.match(flow, /assertNotVisible: "Network request failed"/);
+  assert.match(flow, /assertNotVisible: "ECONNREFUSED"/);
+  assert.match(flow, /assertNotVisible: "TypeError"/);
+  assert.match(flow, /assertNotVisible: "fetch failed"/);
 });

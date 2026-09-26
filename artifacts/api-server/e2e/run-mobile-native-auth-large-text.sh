@@ -3,7 +3,13 @@ set -euo pipefail
 
 platform="${1:-}"
 device_id="${MAESTRO_DEVICE_ID:-}"
-flow="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/mobile-native-auth-large-text.yaml"
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+flow_name="${MAESTRO_FLOW:-mobile-native-auth-large-text.yaml}"
+if [[ "$flow_name" = /* ]]; then
+  flow="$flow_name"
+else
+  flow="$script_dir/$flow_name"
+fi
 
 if [[ -z "$device_id" ]]; then
   echo "Set MAESTRO_DEVICE_ID to the connected simulator or device identifier." >&2

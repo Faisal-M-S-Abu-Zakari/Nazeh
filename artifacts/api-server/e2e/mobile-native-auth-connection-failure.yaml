@@ -1,0 +1,53 @@
+appId: com.alaqsacamp.mobile
+---
+- launchApp
+- tapOn:
+    id: home-login
+- assertVisible: "مرحباً بعودتك"
+
+- scrollUntilVisible:
+    element:
+      id: login-email
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: login-email
+- inputText: "network-test@example.invalid"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: login-password
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: login-password
+- inputText: "not-a-real-password"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: login-submit
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: login-submit
+- assertVisible:
+    id: login-error
+    text: "تعذر تسجيل الدخول. تحقق من الاتصال وحاول مجدداً."
+- assertVisible:
+    id: login-submit
+    text: "دخول"
+    enabled: true
+
+- assertNotVisible: "Network request failed"
+- assertNotVisible: "ECONNREFUSED"
+- assertNotVisible: "TypeError"
+- assertNotVisible: "fetch failed"
+- tapOn:
+    id: login-submit
+- assertVisible:
+    id: login-error
+    text: "تعذر تسجيل الدخول. تحقق من الاتصال وحاول مجدداً."
+- assertVisible:
+    id: login-submit
+    text: "دخول"
+    enabled: true
