@@ -588,9 +588,22 @@ test('manager retries a failed task-list load from a direct edit link and can sa
     }
     await route.fallback();
   });
+  let officerListRequests = 0;
+  await page.route('**/api/sync/security-members', async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    officerListRequests++;
+    if (officerListRequests === 1) {
+      await route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"temporary"}' });
+      return;
+    }
+    await route.fallback();
+  });
 
   const failedTaskListResponse = page.waitForResponse((response) =>
     response.url().includes('/api/sync/tasks') && response.request().method() === 'GET' && response.status() === 503);
+  const failedOfficerListResponse = page.waitForResponse((response) =>
+    response.url().includes('/api/sync/security-members') &&
+    response.request().method() === 'GET' && response.status() === 503);
   await page.goto(`${expoUrl}/task-form?id=${directTaskId}`);
   await failedTaskListResponse;
   await expect(page.getByTestId('task-form-load-error')).toBeVisible();
@@ -602,6 +615,22 @@ test('manager retries a failed task-list load from a direct edit link and can sa
   await expect(page.getByTestId('task-title')).toHaveValue(directTaskTitle);
   await expect(page.getByTestId('task-description')).toHaveValue(directTaskDescription);
   await expect(page.getByTestId('task-location')).toHaveValue(directTaskLocation);
+  const savedDirectTaskTitle = `مهمة محفوظة من الرابط ${suffix}`;
+  const draftDescription = `تفاصيل المسودة ${suffix}`;
+  const draftLocation = `موقع المسودة ${suffix}`;
+  await page.getByTestId('task-title').fill(savedDirectTaskTitle);
+  await page.getByTestId('task-description').fill(draftDescription);
+  await page.getByTestId('task-location').fill(draftLocation);
+  await failedOfficerListResponse;
+  await expect(page.getByTestId('task-assignees-load-error')).toBeVisible();
+  await expect(page.getByTestId('task-assignees-load-retry')).toBeVisible();
+  await page.getByTestId('task-assignees-load-retry').click();
+  await expect(page.getByTestId(`task-assignee-${staff.SECURITY_MEMBER.id}`)).toBeVisible();
+  await expect(page.getByTestId('task-title')).toHaveValue(savedDirectTaskTitle);
+  await expect(page.getByTestId('task-description')).toHaveValue(draftDescription);
+  await expect(page.getByTestId('task-location')).toHaveValue(draftLocation);
+  await page.getByTestId(`task-assignee-${staff.SECURITY_MEMBER.id}`).click();
+  expect(officerListRequests).toBe(2);
   const inProgressColor = await page.getByTestId('task-status-IN_PROGRESS')
     .evaluate((element) => getComputedStyle(element).backgroundColor);
   const pendingColor = await page.getByTestId('task-status-PENDING')
@@ -612,8 +641,6 @@ test('manager retries a failed task-list load from a direct edit link and can sa
   expect(pendingColor).not.toBe(highPriorityColor);
   expect(taskListRequests).toBe(2);
 
-  const savedDirectTaskTitle = `مهمة محفوظة من الرابط ${suffix}`;
-  await page.getByTestId('task-title').fill(savedDirectTaskTitle);
   const saveResponse = page.waitForResponse((response) =>
     response.url().includes(`/api/sync/tasks/${directTaskId}`) &&
     response.request().method() === 'PATCH');
@@ -624,11 +651,13 @@ test('manager retries a failed task-list load from a direct edit link and can sa
     description: tasks.description,
     location: tasks.location,
     status: tasks.status,
+    assignedToId: tasks.assignedToId,
   }).from(tasks).where(eq(tasks.id, directTaskId)))[0]).toMatchObject({
     title: savedDirectTaskTitle,
-    description: directTaskDescription,
-    location: directTaskLocation,
+    description: draftDescription,
+    location: draftLocation,
     status: 'IN_PROGRESS',
+    assignedToId: staff.SECURITY_MEMBER.id,
   });
   await context.close();
 });

@@ -74,7 +74,9 @@ function TaskFormEditor({ task }: { task?: Task }) {
   const canManageTaskRecords = user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'SECURITY_OFFICER';
   const updateMutation = useUpdateTaskStatus();
   const archiveMutation = useArchiveSyncTask();
-  const officersQuery = useListSecurityMembers({ query: { queryKey: getListSecurityMembersQueryKey(), enabled: canManageTaskRecords } });
+  const officersQuery = useListSecurityMembers({
+    query: { queryKey: getListSecurityMembersQueryKey(), enabled: canManageTaskRecords, retry: false },
+  });
   const saveInFlight = useRef(false);
   const archiveInFlight = useRef(false);
   const resultInFlight = useRef(false);
@@ -384,7 +386,18 @@ function TaskFormEditor({ task }: { task?: Task }) {
         {(officersQuery.data ?? []).filter((officer) => officer.active).map((officer) => <Pressable testID={`task-assignee-${officer.id}`} key={officer.id} disabled={busy || refreshingTaskConflict} onPress={() => { setAssignedToId(officer.id); resetTaskEditReview(); }} style={[styles.option, { backgroundColor: assignedToId === officer.id ? colors.primary : colors.muted }]}><Text allowFontScaling style={[styles.optionText, { color: assignedToId === officer.id ? colors.primaryForeground : colors.foreground }]}>{officer.name}</Text></Pressable>)}
       </View>
       {officersQuery.isLoading ? <Text allowFontScaling style={[styles.helper, { color: colors.mutedForeground }]}>جارٍ تحميل مسؤولي الأمن…</Text> : null}
-      {officersQuery.isError ? <Text allowFontScaling style={[styles.helper, { color: colors.destructive }]}>تعذر تحميل قائمة مسؤولي الأمن.</Text> : null}
+      {officersQuery.isError ? (
+        <View testID="task-assignees-load-error" accessibilityRole="alert" style={[styles.saveError, { backgroundColor: colors.errorSurface, borderColor: colors.destructive }]}>
+          <Text allowFontScaling style={[styles.saveErrorMessage, { color: colors.foreground }]}>تعذر تحميل قائمة مسؤولي الأمن.</Text>
+          <PrimaryButton
+            testID="task-assignees-load-retry"
+            label={officersQuery.isFetching ? 'جارٍ إعادة تحميل القائمة…' : 'إعادة تحميل القائمة'}
+            icon="refresh"
+            disabled={officersQuery.isFetching}
+            onPress={() => void officersQuery.refetch()}
+          />
+        </View>
+      ) : null}
       {task ? <>
         <Text allowFontScaling style={[styles.label, { color: colors.foreground }]}>الحالة</Text>
         <View style={styles.options}>{statuses.map(([value, label]) => <Pressable testID={`task-status-${value}`} key={value} disabled={busy || refreshingTaskConflict} onPress={() => { setStatus(value); resetTaskEditReview(); }} style={[styles.option, { backgroundColor: status === value ? colors.primary : colors.muted }]}><Text allowFontScaling style={[styles.optionText, { color: status === value ? colors.primaryForeground : colors.foreground }]}>{label}</Text></Pressable>)}</View>
