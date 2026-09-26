@@ -39,3 +39,36 @@ test('recovery and credential screens preserve native font scaling and vertical 
   assert.match(ui, /<Text allowFontScaling style=\{\[styles\.buttonText/);
   assert.match(ui, /allowFontScaling\s+accessibilityLabel=\{props\.accessibilityLabel \?\? label\}/);
 });
+
+test('native large-text flow keeps the sign-in controls and recovery actions covered', () => {
+  const flow = source('../api-server/e2e/mobile-native-auth-large-text.yaml');
+
+  for (const testId of [
+    'login-account-family',
+    'login-account-staff',
+    'login-email',
+    'login-password',
+    'login-submit',
+    'forgot-password-link',
+    'complete-invite-link',
+  ]) {
+    assert.ok(flow.includes(testId), `native sign-in flow is missing ${testId}`);
+  }
+
+  for (const label of [
+    'رب الأسرة',
+    'فريق المخيم',
+    'البريد الإلكتروني',
+    'كلمة المرور',
+    'دخول',
+    'نسيت كلمة المرور؟',
+    'لديّ رمز دعوة أو استعادة',
+  ]) {
+    assert.ok(flow.includes(label), `native sign-in flow is missing the label ${label}`);
+  }
+
+  assert.match(flow, /selected: true/);
+  assert.match(flow, /focused: true/);
+  assert.match(flow, /استعادة الوصول/);
+  assert.match(flow, /تعيين كلمة المرور/);
+});

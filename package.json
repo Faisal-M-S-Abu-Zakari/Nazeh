@@ -18,7 +18,9 @@
     "test:task162:browser": "playwright test --config playwright.task162.config.ts",
     "test:task163:browser": "playwright test --config playwright.task163.config.ts",
     "test:workspace-failures:browser": "playwright test --config playwright.workspace-failures.config.ts",
-    "test:task60:browser": "playwright test --config playwright.task60.config.ts"
+    "test:task60:browser": "playwright test --config playwright.task60.config.ts",
+    "test:task186:native-auth:ios": "bash artifacts/api-server/e2e/run-mobile-native-auth-large-text.sh ios",
+    "test:task186:native-auth:android": "bash artifacts/api-server/e2e/run-mobile-native-auth-large-text.sh android"
   },
   "private": true,
   "dependencies": {

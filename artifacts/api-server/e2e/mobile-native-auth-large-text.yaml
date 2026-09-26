@@ -1,0 +1,100 @@
+appId: com.alaqsacamp.mobile
+---
+- launchApp
+- tapOn:
+    id: home-login
+
+- assertVisible: "مرحباً بعودتك"
+- assertVisible:
+    id: login-account-staff
+    text: "فريق المخيم"
+    selected: true
+- assertVisible:
+    id: login-account-family
+    text: "رب الأسرة"
+    selected: false
+- tapOn:
+    id: login-account-family
+- assertVisible:
+    id: login-account-family
+    text: "رب الأسرة"
+    selected: true
+- tapOn:
+    id: login-account-staff
+- assertVisible:
+    id: login-account-staff
+    text: "فريق المخيم"
+    selected: true
+
+- scrollUntilVisible:
+    element:
+      id: login-email
+    direction: DOWN
+    timeout: 10000
+- assertVisible: "البريد الإلكتروني"
+- assertVisible:
+    id: login-email
+- tapOn:
+    id: login-email
+- assertVisible:
+    id: login-email
+    focused: true
+- hideKeyboard
+
+- scrollUntilVisible:
+    element:
+      id: login-password
+    direction: DOWN
+    timeout: 10000
+- assertVisible: "كلمة المرور"
+- assertVisible:
+    id: login-password
+- tapOn:
+    id: login-password
+- assertVisible:
+    id: login-password
+    focused: true
+- hideKeyboard
+
+- scrollUntilVisible:
+    element:
+      id: login-submit
+    direction: DOWN
+    timeout: 10000
+- assertVisible:
+    id: login-submit
+    text: "دخول"
+    enabled: true
+- tapOn:
+    id: login-submit
+- assertVisible: "تحقق من البريد وكلمة المرور (8 أحرف على الأقل)."
+
+- scrollUntilVisible:
+    element:
+      id: forgot-password-link
+    direction: DOWN
+    timeout: 10000
+- assertVisible:
+    id: forgot-password-link
+    text: "نسيت كلمة المرور؟"
+- tapOn:
+    id: forgot-password-link
+- assertVisible: "استعادة الوصول"
+- assertVisible:
+    id: forgot-back-login
+    text: "العودة لتسجيل الدخول"
+- tapOn:
+    id: forgot-back-login
+- assertVisible: "مرحباً بعودتك"
+
+- scrollUntilVisible:
+    element:
+      id: complete-invite-link
+    direction: DOWN
+    timeout: 10000
+- assertVisible:
+    id: complete-invite-link
+    text: "لديّ رمز دعوة أو استعادة"
+- tapOn:
+    id: complete-invite-link
+- assertVisible: "تعيين كلمة المرور"

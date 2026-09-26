@@ -1,23 +1,49 @@
 # Native sign-in, recovery, and password-reset large-text check
 
 The Playwright checks in `mobile-home-roles.spec.ts` enlarge text in the web
-fallback. They do not emulate iOS Dynamic Type or Android's system font-size
-setting. Run this checklist on a phone with the native app or Expo Go; do not
-use the browser preview.
+fallback only. They do not emulate iOS Dynamic Type or Android's system
+font-size setting. Run the Maestro flow below on the installed native app on
+both platforms; a browser preview is not a substitute.
 
 ## Device setup
 
-Run once on iOS and once on Android using a build or Expo Go version that
-includes the current mobile app:
+Run once on iOS and once on Android using a native build that includes the
+current mobile app:
 
 - **iOS:** Open **Settings → Accessibility → Display & Text Size → Larger
   Text**, enable **Larger Accessibility Sizes**, and move the slider to its
   largest setting.
-- **Android:** Open **Settings → Display → Display size and text**, set **Font
-  size** to its largest setting, and leave display size at its default.
+- **Android:** For a manual screen-reader pass, open **Settings → Display →
+  Display size and text**, set **Font size** to its largest setting, and leave
+  display size at its default. The automated command sets font scale to `2.0`.
 
 Use a narrow supported phone and restart the app after changing the setting.
-Enable VoiceOver or TalkBack for the accessibility-name checks.
+
+## Repeatable native flow
+
+Install Maestro CLI and connect one target device at a time. Sign out before
+starting. The flow does not clear app data or submit real credentials. Find the
+device identifier with `maestro list-devices`, then run:
+
+```sh
+MAESTRO_DEVICE_ID=<device-id> pnpm test:task186:native-auth:ios
+MAESTRO_DEVICE_ID=<device-id> pnpm test:task186:native-auth:android
+```
+
+The Android command sets the native system font scale to `2.0` for the test and
+restores the previous value even if the flow fails. On iOS, set Larger
+Accessibility Sizes to its maximum in Settings before running the command and
+leave it at maximum.
+
+The flow checks the account choices and selected state, email and password
+labels and focus, the enabled **دخول** button and its empty-form validation, and
+both recovery links. It opens the recovery guidance and reset-code route
+without submitting data or using real credentials.
+
+The flow checks the native accessibility tree and reachability. Also repeat
+with VoiceOver on iOS and TalkBack on Android, and confirm that the account
+choices (including selected state), both field labels, **دخول**, and both
+recovery links are announced correctly.
 
 ## Sign-in
 
