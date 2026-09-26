@@ -36,14 +36,20 @@ Accessibility Sizes to its maximum in Settings before running the command and
 leave it at maximum.
 
 The flow checks the account choices and selected state, email and password
-labels and focus, the enabled **دخول** button and its empty-form validation, and
-both recovery links. It opens the recovery guidance and reset-code route
-without submitting data or using real credentials.
+labels and focus, the enabled **دخول** button and its empty-form validation
+alert, and both recovery links. It opens the recovery guidance and reset-code
+route without submitting data or using real credentials. The empty-form check
+is local validation and must not send a sign-in request.
 
-The flow checks the native accessibility tree and reachability. Also repeat
-with VoiceOver on iOS and TalkBack on Android, and confirm that the account
-choices (including selected state), both field labels, **دخول**, and both
-recovery links are announced correctly.
+The flow checks the native accessibility tree and reachability, but Maestro
+cannot confirm what a screen reader speaks. Repeat the empty-form check with
+VoiceOver on iOS and TalkBack on Android. Keep the screen reader on, activate
+**دخول** once while both fields are empty, and confirm the full validation
+message is announced immediately as an alert without moving accessibility
+focus to the message. Confirm the screen stays on sign-in and no loading state
+or sign-in request occurs. Also confirm the account choices (including selected
+state), both field labels, **دخول**, and both recovery links are announced
+correctly.
 
 ## Sign-in
 
@@ -55,8 +61,10 @@ recovery links are announced correctly.
    is clipped.
 3. Scroll through the form and confirm **دخول**, **نسيت كلمة المرور؟**, and
    **لديّ رمز دعوة أو استعادة** are complete, reachable, and announced as
-   buttons. With both fields empty, activate **دخول** once and confirm the
-   validation message is announced; do not enter real credentials.
+   buttons. With both fields empty, activate **دخول** once and confirm
+   **تحقق من البريد وكلمة المرور (8 أحرف على الأقل).** is announced immediately
+   as an alert. Do not enter credentials; this local validation must not send a
+   sign-in request.
 4. Open each recovery action and return to sign-in before checking the next
    one. Confirm the destination opens and the sign-in form remains reachable.
 
@@ -83,6 +91,8 @@ recovery links are announced correctly.
 ## Record
 
 Record the OS version, device model, maximum font setting, VoiceOver/TalkBack
-result, and pass/fail result for sign-in, recovery, and password reset on each
-platform. Any clipped or missing text, inaccessible input label, obscured
-button, or button that cannot be reached is a failure.
+result, whether the empty-form validation was announced immediately, and
+whether any sign-in request or loading state occurred. Record pass/fail results
+for sign-in, recovery, and password reset on each platform. Any clipped or
+missing text, inaccessible input label, obscured button, unreachable button, or
+validation message that is only visible but not announced is a failure.

@@ -67,7 +67,9 @@ appId: com.alaqsacamp.mobile
     enabled: true
 - tapOn:
     id: login-submit
-- assertVisible: "تحقق من البريد وكلمة المرور (8 أحرف على الأقل)."
+- assertVisible:
+    id: login-error
+    text: "تحقق من البريد وكلمة المرور (8 أحرف على الأقل)."
 
 - scrollUntilVisible:
     element:

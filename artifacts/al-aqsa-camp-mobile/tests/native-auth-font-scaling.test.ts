@@ -33,6 +33,9 @@ test('recovery and credential screens preserve native font scaling and vertical 
   assert.match(login, /login-account-staff" accessibilityRole="button" accessibilityLabel="فريق المخيم" accessibilityState=\{\{ selected: accountType === 'staff' \}\}/);
   assert.match(login, /<Field testID="login-email" label="البريد الإلكتروني"/);
   assert.match(login, /<Field testID="login-password" label="كلمة المرور"/);
+  assert.match(login, /testID="login-error" allowFontScaling accessibilityRole="alert" accessibilityLiveRegion="assertive"/);
+  assert.match(login, /AccessibilityInfo\.announceForAccessibility\(error\)/);
+  assert.match(login, /Platform\.OS === 'ios'/);
   assert.match(login, /testID="forgot-password-link" accessibilityRole="button" accessibilityLabel="نسيت كلمة المرور؟"/);
   assert.match(login, /testID="complete-invite-link" accessibilityRole="button" accessibilityLabel="لديّ رمز دعوة أو استعادة"/);
   assert.match(ui, /accessibilityLabel=\{label\}/);
@@ -42,6 +45,7 @@ test('recovery and credential screens preserve native font scaling and vertical 
 
 test('native large-text flow keeps the sign-in controls and recovery actions covered', () => {
   const flow = source('../api-server/e2e/mobile-native-auth-large-text.yaml');
+  const login = source('app/auth/login.tsx');
 
   for (const testId of [
     'login-account-family',
@@ -71,4 +75,10 @@ test('native large-text flow keeps the sign-in controls and recovery actions cov
   assert.match(flow, /focused: true/);
   assert.match(flow, /استعادة الوصول/);
   assert.match(flow, /تعيين كلمة المرور/);
+  assert.match(flow, /id: login-error/);
+  assert.match(flow, /تحقق من البريد وكلمة المرور \(8 أحرف على الأقل\)\./);
+
+  const emptyCredentialGuard = login.indexOf("if (!email.includes('@') || password.length < 8) return setError");
+  const signInRequest = login.indexOf('await signIn(');
+  assert.ok(emptyCredentialGuard !== -1 && emptyCredentialGuard < signInRequest, 'empty credentials must be rejected before the sign-in request');
 });

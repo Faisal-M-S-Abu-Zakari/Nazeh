@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { AccessibilityInfo, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { Field, fonts, PrimaryButton } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
@@ -16,6 +16,11 @@ export default function LoginScreen() {
   const [accountType, setAccountType] = useState<'staff' | 'family'>('staff');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (error && Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(error);
+  }, [error]);
+
   const submit = async () => {
     if (!email.includes('@') || password.length < 8) return setError('تحقق من البريد وكلمة المرور (8 أحرف على الأقل).');
     setSubmitting(true);
@@ -39,7 +44,7 @@ export default function LoginScreen() {
       </View>
       <Field testID="login-email" label="البريد الإلكتروني" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
       <Field testID="login-password" label="كلمة المرور" value={password} onChangeText={setPassword} secureTextEntry />
-      {error ? <Text allowFontScaling accessibilityRole="alert" style={[styles.error, { color: colors.destructive }]}>{error}</Text> : null}
+      {error ? <Text testID="login-error" allowFontScaling accessibilityRole="alert" accessibilityLiveRegion="assertive" style={[styles.error, { color: colors.destructive }]}>{error}</Text> : null}
       <PrimaryButton testID="login-submit" label={submitting ? 'جارٍ الدخول…' : 'دخول'} icon="arrow-back" disabled={submitting} onPress={() => void submit()} />
       <Pressable testID="forgot-password-link" accessibilityRole="button" accessibilityLabel="نسيت كلمة المرور؟" onPress={() => router.push('/auth/forgot')}><Text allowFontScaling style={[styles.link, { color: colors.primary }]}>نسيت كلمة المرور؟</Text></Pressable>
       <Pressable testID="complete-invite-link" accessibilityRole="button" accessibilityLabel="لديّ رمز دعوة أو استعادة" onPress={() => router.push('/auth/otp')}><Text allowFontScaling style={[styles.link, { color: colors.mutedForeground }]}>لديّ رمز دعوة أو استعادة</Text></Pressable>
