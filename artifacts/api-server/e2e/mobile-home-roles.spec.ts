@@ -198,6 +198,102 @@ async function expectReadableAtLargeText(page: Page, home: ReturnType<Page['getB
   for (const tab of await tabs.all()) await tab.click({ trial: true });
 }
 
+async function expectFormReadableAtLargeText(
+  page: Page,
+  labels: string[],
+  controlTestIds: string[],
+  actionLabels: string[] = [],
+) {
+  const scaledTextCount = await page.evaluate((scale) => {
+    const textElements = new Set<HTMLElement>();
+    for (const element of Array.from(document.querySelectorAll<HTMLElement>('*'))) {
+      const box = element.getBoundingClientRect();
+      const computed = getComputedStyle(element);
+      if (box.width <= 0 || box.height <= 0 || computed.display === 'none' ||
+        computed.visibility === 'hidden' || computed.opacity === '0') continue;
+      const text = Array.from(element.childNodes)
+        .filter((node): node is Text => node.nodeType === Node.TEXT_NODE)
+        .map((node) => node.textContent?.trim() ?? '')
+        .filter(Boolean)
+        .join('');
+      if (!text || Array.from(text).every((character) => {
+        const codePoint = character.codePointAt(0) ?? 0;
+        return (codePoint >= 0xe000 && codePoint <= 0xf8ff) ||
+          (codePoint >= 0xf0000 && codePoint <= 0xffffd) ||
+          (codePoint >= 0x100000 && codePoint <= 0x10fffd);
+      })) continue;
+      textElements.add(element);
+    }
+    for (const element of textElements) {
+      const style = getComputedStyle(element);
+      const fontSize = Number.parseFloat(style.fontSize);
+      const lineHeight = Number.parseFloat(style.lineHeight);
+      if (!Number.isFinite(fontSize)) continue;
+      element.style.setProperty('font-size', `${fontSize * scale}px`, 'important');
+      element.style.setProperty(
+        'line-height',
+        `${(Number.isFinite(lineHeight) ? lineHeight : fontSize * 1.25) * scale}px`,
+        'important',
+      );
+    }
+    return textElements.size;
+  }, 1.5);
+  expect(scaledTextCount).toBeGreaterThan(0);
+
+  const pageLayout = await page.evaluate(() => ({
+    viewport: document.documentElement.clientWidth,
+    pageWidth: document.documentElement.scrollWidth,
+  }));
+  expect(pageLayout.viewport).toBe(375);
+  expect(pageLayout.pageWidth).toBeLessThanOrEqual(375);
+
+  for (const label of labels) {
+    const text = page.getByText(label, { exact: true }).filter({ visible: true }).first();
+    await expect(text, `Expected visible form label: ${label}`).toBeVisible();
+    const measurement = await text.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      const lines = Array.from(range.getClientRects()).map((line) => ({
+        left: line.left, right: line.right, top: line.top, bottom: line.bottom,
+      }));
+      return {
+        left: box.left,
+        right: box.right,
+        scrollWidth: element.scrollWidth,
+        clientWidth: element.clientWidth,
+        scrollHeight: element.scrollHeight,
+        clientHeight: element.clientHeight,
+        lines,
+      };
+    });
+    expect(measurement.left, `${label} starts outside the screen`).toBeGreaterThanOrEqual(-1);
+    expect(measurement.right, `${label} ends outside the screen`).toBeLessThanOrEqual(376);
+    expect(measurement.scrollWidth, `${label} is horizontally clipped`).toBeLessThanOrEqual(measurement.clientWidth + 2);
+    expect(measurement.scrollHeight, `${label} is vertically clipped`).toBeLessThanOrEqual(measurement.clientHeight + 2);
+    expect(measurement.lines, `${label} has no measurable text`).not.toEqual([]);
+    expect(measurement.lines.every((line) => line.left >= measurement.left - 2 &&
+      line.right <= measurement.right + 2), `${label} text extends past its label`).toBe(true);
+  }
+
+  for (const testId of controlTestIds) {
+    const control = page.getByTestId(testId).filter({ visible: true });
+    await expect(control, `Expected visible, tappable control: ${testId}`).toBeVisible();
+    const bounds = await control.boundingBox();
+    expect(bounds, `${testId} has no touch target`).not.toBeNull();
+    expect(bounds!.width).toBeGreaterThanOrEqual(35);
+    expect(bounds!.x).toBeGreaterThanOrEqual(-1);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(376);
+    await control.click({ trial: true });
+  }
+
+  for (const label of actionLabels) {
+    const action = page.getByText(label, { exact: true }).filter({ visible: true }).first();
+    await expect(action, `Expected visible action: ${label}`).toBeVisible();
+    await action.click({ trial: true });
+  }
+}
+
 test.beforeAll(async () => {
   expect(expoUrl, 'Set EXPO_E2E_URL to the running Expo web URL').toBeTruthy();
   const hash = await bcrypt.hash(password, 12);
@@ -289,5 +385,125 @@ test('family head sees only family portal and pending need alert at 375px and 15
   await expectNoManagement(page, home);
   await expectFits375(page, home);
   await expectReadableAtLargeText(page, home);
+  await context.close();
+});
+
+test('login labels, account choices and links stay readable and tappable at 375px and 150% text', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 1 });
+  const page = await context.newPage();
+  await page.goto(expoUrl!);
+  await page.getByTestId('home-login').filter({ visible: true }).click();
+  await expect(page.getByText('مرحباً بعودتك', { exact: true })).toBeVisible();
+  await expectFormReadableAtLargeText(page, [
+    'مرحباً بعودتك',
+    'اختر نوع الحساب للوصول إلى مساحة فريق المخيم أو ملف أسرتك.',
+    'رب الأسرة',
+    'فريق المخيم',
+    'البريد الإلكتروني',
+    'كلمة المرور',
+    'نسيت كلمة المرور؟',
+    'لديّ رمز دعوة أو استعادة',
+  ], [
+    'login-account-family',
+    'login-account-staff',
+    'login-email',
+    'login-password',
+    'login-submit',
+    'forgot-password-link',
+    'complete-invite-link',
+  ]);
+  await context.close();
+});
+
+test('family head can read and tap the need request form at 375px and 150% text', async ({ browser }) => {
+  const { context, page } = await openHome(browser, 'family');
+  await page.getByTestId('home-family-portal').filter({ visible: true }).click();
+  await expect(page.getByText('إرسال طلب احتياج', { exact: true })).toBeVisible();
+  await expectFormReadableAtLargeText(page, [
+    'إرسال طلب احتياج',
+    'نوع الاحتياج',
+    'الأولوية',
+    'عنوان الطلب',
+    'تفاصيل إضافية',
+  ], [
+    'family-need-title',
+    'family-need-description',
+    'family-need-submit',
+  ], ['غذاء', 'متوسطة']);
+  await context.close();
+});
+
+test('staff can fill the need form and tap its actions at 375px and 150% text', async ({ browser }) => {
+  const { context, page } = await openHome(browser, 'manager');
+  await page.goto(`${expoUrl}/need-form`);
+  await expect(page.getByText('تفاصيل الاحتياج', { exact: true })).toBeVisible();
+  const familyChoice = page.getByText('أسرة الاختبار', { exact: true }).filter({ visible: true }).first();
+  await expect(familyChoice).toBeVisible();
+  await familyChoice.click();
+  await page.getByTestId('need-form-title').fill('احتياج تكبير النص');
+  await expect(page.getByTestId('need-form-submit')).toBeEnabled();
+  await expectFormReadableAtLargeText(page, [
+    'إضافة احتياج جديد',
+    'الأسرة المستفيدة',
+    'تفاصيل الاحتياج',
+    'عنوان الاحتياج *',
+    'التصنيف',
+    'الأولوية',
+    'الوصف (اختياري)',
+  ], [
+    'need-form-title',
+    'need-form-description',
+    'need-form-submit',
+  ], ['أسرة الاختبار', 'غذاء', 'متوسطة']);
+  await context.close();
+});
+
+test('staff can create and update family records with readable, tappable forms at 375px and 150% text', async ({ browser }) => {
+  const { context, page } = await openHome(browser, 'manager');
+  await page.goto(`${expoUrl}/family-form`);
+  await expect(page.getByText('إضافة عائلة جديدة', { exact: true })).toBeVisible();
+  await page.getByTestId(`family-camp-${campId}`).filter({ visible: true }).click();
+  const sectorChoice = page.getByTestId(`family-sector-${sectorId}`).filter({ visible: true });
+  await expect(sectorChoice).toBeVisible();
+  await page.getByTestId('family-form-head-name').fill('عائلة اختبار التكبير');
+  await sectorChoice.click();
+  await expect(page.getByTestId('family-form-submit')).toBeEnabled();
+  await expectFormReadableAtLargeText(page, [
+    'إضافة عائلة جديدة',
+    'البيانات الأساسية',
+    'اسم رب الأسرة *',
+    'رقم الجوال',
+    'الموقع في المخيم',
+    'المخيم *',
+    'المربع / القطاع *',
+    'ملاحظات إيواء (اختياري)',
+  ], [
+    'family-form-head-name',
+    'family-form-phone',
+    'family-form-critical-notes',
+    `family-camp-${campId}`,
+    `family-sector-${sectorId}`,
+    'family-form-submit',
+  ]);
+
+  await page.goto(`${expoUrl}/family-form?id=${familyId}`);
+  await expect(page.getByText('تعديل العائلة', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('family-form-submit')).toBeEnabled();
+  await expectFormReadableAtLargeText(page, [
+    'تعديل العائلة',
+    'البيانات الأساسية',
+    'اسم رب الأسرة *',
+    'رقم الجوال',
+    'الموقع في المخيم',
+    'المخيم *',
+    'المربع / القطاع *',
+    'ملاحظات إيواء (اختياري)',
+  ], [
+    'family-form-head-name',
+    'family-form-phone',
+    'family-form-critical-notes',
+    `family-sector-${sectorId}`,
+    'family-form-submit',
+  ]);
   await context.close();
 });

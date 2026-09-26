@@ -122,8 +122,8 @@ export default function FamilyHeadScreen() {
         <View style={styles.chips}>{categories.map(([value, label]) => <Pressable key={value} onPress={() => updateDraft({ ...draft, category: value })} style={[styles.chip, { backgroundColor: draft.category === value ? colors.primary : colors.accent }]}><Text style={[styles.chipText, { color: draft.category === value ? colors.background : colors.foreground }]}>{label}</Text></Pressable>)}</View>
         <Text style={[styles.label, { color: colors.foreground }]}>الأولوية</Text>
         <View style={styles.chips}>{[['LOW', 'منخفضة'], ['MEDIUM', 'متوسطة'], ['HIGH', 'عالية'], ['CRITICAL', 'طارئة']].map(([value, label]) => <Pressable key={value} onPress={() => updateDraft({ ...draft, priority: value as FamilyHeadNeedInput['priority'] })} style={[styles.chip, { backgroundColor: draft.priority === value ? colors.primary : colors.accent }]}><Text style={[styles.chipText, { color: draft.priority === value ? colors.background : colors.foreground }]}>{label}</Text></Pressable>)}</View>
-        <Field label="عنوان الطلب" value={draft.title} onChangeText={(title) => updateDraft({ ...draft, title })} placeholder="مثال: حليب أطفال" />
-        <Field label="تفاصيل إضافية" value={draft.description ?? ''} onChangeText={(description) => updateDraft({ ...draft, description })} multiline />
+        <Field testID="family-need-title" label="عنوان الطلب" value={draft.title} onChangeText={(title) => updateDraft({ ...draft, title })} placeholder="مثال: حليب أطفال" />
+        <Field testID="family-need-description" label="تفاصيل إضافية" value={draft.description ?? ''} onChangeText={(description) => updateDraft({ ...draft, description })} multiline />
         {message ? <Text style={[styles.meta, { color: message.includes('تعذر') ? colors.destructive : colors.mutedForeground }]}>{message}</Text> : null}
         <PrimaryButton testID="family-need-submit" label={sending ? 'جارٍ الإرسال…' : 'إرسال الطلب'} icon="send-outline" disabled={sending} onPress={() => void submit()} />
       </Card>

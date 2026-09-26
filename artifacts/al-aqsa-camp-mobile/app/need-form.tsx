@@ -88,7 +88,8 @@ export default function NeedFormScreen() {
 
         <Card style={styles.card}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>تفاصيل الاحتياج</Text>
-          <Field 
+          <Field
+            testID="need-form-title"
             label="عنوان الاحتياج *" 
             value={title} 
             onChangeText={setTitle} 
@@ -100,7 +101,8 @@ export default function NeedFormScreen() {
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>الأولوية</Text>
           <View style={styles.options}>{([['LOW','منخفضة'], ['MEDIUM','متوسطة'], ['HIGH','عالية'], ['CRITICAL','حرجة']] as const).map(([value, label]) =>
             <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: priority === value }} onPress={() => setPriority(value)} style={[styles.choice, { backgroundColor: priority === value ? colors.primary : colors.muted }]}><Text style={{ color: priority === value ? colors.primaryForeground : colors.foreground, fontFamily: fonts.bold }}>{label}</Text></Pressable>)}</View>
-          <Field 
+          <Field
+            testID="need-form-description"
             label="الوصف (اختياري)" 
             value={description} 
             onChangeText={setDescription} 
@@ -112,6 +114,7 @@ export default function NeedFormScreen() {
         </Card>
 
         <PrimaryButton 
+          testID="need-form-submit"
           label={isSaving ? "جارٍ الحفظ..." : "إضافة الاحتياج"} 
           icon="save-outline" 
           onPress={handleSave} 

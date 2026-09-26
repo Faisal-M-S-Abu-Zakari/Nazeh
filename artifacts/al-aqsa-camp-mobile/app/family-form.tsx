@@ -181,14 +181,16 @@ export default function FamilyFormScreen() {
         <Card style={styles.card}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>البيانات الأساسية</Text>
           
-          <Field 
+          <Field
+            testID="family-form-head-name"
             label="اسم رب الأسرة *" 
             value={headName} 
             onChangeText={setHeadName} 
             placeholder="الاسم الرباعي" 
           />
           
-          <Field 
+          <Field
+            testID="family-form-phone"
             label="رقم الجوال" 
             value={phone} 
             onChangeText={setPhone} 
@@ -252,7 +254,8 @@ export default function FamilyFormScreen() {
             <Text style={[styles.helpText, { color: colors.mutedForeground }]}>لا توجد قطاعات متاحة في هذا المخيم.</Text>
           )}
 
-          <Field 
+          <Field
+            testID="family-form-critical-notes"
             label="ملاحظات إيواء (اختياري)" 
             value={criticalNotes} 
             onChangeText={setCriticalNotes} 
@@ -261,6 +264,7 @@ export default function FamilyFormScreen() {
         </Card>
 
         <PrimaryButton 
+          testID="family-form-submit"
           label={isSaving ? "جارٍ الحفظ..." : (isEditing ? "حفظ التغييرات" : "إضافة العائلة")} 
           icon="save-outline" 
           onPress={handleSave} 

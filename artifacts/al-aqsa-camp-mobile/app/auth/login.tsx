@@ -34,8 +34,8 @@ export default function LoginScreen() {
       <Text style={[styles.title, { color: colors.foreground }]}>مرحباً بعودتك</Text>
       <Text style={[styles.copy, { color: colors.mutedForeground }]}>اختر نوع الحساب للوصول إلى مساحة فريق المخيم أو ملف أسرتك.</Text>
       <View style={[styles.accountType, { borderColor: colors.border }]}>
-        <Pressable onPress={() => setAccountType('family')} style={[styles.accountOption, { backgroundColor: accountType === 'family' ? colors.primary : 'transparent' }]}><Text style={[styles.accountOptionText, { color: accountType === 'family' ? colors.background : colors.foreground }]}>رب الأسرة</Text></Pressable>
-        <Pressable onPress={() => setAccountType('staff')} style={[styles.accountOption, { backgroundColor: accountType === 'staff' ? colors.primary : 'transparent' }]}><Text style={[styles.accountOptionText, { color: accountType === 'staff' ? colors.background : colors.foreground }]}>فريق المخيم</Text></Pressable>
+        <Pressable testID="login-account-family" accessibilityRole="button" onPress={() => setAccountType('family')} style={[styles.accountOption, { backgroundColor: accountType === 'family' ? colors.primary : 'transparent' }]}><Text style={[styles.accountOptionText, { color: accountType === 'family' ? colors.background : colors.foreground }]}>رب الأسرة</Text></Pressable>
+        <Pressable testID="login-account-staff" accessibilityRole="button" onPress={() => setAccountType('staff')} style={[styles.accountOption, { backgroundColor: accountType === 'staff' ? colors.primary : 'transparent' }]}><Text style={[styles.accountOptionText, { color: accountType === 'staff' ? colors.background : colors.foreground }]}>فريق المخيم</Text></Pressable>
       </View>
       <Field testID="login-email" label="البريد الإلكتروني" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
       <Field testID="login-password" label="كلمة المرور" value={password} onChangeText={setPassword} secureTextEntry />
