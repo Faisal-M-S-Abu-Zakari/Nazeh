@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCompleteCredential } from '@workspace/api-client-react';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { Field, fonts, PrimaryButton } from '@/components/ui';
@@ -8,6 +9,7 @@ import { useColors } from '@/hooks/useColors';
 
 export default function OtpScreen() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const completeCredential = useCompleteCredential();
   const [token, setToken] = useState('');
   const [password, setPassword] = useState('');
@@ -30,7 +32,11 @@ export default function OtpScreen() {
     }
   };
   return (
-    <KeyboardAwareScrollViewCompat contentContainerStyle={styles.content} bottomOffset={60}>
+    <KeyboardAwareScrollViewCompat
+      testID="credential-scroll-view"
+      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+      bottomOffset={60}
+    >
       <Text allowFontScaling style={[styles.title, { color: colors.foreground }]}>تعيين كلمة المرور</Text>
       <Text allowFontScaling style={[styles.copy, { color: colors.mutedForeground }]}>استخدم رمز الدعوة أو الاستعادة مرة واحدة. لن يُحفظ الرمز على هذا الجهاز.</Text>
       <Field testID="credential-token" label="الرمز الآمن" value={token} onChangeText={setToken} autoCapitalize="none" autoCorrect={false} secureTextEntry placeholder="ألصق الرمز هنا" />
