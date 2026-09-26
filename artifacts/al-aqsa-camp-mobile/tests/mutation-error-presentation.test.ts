@@ -34,11 +34,16 @@ test('task result submission and approval show separate inline errors with retri
   ] as const) {
     assert.match(
       screen,
-      new RegExp(`setTaskActionError\\(\\{ action: '${action}', message: getMutationErrorMessage\\(error\\) \\}\\)`),
+      new RegExp(`handleTaskActionFailure\\(error, '${action}', expectedVersion\\)`),
     );
     assert.match(screen, new RegExp(`renderTaskActionError\\('${action}', '${testIDPrefix}'`));
     assert.match(screen, /testID=\{`\$\{testIDPrefix\}-error-retry`\}/);
+    assert.match(screen, /review-update/);
+    assert.match(screen, /refresh-current/);
   }
+  assert.match(screen, /setResultText\(value\)/);
+  assert.match(screen, /setApprovalNote\(value\)/);
+  assert.match(screen, /taskActionError\?\.conflict/);
 });
 
 test('inline save errors stay safe and readable in narrow mobile layouts', () => {

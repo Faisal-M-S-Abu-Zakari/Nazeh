@@ -11,6 +11,10 @@ export function getErrorStatus(error: unknown): number | undefined {
     : undefined;
 }
 
+export function isVersionConflict(error: unknown): boolean {
+  return getErrorCode(error) === 'VERSION_CONFLICT' || getErrorStatus(error) === 409;
+}
+
 function getErrorCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null || !('data' in error)) return undefined;
   const payload = (error as ApiError & { data?: ErrorPayload | null }).data;
@@ -30,8 +34,8 @@ export function getMutationErrorMessage(error: unknown): string {
   if (status === 404) {
     return 'لم يعد السجل متاحاً. حدّث القائمة ثم حاول مرة أخرى.';
   }
-  if (status === 409) {
-    return 'تغيّر السجل من مستخدم آخر. راجع أحدث البيانات ثم حاول مرة أخرى.';
+  if (isVersionConflict(error)) {
+    return 'تعارض في التحديث: تغيّرت البيانات منذ آخر تحميل. راجع أحدث نسخة قبل إعادة المحاولة.';
   }
   if (status === 400) {
     return 'تعذر حفظ التغيير. راجع البيانات وحاول مرة أخرى.';
@@ -43,15 +47,19 @@ export function getMutationErrorMessage(error: unknown): string {
 }
 
 export async function showMutationError(error: unknown, refetch: () => Promise<unknown>) {
-  if (getErrorStatus(error) === 409) {
+  if (isVersionConflict(error)) {
     try {
       await refetch();
     } catch {
-      // The conflict remains the primary error; the user can retry sync later.
+      Alert.alert(
+        'تعارض في التحديث',
+        'تغيّرت البيانات منذ آخر تحميل، وتعذر تحميل أحدث نسخة. حدّث البيانات قبل إعادة المحاولة.',
+      );
+      return;
     }
     Alert.alert(
       'تعارض في التحديث',
-      'عدّل مستخدم آخر هذا السجل. تم تحميل أحدث نسخة؛ راجعها ثم أعد المحاولة.',
+      'تغيّرت البيانات منذ آخر تحميل. تم تحميل أحدث نسخة؛ راجعها قبل إعادة المحاولة.',
     );
     return;
   }

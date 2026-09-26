@@ -497,7 +497,16 @@ router.patch("/tasks/:taskId/submit", allowRoles("SECURITY_MEMBER"), async (req,
       eq(tasks.version, body.expectedVersion),
       isNull(tasks.archivedAt),
     )).returning();
-    if (!updated) return { statusCode: 404, responseBody: { error: "Assigned task not found" } };
+    if (!updated) {
+      const [current] = await tx.select({ version: tasks.version }).from(tasks).where(and(
+        eq(tasks.id, params.taskId),
+        eq(tasks.assignedToId, staff.id),
+        isNull(tasks.archivedAt),
+      )).limit(1);
+      if (!current) return { statusCode: 404, responseBody: { error: "Assigned task not found" } };
+      if (current.version !== body.expectedVersion) return conflict("Task", current);
+      return { statusCode: 404, responseBody: { error: "Assigned task not found" } };
+    }
     await audit(tx, staff.id, "SUBMIT", "TASK", updated.id, { expectedVersion: body.expectedVersion });
     return { statusCode: 200, responseBody: SubmitTaskResponse.parse(updated) };
   }, { required: false });
@@ -522,7 +531,15 @@ router.patch("/tasks/:taskId/approve", allowRoles(...taskManagers), async (req, 
       eq(tasks.version, body.expectedVersion),
       isNull(tasks.archivedAt),
     )).returning();
-    if (!updated) return { statusCode: 404, responseBody: { error: "Submitted task not found" } };
+    if (!updated) {
+      const [current] = await tx.select({ version: tasks.version }).from(tasks).where(and(
+        eq(tasks.id, params.taskId),
+        isNull(tasks.archivedAt),
+      )).limit(1);
+      if (!current) return { statusCode: 404, responseBody: { error: "Submitted task not found" } };
+      if (current.version !== body.expectedVersion) return conflict("Task", current);
+      return { statusCode: 404, responseBody: { error: "Submitted task not found" } };
+    }
     await audit(tx, actorId, "APPROVE", "TASK", updated.id, { note: body.note ?? null });
     return { statusCode: 200, responseBody: ApproveTaskResponse.parse(updated) };
   }, { required: false });

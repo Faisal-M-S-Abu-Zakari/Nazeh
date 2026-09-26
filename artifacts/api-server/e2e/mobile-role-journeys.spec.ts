@@ -1,7 +1,7 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import bcrypt from 'bcrypt';
 import { randomUUID } from 'node:crypto';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import {
   aids, aidDistributionsTable, campSectorsTable, campsTable, db, familiesTable,
   familyNeedsTable, needStatusHistoryTable, sessions, sessionsTable, staffUsers,
@@ -327,6 +327,7 @@ test('Expo web: security member submits a result and manager approves it at 375p
   await expect(member.page.getByTestId('archive-task')).toHaveCount(0);
   await expect(member.page.getByTestId('save-task')).toHaveCount(0);
   const submittedResult = 'اكتملت الجولة الأمنية';
+  const updatedTaskTitle = `مهمة محدّثة ${suffix}`;
   await member.page.getByTestId('task-result-input').fill(submittedResult);
   let submitAttempts = 0;
   await member.page.route(`**/api/sync/tasks/${taskId}/submit`, async (route) => {
@@ -334,6 +335,13 @@ test('Expo web: security member submits a result and manager approves it at 375p
     if (submitAttempts === 1) {
       await route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"offline"}' });
       return;
+    }
+    if (submitAttempts === 2) {
+      await db.update(tasks).set({
+        title: updatedTaskTitle,
+        version: sql`${tasks.version} + 1`,
+        updatedAt: new Date(),
+      }).where(eq(tasks.id, taskId));
     }
     await route.fallback();
   });
@@ -350,39 +358,79 @@ test('Expo web: security member submits a result and manager approves it at 375p
     'task-result-input',
     'task-result-error-retry',
   ], ['تقديم', 'إعادة المحاولة']);
+
+  const submitConflictResponse = member.page.waitForResponse((response) =>
+    response.url().includes(`/api/sync/tasks/${taskId}/submit`) && response.status() === 409);
+  await member.page.getByTestId('task-result-error-retry').click();
+  const submitConflict = await submitConflictResponse;
+  expect((await submitConflict.json()).code).toBe('VERSION_CONFLICT');
+  await expect(member.page.getByTestId('task-result-error-message')).toHaveText(
+    'تعارض في التحديث: تغيّرت البيانات منذ آخر تحميل. راجع أحدث نسخة قبل إعادة المحاولة.',
+  );
+  await expect(member.page.getByText(updatedTaskTitle, { exact: true })).toBeVisible();
+  await expect(member.page.getByTestId('task-result-input')).toHaveValue(submittedResult);
+  await expect(member.page.getByTestId('task-result-error-retry')).toHaveCount(0);
+  await expect(member.page.getByTestId('task-result-review-update')).toBeVisible();
+  await expect.poll(async () => (await db.select({ result: tasks.result }).from(tasks).where(eq(tasks.id, taskId)))[0]?.result).toBeNull();
+  await expectTaskFormReadableAtLargeText(member.page, [
+    'تقديم نتيجة المهمة',
+    'النتيجة',
+    'تعارض في التحديث: تغيّرت البيانات منذ آخر تحميل. راجع أحدث نسخة قبل إعادة المحاولة.',
+    'أحدث حالة للمهمة: قيد التنفيذ · الإصدار 2',
+  ], [
+    'task-result-input',
+    'task-result-review-update',
+  ], ['راجعت التحديث']);
+  await member.page.getByTestId('task-result-review-update').click();
+  await expect(member.page.getByTestId('task-result-error-retry')).toBeVisible();
   await member.page.getByTestId('task-result-error-retry').click();
   await expect.poll(async () => (await db.select({ result: tasks.result }).from(tasks).where(eq(tasks.id, taskId)))[0]?.result).toBe(submittedResult);
-  expect(submitAttempts).toBe(2);
+  expect(submitAttempts).toBe(3);
   await member.context.close();
 
   const manager = await openSession(browser, 'MANAGER', { width: 375, height: 812 });
   await manager.page.goto(`${expoUrl}/task-form?id=${taskId}`);
   await expect(manager.page.getByText('اعتماد نتيجة المهمة', { exact: true })).toBeVisible();
   const approvalNote = 'تم فحص الموقع بعد التسليم';
+  const latestResult = 'اكتملت الجولة الأمنية بعد مراجعة إضافية';
   await manager.page.getByTestId('task-approval-note').fill(approvalNote);
   let approvalAttempts = 0;
   await manager.page.route(`**/api/sync/tasks/${taskId}/approve`, async (route) => {
     approvalAttempts++;
     if (approvalAttempts === 1) {
-      await route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"offline"}' });
-      return;
+      await db.update(tasks).set({
+        result: latestResult,
+        version: sql`${tasks.version} + 1`,
+        updatedAt: new Date(),
+      }).where(eq(tasks.id, taskId));
     }
     await route.fallback();
   });
+  const approvalConflictResponse = manager.page.waitForResponse((response) =>
+    response.url().includes(`/api/sync/tasks/${taskId}/approve`) && response.status() === 409);
   await manager.page.getByTestId('approve-task-result').click();
+  const approvalConflict = await approvalConflictResponse;
+  expect((await approvalConflict.json()).code).toBe('VERSION_CONFLICT');
   await expect(manager.page.getByRole('alert')).toBeVisible();
-  await expect(manager.page.getByTestId('task-approval-error-message')).toHaveText('تعذر الاتصال بالخادم. لم تُحفظ البيانات؛ حاول مرة أخرى.');
+  await expect(manager.page.getByTestId('task-approval-error-message')).toHaveText(
+    'تعارض في التحديث: تغيّرت البيانات منذ آخر تحميل. راجع أحدث نسخة قبل إعادة المحاولة.',
+  );
+  await expect(manager.page.getByText(`النتيجة المقدمة: ${latestResult}`, { exact: true })).toBeVisible();
   await expect(manager.page.getByTestId('task-approval-note')).toHaveValue(approvalNote);
+  await expect(manager.page.getByTestId('task-approval-error-retry')).toHaveCount(0);
+  await expect(manager.page.getByTestId('task-approval-review-update')).toBeVisible();
   await expect.poll(async () => (await db.select({ approvedAt: tasks.approvedAt }).from(tasks).where(eq(tasks.id, taskId)))[0]?.approvedAt).toBeNull();
   await expectTaskFormReadableAtLargeText(manager.page, [
     'اعتماد نتيجة المهمة',
-    `النتيجة المقدمة: ${submittedResult}`,
+    `النتيجة المقدمة: ${latestResult}`,
     'ملاحظة الاعتماد (اختياري)',
-    'تعذر الاتصال بالخادم. لم تُحفظ البيانات؛ حاول مرة أخرى.',
+    'تعارض في التحديث: تغيّرت البيانات منذ آخر تحميل. راجع أحدث نسخة قبل إعادة المحاولة.',
   ], [
     'task-approval-note',
-    'task-approval-error-retry',
-  ], ['اعتماد المهمة', 'إعادة المحاولة']);
+    'task-approval-review-update',
+  ], ['راجعت التحديث']);
+  await manager.page.getByTestId('task-approval-review-update').click();
+  await expect(manager.page.getByTestId('task-approval-error-retry')).toBeVisible();
   await manager.page.getByTestId('task-approval-error-retry').click();
   await expect.poll(async () => (await db.select({ approvedAt: tasks.approvedAt }).from(tasks).where(eq(tasks.id, taskId)))[0]?.approvedAt).not.toBeNull();
   expect(approvalAttempts).toBe(2);

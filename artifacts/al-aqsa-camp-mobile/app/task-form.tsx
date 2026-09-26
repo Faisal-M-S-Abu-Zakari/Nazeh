@@ -1,5 +1,5 @@
 import {
-  getListSecurityMembersQueryKey, getListTasksQueryKey, TaskPriority, TaskStatus, useArchiveSyncTask,
+  getListSecurityMembersQueryKey, getListTasksQueryKey, TaskPriority, TaskStatus, type Task, useArchiveSyncTask,
   useListSecurityMembers, useUpdateTaskStatus, useSubmitTask, useApproveTask
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -11,10 +11,20 @@ import { ArchiveConfirmModal } from '@/components/ArchiveConfirmModal';
 import { Field, fonts, PrimaryButton } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
-import { getErrorStatus, getMutationErrorMessage, showMutationError } from '@/lib/mutationErrors';
+import { getErrorStatus, getMutationErrorMessage, isVersionConflict, showMutationError } from '@/lib/mutationErrors';
 
 const priorities = [[TaskPriority.LOW, 'منخفضة'], [TaskPriority.MEDIUM, 'متوسطة'], [TaskPriority.HIGH, 'عالية'], [TaskPriority.URGENT, 'عاجلة']] as const;
 const statuses = [[TaskStatus.PENDING, 'معلّقة'], [TaskStatus.IN_PROGRESS, 'قيد التنفيذ'], [TaskStatus.COMPLETED, 'مكتملة'], [TaskStatus.CANCELLED, 'ملغاة']] as const;
+type TaskAction = 'result' | 'approval';
+type TaskActionError = {
+  action: TaskAction;
+  message: string;
+  conflict?: {
+    expectedVersion: number;
+    latestVersion: number | null;
+    acknowledged: boolean;
+  };
+};
 export default function TaskFormScreen() {
   const colors = useColors();
   const queryClient = useQueryClient();
@@ -40,10 +50,8 @@ export default function TaskFormScreen() {
   const [assignedToId, setAssignedToId] = useState<string | null>(task?.assignedToId ?? null);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [taskActionError, setTaskActionError] = useState<{
-    action: 'result' | 'approval';
-    message: string;
-  } | null>(null);
+  const [taskActionError, setTaskActionError] = useState<TaskActionError | null>(null);
+  const [refreshingConflict, setRefreshingConflict] = useState(false);
 
   const [resultText, setResultText] = useState(task?.result ?? '');
   const [approvalNote, setApprovalNote] = useState('');
@@ -57,34 +65,81 @@ export default function TaskFormScreen() {
     return <View style={styles.missing}><Text allowFontScaling style={[styles.intro, { color: colors.foreground }]}>لم يتم العثور على المهمة أو تمت أرشفتها.</Text></View>;
   }
 
-  const refresh = async () => {
-    await queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
-    await queryClient.refetchQueries({ queryKey: getListTasksQueryKey() });
+  const refresh = async (): Promise<Task[]> => {
+    const queryKey = getListTasksQueryKey();
+    await queryClient.refetchQueries({ queryKey, type: 'active' }, { throwOnError: true });
+    return queryClient.getQueryData<Task[]>(queryKey) ?? [];
+  };
+  const handleTaskActionFailure = async (error: unknown, action: TaskAction, expectedVersion: number) => {
+    if (isVersionConflict(error)) {
+      let latestVersion: number | null = null;
+      try {
+        const latestTasks = await refresh();
+        latestVersion = latestTasks.find((item) => item.id === task?.id)?.version ?? null;
+      } catch {
+        // Keep the conflict visible and require a successful refresh before retrying.
+      }
+      setTaskActionError({
+        action,
+        message: getMutationErrorMessage(error),
+        conflict: { expectedVersion, latestVersion, acknowledged: false },
+      });
+      return;
+    }
+    setTaskActionError({ action, message: getMutationErrorMessage(error) });
+    await showMutationError(error, refresh);
+  };
+  const refreshConflictedTask = async (action: TaskAction) => {
+    if (!taskActionError?.conflict || taskActionError.action !== action || refreshingConflict) return;
+    setRefreshingConflict(true);
+    try {
+      const latestTasks = await refresh();
+      const latestVersion = latestTasks.find((item) => item.id === task?.id)?.version ?? null;
+      setTaskActionError((current) => current?.action === action && current.conflict
+        ? { ...current, conflict: { ...current.conflict, latestVersion, acknowledged: false } }
+        : current);
+    } catch {
+      setTaskActionError((current) => current?.action === action && current.conflict
+        ? { ...current, conflict: { ...current.conflict, latestVersion: null, acknowledged: false } }
+        : current);
+    } finally {
+      setRefreshingConflict(false);
+    }
+  };
+  const acknowledgeTaskConflict = (action: TaskAction) => {
+    setTaskActionError((current) => current?.action === action && current.conflict
+      ? { ...current, conflict: { ...current.conflict, acknowledged: true } }
+      : current);
+  };
+  const resetTaskConflictReview = (action: TaskAction) => {
+    setTaskActionError((current) => current?.action === action && current.conflict
+      ? { ...current, conflict: { ...current.conflict, acknowledged: false } }
+      : current);
   };
   const submitResult = async () => {
     if (!task || !canSubmitResult || !resultText.trim() || resultInFlight.current) return;
+    const expectedVersion = task.version;
     resultInFlight.current = true;
     setTaskActionError(null);
     try {
-      await submitResultMutation.mutateAsync({ taskId: task.id, data: { result: resultText.trim(), expectedVersion: task.version } });
+      await submitResultMutation.mutateAsync({ taskId: task.id, data: { result: resultText.trim(), expectedVersion } });
       await refresh();
     } catch (error) {
-      setTaskActionError({ action: 'result', message: getMutationErrorMessage(error) });
-      await showMutationError(error, refresh);
+      await handleTaskActionFailure(error, 'result', expectedVersion);
     } finally {
       resultInFlight.current = false;
     }
   };
   const approveResult = async () => {
     if (!task || !canApproveResult || approvalInFlight.current) return;
+    const expectedVersion = task.version;
     approvalInFlight.current = true;
     setTaskActionError(null);
     try {
-      await approveMutation.mutateAsync({ taskId: task.id, data: { note: approvalNote.trim() || undefined, expectedVersion: task.version } });
+      await approveMutation.mutateAsync({ taskId: task.id, data: { note: approvalNote.trim() || undefined, expectedVersion } });
       await refresh();
     } catch (error) {
-      setTaskActionError({ action: 'approval', message: getMutationErrorMessage(error) });
-      await showMutationError(error, refresh);
+      await handleTaskActionFailure(error, 'approval', expectedVersion);
     } finally {
       approvalInFlight.current = false;
     }
@@ -131,18 +186,79 @@ export default function TaskFormScreen() {
     }
   };
   const renderTaskActionError = (
-    action: 'result' | 'approval',
+    action: TaskAction,
     testIDPrefix: string,
     retry: () => void,
     pending: boolean,
-  ) => taskActionError?.action === action ? (
-    <View testID={`${testIDPrefix}-error`} accessibilityRole="alert" style={[styles.saveError, { backgroundColor: colors.errorSurface, borderColor: colors.destructive }]}>
-      <Text testID={`${testIDPrefix}-error-message`} style={[styles.saveErrorMessage, { color: colors.foreground }]}>{taskActionError.message}</Text>
-      <PrimaryButton testID={`${testIDPrefix}-error-retry`} label="إعادة المحاولة" icon="refresh" disabled={pending} onPress={() => retry()} />
-    </View>
-  ) : null;
+  ) => {
+    if (taskActionError?.action !== action) return null;
+    const conflict = taskActionError.conflict;
+    const latestVersionLoaded = !!(
+      conflict &&
+      task &&
+      conflict.latestVersion !== null &&
+      conflict.latestVersion > conflict.expectedVersion &&
+      task.version === conflict.latestVersion
+    );
+    const actionStillAvailable = action === 'result'
+      ? task?.status === TaskStatus.IN_PROGRESS
+      : task?.status === TaskStatus.COMPLETED && !task.approvedAt;
+
+    return (
+      <View testID={`${testIDPrefix}-error`} accessibilityRole="alert" style={[styles.saveError, { backgroundColor: colors.errorSurface, borderColor: colors.destructive }]}>
+        <Text allowFontScaling testID={`${testIDPrefix}-error-message`} style={[styles.saveErrorMessage, { color: colors.foreground }]}>{taskActionError.message}</Text>
+        {conflict ? (
+          <>
+            {task ? (
+              <Text allowFontScaling testID={`${testIDPrefix}-current-version`} style={[styles.saveErrorMessage, { color: colors.foreground }]}>
+                أحدث حالة للمهمة: {statuses.find(([value]) => value === task.status)?.[1] ?? task.status} · الإصدار {task.version}
+              </Text>
+            ) : null}
+            {!latestVersionLoaded ? (
+              <PrimaryButton
+                testID={`${testIDPrefix}-refresh-current`}
+                label={refreshingConflict ? 'جارٍ تحديث المهمة…' : 'تحديث بيانات المهمة'}
+                icon="refresh"
+                disabled={pending || refreshingConflict}
+                onPress={() => void refreshConflictedTask(action)}
+              />
+            ) : !actionStillAvailable ? (
+              <Text allowFontScaling testID={`${testIDPrefix}-retry-unavailable`} style={[styles.saveErrorMessage, { color: colors.foreground }]}>
+                لم تعد هذه الخطوة متاحة بعد تحديث المهمة؛ احتفظنا بمدخلاتك للمراجعة.
+              </Text>
+            ) : !conflict.acknowledged ? (
+              <>
+                <Text allowFontScaling style={[styles.saveErrorMessage, { color: colors.foreground }]}>
+                  راجع أحدث بيانات المهمة، ثم أكّد المراجعة لتمكين إعادة المحاولة.
+                </Text>
+                <PrimaryButton
+                  testID={`${testIDPrefix}-review-update`}
+                  label="راجعت التحديث"
+                  icon="checkmark"
+                  disabled={pending}
+                  onPress={() => acknowledgeTaskConflict(action)}
+                />
+              </>
+            ) : (
+              <PrimaryButton testID={`${testIDPrefix}-error-retry`} label="إعادة المحاولة" icon="refresh" disabled={pending} onPress={() => retry()} />
+            )}
+          </>
+        ) : (
+          <PrimaryButton testID={`${testIDPrefix}-error-retry`} label="إعادة المحاولة" icon="refresh" disabled={pending} onPress={() => retry()} />
+        )}
+      </View>
+    );
+  };
   const busy = saving || creating || updateMutation.isPending || archiveMutation.isPending;
   const valid = title.trim().length >= 2 && description.trim().length > 0 && location.trim().length >= 2 && (!dueAt.trim() || !Number.isNaN(new Date(dueAt).getTime()));
+  const showResultForm = task && canSubmitResult && (
+    task.status === TaskStatus.IN_PROGRESS ||
+    (taskActionError?.action === 'result' && !!taskActionError.conflict)
+  );
+  const showApprovalForm = task && canApproveResult && (
+    (task.status === TaskStatus.COMPLETED && !task.approvedAt) ||
+    (taskActionError?.action === 'approval' && !!taskActionError.conflict)
+  );
 
   return (<>
     <KeyboardAwareScrollViewCompat testID="task-form-scroll" contentContainerStyle={styles.content} bottomOffset={60}>
@@ -180,10 +296,10 @@ export default function TaskFormScreen() {
       {canManageTaskRecords ? <PrimaryButton testID="save-task" label={busy ? 'جارٍ الحفظ…' : task ? 'حفظ التعديلات' : 'إنشاء المهمة'} icon="checkmark" disabled={!valid || busy || !canManageTasks} onPress={() => void save()} /> : null}
       {task && canManageTaskRecords ? <Pressable testID="archive-task" disabled={busy} onPress={() => setArchiveOpen(true)} style={[styles.archive, { borderColor: colors.destructive }]}><Text allowFontScaling style={[styles.archiveText, { color: colors.destructive }]}>أرشفة المهمة</Text></Pressable> : null}
 
-      {task && task.status === TaskStatus.IN_PROGRESS && canSubmitResult && (
+      {showResultForm && (
         <View style={{ marginTop: 24, gap: 12, paddingTop: 24, borderTopWidth: 1, borderTopColor: colors.border }}>
           <Text allowFontScaling style={[styles.label, { color: colors.foreground }]}>تقديم نتيجة المهمة</Text>
-          <Field testID="task-result-input" label="النتيجة" value={resultText} onChangeText={setResultText} multiline />
+          <Field testID="task-result-input" label="النتيجة" value={resultText} onChangeText={(value) => { setResultText(value); resetTaskConflictReview('result'); }} multiline />
           <PrimaryButton
             testID="submit-task-result"
             label="تقديم"
@@ -195,11 +311,11 @@ export default function TaskFormScreen() {
         </View>
       )}
 
-      {task && task.status === TaskStatus.COMPLETED && !task.approvedAt && canApproveResult && (
+      {showApprovalForm && (
         <View style={{ marginTop: 24, gap: 12, paddingTop: 24, borderTopWidth: 1, borderTopColor: colors.border }}>
           <Text allowFontScaling style={[styles.label, { color: colors.foreground }]}>اعتماد نتيجة المهمة</Text>
           <Text allowFontScaling style={{ fontFamily: fonts.regular, color: colors.mutedForeground, textAlign: 'right' }}>النتيجة المقدمة: {task.result}</Text>
-          <Field testID="task-approval-note" label="ملاحظة الاعتماد (اختياري)" value={approvalNote} onChangeText={setApprovalNote} multiline />
+          <Field testID="task-approval-note" label="ملاحظة الاعتماد (اختياري)" value={approvalNote} onChangeText={(value) => { setApprovalNote(value); resetTaskConflictReview('approval'); }} multiline />
           <PrimaryButton
             testID="approve-task-result"
             label="اعتماد المهمة"
