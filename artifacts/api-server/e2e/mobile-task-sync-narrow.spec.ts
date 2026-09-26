@@ -53,6 +53,15 @@ test('prevents duplicate task saves while a narrow-phone request is delayed', as
   });
   const page = await context.newPage();
   page.on('dialog', (dialog) => void dialog.accept());
+  const updateLoopErrors: string[] = [];
+  page.on('pageerror', (error) => {
+    if (/Maximum update depth exceeded/.test(error.message)) updateLoopErrors.push(error.message);
+  });
+  page.on('console', (message) => {
+    if (message.type() === 'error' && /Maximum update depth exceeded/.test(message.text())) {
+      updateLoopErrors.push(message.text());
+    }
+  });
 
   let createRequests = 0;
   let releaseCreate!: () => void;
@@ -100,6 +109,7 @@ test('prevents duplicate task saves while a narrow-phone request is delayed', as
   releaseCreate();
   await createResponse;
   await expect(page.getByText(taskTitle, { exact: true })).toBeVisible();
+  expect(updateLoopErrors).toEqual([]);
   expect(createRequests).toBe(1);
   await context.close();
 });

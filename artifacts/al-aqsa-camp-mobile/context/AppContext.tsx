@@ -15,6 +15,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { cacheStorageKey, createMobileAuthLifecycle, loadOwnerStorage, queueStorageKey, replayOwnerQueue } from './offlineSync';
+import { preserveSnapshotIdentity } from './cacheSnapshot';
 import { getReceivedDistributionCount, selectLatestAids } from '@/lib/aidPresentation';
 import { getLastSuccessfulAidsSyncAt, retryAidList } from '@/lib/aidSyncPresentation';
 import { selectLatestPeople } from '@/lib/personPresentation';
@@ -198,11 +199,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user || ownerUserId !== user.id || activeOwner.current !== user.id || !protectedHydrated || (familyEnabled && storedFamilyUser?.id !== user.id) || (!aidsQuery.data && !peopleQuery.data && !complaintsQuery.data && !tasksQuery.data && !familyProfileQuery.data && !familyNeedsQuery.data && !receivedAidsQuery.data)) return;
     const next: Cache = { aids: aidsQuery.data ?? cache.aids, people: selectLatestPeople(peopleQuery.data, cache.people), complaints: complaintsQuery.data ?? cache.complaints, tasks: tasksQuery.data ?? cache.tasks, familyProfile: familyProfileQuery.data ?? cache.familyProfile, familyNeeds: familyNeedsQuery.data ?? cache.familyNeeds, receivedAids: receivedAidsQuery.data ?? cache.receivedAids, lastReceivedAidsSyncAt, lastAidsSyncAt };
-    setCache({ ...next, lastPeopleSyncAt });
+    setCache((current) => preserveSnapshotIdentity(current, { ...next, lastPeopleSyncAt }));
     if (peopleQuery.data !== undefined) setHasLocalPeopleCache(true);
     AsyncStorage.setItem(cacheStorageKey(user.id), JSON.stringify({ ...next, lastPeopleSyncAt })).catch(() => setManualError('تمت المزامنة، لكن تعذر حفظ نسخة القراءة دون اتصال.'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aidsQuery.data, complaintsQuery.data, familyNeedsQuery.data, familyProfileQuery.data, lastAidsSyncAt, lastPeopleSyncAt, lastReceivedAidsSyncAt, peopleQuery.data, protectedHydrated, receivedAidsQuery.data, tasksQuery.data, user]);
+  }, [aidsQuery.data, complaintsQuery.data, familyNeedsQuery.data, familyProfileQuery.data, lastAidsSyncAt, lastPeopleSyncAt, lastReceivedAidsSyncAt, peopleQuery.data, protectedHydrated, receivedAidsQuery.data, tasksQuery.data, user?.id]);
   useEffect(() => {
     if (!user || !protectedHydrated || !aidsQuery.data || !aidsQuery.dataUpdatedAt) return;
     setLastAidsSyncAt((current) => getLastSuccessfulAidsSyncAt(current, aidsQuery.dataUpdatedAt));
