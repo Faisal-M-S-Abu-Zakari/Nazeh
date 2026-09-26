@@ -71,6 +71,27 @@ appId: com.alaqsacamp.mobile
     id: login-error
     text: "تحقق من البريد وكلمة المرور (8 أحرف على الأقل)."
 
+- tapOn:
+    id: login-email
+- inputText: "native-auth-rejection@example.invalid"
+- tapOn:
+    id: login-password
+- inputText: "IncorrectTestPassword123!"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: login-submit
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: login-submit
+- assertVisible:
+    id: login-error
+    text: "البريد الإلكتروني أو كلمة المرور غير صحيحة."
+- assertNotVisible: "Invalid credentials"
+- assertNotVisible: "Invalid email or password"
+- assertNotVisible: "401"
+
 - scrollUntilVisible:
     element:
       id: forgot-password-link

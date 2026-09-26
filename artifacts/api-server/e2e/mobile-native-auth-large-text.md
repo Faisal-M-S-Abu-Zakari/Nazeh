@@ -1,4 +1,4 @@
-# Native sign-in, recovery, and password-reset large-text check
+# Native sign-in rejection, recovery, and password-reset large-text check
 
 The Playwright checks in `mobile-home-roles.spec.ts` enlarge text in the web
 fallback only. They do not emulate iOS Dynamic Type or Android's system
@@ -17,17 +17,19 @@ current mobile app:
   Display size and text**, set **Font size** to its largest setting, and leave
   display size at its default. The automated command sets font scale to `2.0`.
 
-Use a narrow supported phone and restart the app after changing the setting.
+Use a narrow supported phone, enable VoiceOver or TalkBack, and restart the app
+after changing the setting.
 
 ## Repeatable native flow
 
 Install Maestro CLI and connect one target device at a time. Sign out before
-starting. The flow does not clear app data or submit real credentials. Find the
-device identifier with `maestro list-devices`, then run:
+starting. The flow does not clear app data or submit real credentials; its one
+rejected-login attempt uses a reserved `.invalid` email and a fake password.
+Find the device identifier with `maestro list-devices`, then run:
 
 ```sh
-MAESTRO_DEVICE_ID=<device-id> pnpm test:task186:native-auth:ios
-MAESTRO_DEVICE_ID=<device-id> pnpm test:task186:native-auth:android
+MAESTRO_DEVICE_ID=<device-id> pnpm test:task193:native-auth:ios
+MAESTRO_DEVICE_ID=<device-id> pnpm test:task193:native-auth:android
 ```
 
 The Android command sets the native system font scale to `2.0` for the test and
@@ -36,22 +38,27 @@ Accessibility Sizes to its maximum in Settings before running the command and
 leave it at maximum.
 
 The flow checks the account choices and selected state, email and password
-labels and focus, the enabled **دخول** button and its empty-form validation, and
-both recovery links. It also checks the reset-code input, both password inputs,
-the accessible password requirements, and the enabled **حفظ كلمة المرور**
-button. It types only fixed sample values and never activates the save button,
-so no credential-completion request is sent.
+labels and focus, the enabled **دخول** button, the empty-form validation alert,
+and a server-rejected login using fake credentials. It expects the safe Arabic
+message **البريد الإلكتروني أو كلمة المرور غير صحيحة.** and verifies that
+server error text and status details are not shown. It checks both recovery
+links, reset-code and password fields, password requirements, and the enabled
+**حفظ كلمة المرور** button. It uses only fixed sample values and never
+activates the save button, so no credential-completion request is sent.
 
 The flow checks the native accessibility tree and reachability, but Maestro
-cannot confirm what a screen reader speaks. Repeat the checks with VoiceOver on
-iOS and TalkBack on Android. Confirm the account choices (including selected
-state), sign-in and reset field labels, password requirements, **دخول**, **حفظ
-كلمة المرور**, and both recovery links are announced correctly. Activate
-**دخول** once while both sign-in fields are empty; confirm its validation
-message is announced immediately as an alert, focus stays in place, and no
-loading state or sign-in request occurs. Navigate to **حفظ كلمة المرور** with
-the screen reader, but do not activate it.
-
+cannot confirm what a screen reader speaks. On each platform, repeat both the
+empty-form check and the rejected-login check with the screen reader enabled.
+Confirm the account choices (including selected state), sign-in and reset field
+labels, password requirements, **دخول**, **حفظ كلمة المرور**, and both recovery
+links are announced correctly. Activate **دخول** once while both sign-in fields
+are empty; confirm the validation message is announced immediately as an alert,
+focus stays in place, and no loading state or sign-in request occurs. Then
+submit the fake credentials and confirm the full Arabic rejection message is
+announced immediately and clearly. Confirm the English server messages, status
+code, and exception details are not announced or displayed, and the screen
+remains on sign-in. Navigate to **حفظ كلمة المرور** with the screen reader, but
+do not activate it.
 ## Sign-in
 
 1. Open the sign-in screen and confirm **رب الأسرة** and **فريق المخيم** are
@@ -64,9 +71,13 @@ the screen reader, but do not activate it.
    **لديّ رمز دعوة أو استعادة** are complete, reachable, and announced as
    buttons. With both fields empty, activate **دخول** once and confirm
    **تحقق من البريد وكلمة المرور (8 أحرف على الأقل).** is announced immediately
-   as an alert. Do not enter credentials; this local validation must not send a
-   sign-in request.
-4. Open each recovery action and return to sign-in before checking the next
+   as an alert. Confirm no loading state or sign-in request occurs.
+4. Enter the fake credentials `native-auth-rejection@example.invalid` and
+   `IncorrectTestPassword123!`, then activate **دخول**. Confirm
+   **البريد الإلكتروني أو كلمة المرور غير صحيحة.** is announced immediately
+   and clearly. Confirm the screen remains on sign-in and no server message,
+   status code, or exception details appear or are announced.
+5. Open each recovery action and return to sign-in before checking the next
    one. Confirm the destination opens and the sign-in form remains reachable.
 
 ## Recovery guidance
@@ -95,8 +106,9 @@ the screen reader, but do not activate it.
 ## Record
 
 Record the OS version, device model, maximum font setting, VoiceOver/TalkBack
-result, whether the empty-form validation was announced immediately, and
-whether any sign-in request or loading state occurred. Record pass/fail results
-for sign-in, recovery, and password reset on each platform. Any clipped or
-missing text, inaccessible input label, obscured button, unreachable button, or
-validation message that is only visible but not announced is a failure.
+result, whether both the empty-form validation and rejected-login message were
+announced immediately, and whether any unexpected request or loading state
+occurred. Record pass/fail results for sign-in rejection, recovery, and password
+reset on each platform. Any clipped or missing text, inaccessible input label,
+obscured button, unreachable button, unannounced message, or exposed raw server
+detail is a failure.

@@ -5,6 +5,7 @@ import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollV
 import { Field, fonts, PrimaryButton } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { getErrorStatus } from '@/lib/mutationErrors';
 
 const logoSource = require('@/assets/images/nazeh-phoenix-logo.png');
 
@@ -29,7 +30,7 @@ export default function LoginScreen() {
       await signIn(email.trim(), password, accountType);
       router.replace('/');
     } catch (cause) {
-      const message = cause instanceof Error && cause.message.includes('401') ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' : 'تعذر تسجيل الدخول. تحقق من الاتصال وحاول مجدداً.';
+      const message = getErrorStatus(cause) === 401 ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' : 'تعذر تسجيل الدخول. تحقق من الاتصال وحاول مجدداً.';
       setError(message);
     } finally { setSubmitting(false); }
   };
