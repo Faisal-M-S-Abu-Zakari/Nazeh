@@ -50,7 +50,7 @@ export default function TaskFormScreen() {
   const approveMutation = useApproveTask();
 
   if (id && !task) {
-    return <View style={styles.missing}><Text style={[styles.intro, { color: colors.foreground }]}>لم يتم العثور على المهمة أو تمت أرشفتها.</Text></View>;
+    return <View style={styles.missing}><Text allowFontScaling style={[styles.intro, { color: colors.foreground }]}>لم يتم العثور على المهمة أو تمت أرشفتها.</Text></View>;
   }
 
   const refresh = async () => {
@@ -129,43 +129,43 @@ export default function TaskFormScreen() {
 
   return (<>
     <KeyboardAwareScrollViewCompat testID="task-form-scroll" contentContainerStyle={styles.content} bottomOffset={60}>
-      <Text style={[styles.intro, { color: colors.mutedForeground }]}>{task ? canManageTaskRecords ? 'تحديث تفاصيل المهمة وحالتها' : 'تفاصيل المهمة الأمنية' : 'إنشاء مهمة أمنية جديدة'}</Text>
+      <Text allowFontScaling style={[styles.intro, { color: colors.mutedForeground }]}>{task ? canManageTaskRecords ? 'تحديث تفاصيل المهمة وحالتها' : 'تفاصيل المهمة الأمنية' : 'إنشاء مهمة أمنية جديدة'}</Text>
       {task && !canManageTaskRecords ? <>
-        <Text style={[styles.label, { color: colors.foreground }]}>{task.title}</Text>
-        <Text style={[styles.intro, { color: colors.mutedForeground }]}>{task.description} · {task.location}</Text>
+        <Text allowFontScaling style={[styles.label, { color: colors.foreground }]}>{task.title}</Text>
+        <Text allowFontScaling style={[styles.intro, { color: colors.mutedForeground }]}>{task.description} · {task.location}</Text>
       </> : null}
       {canManageTaskRecords ? <>
       <Field testID="task-title" label="عنوان المهمة" value={title} onChangeText={setTitle} />
       <Field testID="task-description" label="التفاصيل" value={description} onChangeText={setDescription} multiline />
       <Field testID="task-location" label="الموقع" value={location} onChangeText={setLocation} />
       <Field testID="task-due-date" label="تاريخ الاستحقاق (اختياري)" value={dueAt} onChangeText={setDueAt} placeholder="2026-08-28" />
-      <Text style={[styles.label, { color: colors.foreground }]}>الأولوية</Text>
-      <View style={styles.options}>{priorities.map(([value, label]) => <Pressable testID={`task-priority-${value}`} key={value} onPress={() => setPriority(value)} style={[styles.option, { backgroundColor: priority === value ? colors.primary : colors.muted }]}><Text style={[styles.optionText, { color: priority === value ? colors.primaryForeground : colors.foreground }]}>{label}</Text></Pressable>)}</View>
-      <Text style={[styles.label, { color: colors.foreground }]}>المكلّف بالمهمة (اختياري)</Text>
+      <Text allowFontScaling style={[styles.label, { color: colors.foreground }]}>الأولوية</Text>
+      <View style={styles.options}>{priorities.map(([value, label]) => <Pressable testID={`task-priority-${value}`} key={value} onPress={() => setPriority(value)} style={[styles.option, { backgroundColor: priority === value ? colors.primary : colors.muted }]}><Text allowFontScaling style={[styles.optionText, { color: priority === value ? colors.primaryForeground : colors.foreground }]}>{label}</Text></Pressable>)}</View>
+      <Text allowFontScaling style={[styles.label, { color: colors.foreground }]}>المكلّف بالمهمة (اختياري)</Text>
       <View style={styles.options}>
-        <Pressable testID="task-assignee-none" onPress={() => setAssignedToId(null)} style={[styles.option, { backgroundColor: assignedToId === null ? colors.primary : colors.muted }]}><Text style={[styles.optionText, { color: assignedToId === null ? colors.primaryForeground : colors.foreground }]}>غير مكلّف</Text></Pressable>
-        {(officersQuery.data ?? []).filter((officer) => officer.active).map((officer) => <Pressable testID={`task-assignee-${officer.id}`} key={officer.id} onPress={() => setAssignedToId(officer.id)} style={[styles.option, { backgroundColor: assignedToId === officer.id ? colors.primary : colors.muted }]}><Text style={[styles.optionText, { color: assignedToId === officer.id ? colors.primaryForeground : colors.foreground }]}>{officer.name}</Text></Pressable>)}
+        <Pressable testID="task-assignee-none" onPress={() => setAssignedToId(null)} style={[styles.option, { backgroundColor: assignedToId === null ? colors.primary : colors.muted }]}><Text allowFontScaling style={[styles.optionText, { color: assignedToId === null ? colors.primaryForeground : colors.foreground }]}>غير مكلّف</Text></Pressable>
+        {(officersQuery.data ?? []).filter((officer) => officer.active).map((officer) => <Pressable testID={`task-assignee-${officer.id}`} key={officer.id} onPress={() => setAssignedToId(officer.id)} style={[styles.option, { backgroundColor: assignedToId === officer.id ? colors.primary : colors.muted }]}><Text allowFontScaling style={[styles.optionText, { color: assignedToId === officer.id ? colors.primaryForeground : colors.foreground }]}>{officer.name}</Text></Pressable>)}
       </View>
-      {officersQuery.isLoading ? <Text style={[styles.helper, { color: colors.mutedForeground }]}>جارٍ تحميل مسؤولي الأمن…</Text> : null}
-      {officersQuery.isError ? <Text style={[styles.helper, { color: colors.destructive }]}>تعذر تحميل قائمة مسؤولي الأمن.</Text> : null}
+      {officersQuery.isLoading ? <Text allowFontScaling style={[styles.helper, { color: colors.mutedForeground }]}>جارٍ تحميل مسؤولي الأمن…</Text> : null}
+      {officersQuery.isError ? <Text allowFontScaling style={[styles.helper, { color: colors.destructive }]}>تعذر تحميل قائمة مسؤولي الأمن.</Text> : null}
       {task ? <>
-        <Text style={[styles.label, { color: colors.foreground }]}>الحالة</Text>
-        <View style={styles.options}>{statuses.map(([value, label]) => <Pressable testID={`task-status-${value}`} key={value} onPress={() => setStatus(value)} style={[styles.option, { backgroundColor: status === value ? colors.primary : colors.muted }]}><Text style={[styles.optionText, { color: status === value ? colors.primaryForeground : colors.foreground }]}>{label}</Text></Pressable>)}</View>
+        <Text allowFontScaling style={[styles.label, { color: colors.foreground }]}>الحالة</Text>
+        <View style={styles.options}>{statuses.map(([value, label]) => <Pressable testID={`task-status-${value}`} key={value} onPress={() => setStatus(value)} style={[styles.option, { backgroundColor: status === value ? colors.primary : colors.muted }]}><Text allowFontScaling style={[styles.optionText, { color: status === value ? colors.primaryForeground : colors.foreground }]}>{label}</Text></Pressable>)}</View>
       </> : null}
-      {!task && !canManageTaskRecords ? <Text style={[styles.intro, { color: colors.destructive }]}>لا تملك الصلاحية لإنشاء المهام.</Text> : null}
+      {!task && !canManageTaskRecords ? <Text allowFontScaling style={[styles.intro, { color: colors.destructive }]}>لا تملك الصلاحية لإنشاء المهام.</Text> : null}
       </> : null}
       {saveError ? (
         <View testID="task-save-error" accessibilityRole="alert" style={[styles.saveError, { backgroundColor: colors.errorSurface, borderColor: colors.destructive }]}>
-          <Text testID="task-save-error-message" style={[styles.saveErrorMessage, { color: colors.foreground }]}>{saveError}</Text>
+          <Text allowFontScaling testID="task-save-error-message" style={[styles.saveErrorMessage, { color: colors.foreground }]}>{saveError}</Text>
           <PrimaryButton testID="task-save-error-retry" label="إعادة المحاولة" icon="refresh" disabled={busy} onPress={() => void save()} />
         </View>
       ) : null}
       {canManageTaskRecords ? <PrimaryButton testID="save-task" label={busy ? 'جارٍ الحفظ…' : task ? 'حفظ التعديلات' : 'إنشاء المهمة'} icon="checkmark" disabled={!valid || busy || !canManageTasks} onPress={() => void save()} /> : null}
-      {task && canManageTaskRecords ? <Pressable testID="archive-task" disabled={busy} onPress={() => setArchiveOpen(true)} style={[styles.archive, { borderColor: colors.destructive }]}><Text style={[styles.archiveText, { color: colors.destructive }]}>أرشفة المهمة</Text></Pressable> : null}
+      {task && canManageTaskRecords ? <Pressable testID="archive-task" disabled={busy} onPress={() => setArchiveOpen(true)} style={[styles.archive, { borderColor: colors.destructive }]}><Text allowFontScaling style={[styles.archiveText, { color: colors.destructive }]}>أرشفة المهمة</Text></Pressable> : null}
 
       {task && task.status === TaskStatus.IN_PROGRESS && canSubmitResult && (
         <View style={{ marginTop: 24, gap: 12, paddingTop: 24, borderTopWidth: 1, borderTopColor: colors.border }}>
-          <Text style={[styles.label, { color: colors.foreground }]}>تقديم نتيجة المهمة</Text>
+          <Text allowFontScaling style={[styles.label, { color: colors.foreground }]}>تقديم نتيجة المهمة</Text>
           <Field testID="task-result-input" label="النتيجة" value={resultText} onChangeText={setResultText} multiline />
           <PrimaryButton
             testID="submit-task-result"
@@ -179,8 +179,8 @@ export default function TaskFormScreen() {
 
       {task && task.status === TaskStatus.COMPLETED && !task.approvedAt && canApproveResult && (
         <View style={{ marginTop: 24, gap: 12, paddingTop: 24, borderTopWidth: 1, borderTopColor: colors.border }}>
-          <Text style={[styles.label, { color: colors.foreground }]}>اعتماد نتيجة المهمة</Text>
-          <Text style={{ fontFamily: fonts.regular, color: colors.mutedForeground, textAlign: 'right' }}>النتيجة المقدمة: {task.result}</Text>
+          <Text allowFontScaling style={[styles.label, { color: colors.foreground }]}>اعتماد نتيجة المهمة</Text>
+          <Text allowFontScaling style={{ fontFamily: fonts.regular, color: colors.mutedForeground, textAlign: 'right' }}>النتيجة المقدمة: {task.result}</Text>
           <Field testID="task-approval-note" label="ملاحظة الاعتماد (اختياري)" value={approvalNote} onChangeText={setApprovalNote} multiline />
           <PrimaryButton
             testID="approve-task-result"

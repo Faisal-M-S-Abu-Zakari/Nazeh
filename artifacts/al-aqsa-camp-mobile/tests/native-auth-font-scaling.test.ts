@@ -10,7 +10,10 @@ test('recovery and credential screens preserve native font scaling and vertical 
   const otp = source('app/auth/otp.tsx');
 
   for (const screen of [forgot, otp]) {
-    assert.match(screen, /<KeyboardAwareScrollViewCompat contentContainerStyle=\{styles\.content\}/);
+    const scrollView = screen.match(/<KeyboardAwareScrollViewCompat\b[^>]*>/s)?.[0];
+    assert.ok(scrollView, 'expected the screen to use the keyboard-aware scroll view');
+    assert.match(scrollView, /contentContainerStyle=\{/);
+    assert.match(scrollView, /styles\.content/);
     assert.match(screen, /<Text allowFontScaling style=\{\[styles\.title/);
   }
 

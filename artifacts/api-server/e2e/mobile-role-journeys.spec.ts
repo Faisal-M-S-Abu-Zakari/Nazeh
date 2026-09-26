@@ -315,7 +315,7 @@ test('delegate creates a need, changes its status and assigns approved aid', asy
   await context.close();
 });
 
-test('security member submits a result and manager approves it at 375px and 150% text', async ({ browser }) => {
+test('Expo web: security member submits a result and manager approves it at 375px and 150% text', async ({ browser }) => {
   const member = await openSession(browser, 'SECURITY_MEMBER', { width: 375, height: 812 });
   await expect(member.page.getByText('العائلات', { exact: true })).toHaveCount(0);
   await expect(member.page.getByText('التقارير', { exact: true })).toHaveCount(0);
