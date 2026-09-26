@@ -128,7 +128,7 @@ export default function TaskFormScreen() {
   const valid = title.trim().length >= 2 && description.trim().length > 0 && location.trim().length >= 2 && (!dueAt.trim() || !Number.isNaN(new Date(dueAt).getTime()));
 
   return (<>
-    <KeyboardAwareScrollViewCompat contentContainerStyle={styles.content} bottomOffset={60}>
+    <KeyboardAwareScrollViewCompat testID="task-form-scroll" contentContainerStyle={styles.content} bottomOffset={60}>
       <Text style={[styles.intro, { color: colors.mutedForeground }]}>{task ? canManageTaskRecords ? 'تحديث تفاصيل المهمة وحالتها' : 'تفاصيل المهمة الأمنية' : 'إنشاء مهمة أمنية جديدة'}</Text>
       {task && !canManageTaskRecords ? <>
         <Text style={[styles.label, { color: colors.foreground }]}>{task.title}</Text>
@@ -166,8 +166,9 @@ export default function TaskFormScreen() {
       {task && task.status === TaskStatus.IN_PROGRESS && canSubmitResult && (
         <View style={{ marginTop: 24, gap: 12, paddingTop: 24, borderTopWidth: 1, borderTopColor: colors.border }}>
           <Text style={[styles.label, { color: colors.foreground }]}>تقديم نتيجة المهمة</Text>
-          <Field label="النتيجة" value={resultText} onChangeText={setResultText} multiline />
+          <Field testID="task-result-input" label="النتيجة" value={resultText} onChangeText={setResultText} multiline />
           <PrimaryButton
+            testID="submit-task-result"
             label="تقديم"
             icon="send"
             disabled={!resultText.trim() || submitResultMutation.isPending || resultInFlight.current}
@@ -180,8 +181,9 @@ export default function TaskFormScreen() {
         <View style={{ marginTop: 24, gap: 12, paddingTop: 24, borderTopWidth: 1, borderTopColor: colors.border }}>
           <Text style={[styles.label, { color: colors.foreground }]}>اعتماد نتيجة المهمة</Text>
           <Text style={{ fontFamily: fonts.regular, color: colors.mutedForeground, textAlign: 'right' }}>النتيجة المقدمة: {task.result}</Text>
-          <Field label="ملاحظة الاعتماد (اختياري)" value={approvalNote} onChangeText={setApprovalNote} multiline />
+          <Field testID="task-approval-note" label="ملاحظة الاعتماد (اختياري)" value={approvalNote} onChangeText={setApprovalNote} multiline />
           <PrimaryButton
+            testID="approve-task-result"
             label="اعتماد المهمة"
             icon="checkmark-done"
             disabled={approveMutation.isPending || approvalInFlight.current}

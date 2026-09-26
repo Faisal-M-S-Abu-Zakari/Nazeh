@@ -31,8 +31,12 @@ let managerId: string;
 let managerCreated = false;
 let managerToken: string;
 
-async function openSession(browser: Browser, role: 'MANAGER' | (typeof staffRoles)[number]) {
-  const context = await browser.newContext({ viewport: { width: 400, height: 720 } });
+async function openSession(
+  browser: Browser,
+  role: 'MANAGER' | (typeof staffRoles)[number],
+  viewport = { width: 400, height: 720 },
+) {
+  const context = await browser.newContext({ viewport, deviceScaleFactor: 1 });
   const token = role === 'MANAGER' ? managerToken : '';
   if (token) {
     await context.addInitScript(({ token: value }) => {
@@ -51,6 +55,128 @@ async function openSession(browser: Browser, role: 'MANAGER' | (typeof staffRole
   }
   await expect(page.getByTestId('home-login')).toHaveCount(0);
   return { page, context };
+}
+
+async function expectTaskFormReadableAtLargeText(
+  page: Page,
+  labels: string[],
+  controlTestIds: string[],
+  actionLabels: string[],
+) {
+  const scaledTextCount = await page.evaluate((scale) => {
+    const textElements = new Set<HTMLElement>();
+    for (const element of Array.from(document.querySelectorAll<HTMLElement>('*'))) {
+      const box = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      if (box.width <= 0 || box.height <= 0 || style.display === 'none' ||
+        style.visibility === 'hidden' || style.opacity === '0') continue;
+      const text = Array.from(element.childNodes)
+        .filter((node): node is Text => node.nodeType === Node.TEXT_NODE)
+        .map((node) => node.textContent?.trim() ?? '')
+        .filter(Boolean)
+        .join('');
+      if (!text || Array.from(text).every((character) => {
+        const codePoint = character.codePointAt(0) ?? 0;
+        return (codePoint >= 0xe000 && codePoint <= 0xf8ff) ||
+          (codePoint >= 0xf0000 && codePoint <= 0xffffd) ||
+          (codePoint >= 0x100000 && codePoint <= 0x10fffd);
+      })) continue;
+      textElements.add(element);
+    }
+    for (const element of textElements) {
+      const style = getComputedStyle(element);
+      const fontSize = Number.parseFloat(style.fontSize);
+      const lineHeight = Number.parseFloat(style.lineHeight);
+      if (!Number.isFinite(fontSize)) continue;
+      element.style.setProperty('font-size', `${fontSize * scale}px`, 'important');
+      element.style.setProperty(
+        'line-height',
+        `${(Number.isFinite(lineHeight) ? lineHeight : fontSize * 1.25) * scale}px`,
+        'important',
+      );
+    }
+    for (const control of Array.from(document.querySelectorAll<HTMLElement>(
+      '[data-testid="task-result-input"], [data-testid="task-approval-note"]',
+    ))) {
+      const style = getComputedStyle(control);
+      const fontSize = Number.parseFloat(style.fontSize);
+      const lineHeight = Number.parseFloat(style.lineHeight);
+      if (!Number.isFinite(fontSize)) continue;
+      control.style.setProperty('font-size', `${fontSize * scale}px`, 'important');
+      if (Number.isFinite(lineHeight)) {
+        control.style.setProperty('line-height', `${lineHeight * scale}px`, 'important');
+      }
+    }
+    return textElements.size;
+  }, 1.5);
+  expect(scaledTextCount).toBeGreaterThan(0);
+
+  const layout = await page.getByTestId('task-form-scroll').evaluate((element) => ({
+    viewport: document.documentElement.clientWidth,
+    pageWidth: document.documentElement.scrollWidth,
+    left: element.getBoundingClientRect().left,
+    right: element.getBoundingClientRect().right,
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }));
+  expect(layout.viewport).toBe(375);
+  expect(layout.pageWidth).toBeLessThanOrEqual(375);
+  expect(layout.left).toBeGreaterThanOrEqual(-1);
+  expect(layout.right).toBeLessThanOrEqual(376);
+  expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth + 2);
+
+  for (const label of labels) {
+    const text = page.getByText(label, { exact: true }).filter({ visible: true }).first();
+    await expect(text, `Expected visible task label: ${label}`).toBeVisible();
+    const measurement = await text.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      return {
+        left: box.left,
+        right: box.right,
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+        lines: Array.from(range.getClientRects()).map((line) => ({
+          left: line.left, right: line.right, top: line.top, bottom: line.bottom,
+        })),
+      };
+    });
+    expect(measurement.left, `${label} starts outside the screen`).toBeGreaterThanOrEqual(-1);
+    expect(measurement.right, `${label} ends outside the screen`).toBeLessThanOrEqual(376);
+    expect(measurement.scrollWidth, `${label} is horizontally clipped`).toBeLessThanOrEqual(measurement.clientWidth + 2);
+    expect(measurement.lines, `${label} has no measurable text`).not.toEqual([]);
+    expect(measurement.lines.every((line) => line.left >= measurement.left - 2 &&
+      line.right <= measurement.right + 2), `${label} text extends past its label`).toBe(true);
+  }
+
+  for (const testId of controlTestIds) {
+    const control = page.getByTestId(testId).filter({ visible: true });
+    await expect(control, `Expected visible, tappable task control: ${testId}`).toBeVisible();
+    const bounds = await control.boundingBox();
+    expect(bounds, `${testId} has no touch target`).not.toBeNull();
+    expect(bounds!.width).toBeGreaterThanOrEqual(35);
+    expect(bounds!.x).toBeGreaterThanOrEqual(-1);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(376);
+    await control.click({ trial: true });
+  }
+
+  for (const label of actionLabels) {
+    const action = page.getByText(label, { exact: true }).filter({ visible: true }).first();
+    await expect(action, `Expected visible task action: ${label}`).toBeVisible();
+    const textBounds = await action.evaluate((element) => {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      return Array.from(range.getClientRects()).map((line) => ({
+        left: line.left,
+        right: line.right,
+      }));
+    });
+    expect(textBounds, `${label} has no measurable text`).not.toEqual([]);
+    expect(textBounds.every((line) => line.left >= -1 && line.right <= 376),
+      `${label} text extends beyond the screen`).toBe(true);
+    await action.click({ trial: true });
+  }
 }
 
 test.beforeAll(async () => {
@@ -124,7 +250,7 @@ test.afterAll(async () => {
 test('manager sees reports and content, including loading, empty, error and retry states', async ({ browser }) => {
   const { page, context } = await openSession(browser, 'MANAGER');
   await expect(page.getByText('التقارير', { exact: true })).toBeVisible();
-  await expect(page.getByText('الإعلانات', { exact: true })).toBeVisible();
+  await expect(page.getByText('إدارة الإعلانات', { exact: true })).toBeVisible();
   await page.getByText('التقارير', { exact: true }).click();
   await expect(page.getByText('إجمالي الأفراد')).toBeVisible();
 
@@ -189,8 +315,8 @@ test('delegate creates a need, changes its status and assigns approved aid', asy
   await context.close();
 });
 
-test('security member submits a task result; officer approves it without delegate administration', async ({ browser }) => {
-  const member = await openSession(browser, 'SECURITY_MEMBER');
+test('security member submits a result and manager approves it at 375px and 150% text', async ({ browser }) => {
+  const member = await openSession(browser, 'SECURITY_MEMBER', { width: 375, height: 812 });
   await expect(member.page.getByText('العائلات', { exact: true })).toHaveCount(0);
   await expect(member.page.getByText('التقارير', { exact: true })).toHaveCount(0);
   await expect(member.page.getByTestId('add-aid')).toHaveCount(0);
@@ -200,19 +326,32 @@ test('security member submits a task result; officer approves it without delegat
   await member.page.getByText('تقديم نتيجة المهمة', { exact: true }).waitFor();
   await expect(member.page.getByTestId('archive-task')).toHaveCount(0);
   await expect(member.page.getByTestId('save-task')).toHaveCount(0);
-  await member.page.getByText('النتيجة', { exact: true }).locator('..').locator('textarea').fill('اكتملت الجولة الأمنية');
-  await member.page.getByText('تقديم', { exact: true }).click();
+  await member.page.getByTestId('task-result-input').fill('اكتملت الجولة الأمنية');
+  await expectTaskFormReadableAtLargeText(member.page, [
+    'تقديم نتيجة المهمة',
+    'النتيجة',
+  ], [
+    'task-result-input',
+    'submit-task-result',
+  ], ['تقديم']);
+  await member.page.getByTestId('submit-task-result').click();
   await expect.poll(async () => (await db.select({ result: tasks.result }).from(tasks).where(eq(tasks.id, taskId)))[0]?.result).toBe('اكتملت الجولة الأمنية');
   await member.context.close();
 
-  const officer = await openSession(browser, 'SECURITY_OFFICER');
-  await expect(officer.page.getByText('التقارير', { exact: true })).toHaveCount(0);
-  await expect(officer.page.getByTestId('add-aid')).toHaveCount(0);
-  await officer.page.goto(`${expoUrl}/task-form?id=${taskId}`);
-  await officer.page.getByText('اعتماد نتيجة المهمة', { exact: true }).waitFor();
-  await officer.page.getByText('اعتماد المهمة').click();
+  const manager = await openSession(browser, 'MANAGER', { width: 375, height: 812 });
+  await manager.page.goto(`${expoUrl}/task-form?id=${taskId}`);
+  await expect(manager.page.getByText('اعتماد نتيجة المهمة', { exact: true })).toBeVisible();
+  await expectTaskFormReadableAtLargeText(manager.page, [
+    'اعتماد نتيجة المهمة',
+    `النتيجة المقدمة: اكتملت الجولة الأمنية`,
+    'ملاحظة الاعتماد (اختياري)',
+  ], [
+    'task-approval-note',
+    'approve-task-result',
+  ], ['اعتماد المهمة']);
+  await manager.page.getByTestId('approve-task-result').click();
   await expect.poll(async () => (await db.select({ approvedAt: tasks.approvedAt }).from(tasks).where(eq(tasks.id, taskId)))[0]?.approvedAt).not.toBeNull();
-  await officer.context.close();
+  await manager.context.close();
 });
 
 test('family head sees their own portal and notifications without staff administration', async ({ browser }) => {
