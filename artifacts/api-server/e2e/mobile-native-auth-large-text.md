@@ -36,20 +36,21 @@ Accessibility Sizes to its maximum in Settings before running the command and
 leave it at maximum.
 
 The flow checks the account choices and selected state, email and password
-labels and focus, the enabled **دخول** button and its empty-form validation
-alert, and both recovery links. It opens the recovery guidance and reset-code
-route without submitting data or using real credentials. The empty-form check
-is local validation and must not send a sign-in request.
+labels and focus, the enabled **دخول** button and its empty-form validation, and
+both recovery links. It also checks the reset-code input, both password inputs,
+the accessible password requirements, and the enabled **حفظ كلمة المرور**
+button. It types only fixed sample values and never activates the save button,
+so no credential-completion request is sent.
 
 The flow checks the native accessibility tree and reachability, but Maestro
-cannot confirm what a screen reader speaks. Repeat the empty-form check with
-VoiceOver on iOS and TalkBack on Android. Keep the screen reader on, activate
-**دخول** once while both fields are empty, and confirm the full validation
-message is announced immediately as an alert without moving accessibility
-focus to the message. Confirm the screen stays on sign-in and no loading state
-or sign-in request occurs. Also confirm the account choices (including selected
-state), both field labels, **دخول**, and both recovery links are announced
-correctly.
+cannot confirm what a screen reader speaks. Repeat the checks with VoiceOver on
+iOS and TalkBack on Android. Confirm the account choices (including selected
+state), sign-in and reset field labels, password requirements, **دخول**, **حفظ
+كلمة المرور**, and both recovery links are announced correctly. Activate
+**دخول** once while both sign-in fields are empty; confirm its validation
+message is announced immediately as an alert, focus stays in place, and no
+loading state or sign-in request occurs. Navigate to **حفظ كلمة المرور** with
+the screen reader, but do not activate it.
 
 ## Sign-in
 
@@ -82,11 +83,14 @@ correctly.
 1. Confirm the **تعيين كلمة المرور** heading, introductory guidance, all field
    labels (**الرمز الآمن**, **كلمة المرور الجديدة**, **تأكيد كلمة المرور**), and
    the password requirements are complete and readable.
-2. Confirm each input is reachable and announced with its matching label.
-3. Enter a 32-character sample code, a password that meets the displayed
-   requirements, and the same password again. Do not submit the sample values.
+2. Focus each input and confirm it is announced with its matching label. Confirm
+   the password requirements are announced as text.
+3. The automated flow types a fixed sample code and matching sample passwords
+   to enable the save button. These are test-only values; the button is never
+   activated and no real credentials or request are submitted.
 4. Scroll as needed, then confirm **حفظ كلمة المرور** is fully visible,
-   announced as a button, and can be focused and activated.
+   enabled, and announced as a button. With VoiceOver or TalkBack, move focus to
+   it but do not activate it.
 
 ## Record
 

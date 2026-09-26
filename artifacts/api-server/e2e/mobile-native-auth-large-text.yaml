@@ -100,3 +100,73 @@ appId: com.alaqsacamp.mobile
 - tapOn:
     id: complete-invite-link
 - assertVisible: "تعيين كلمة المرور"
+
+- scrollUntilVisible:
+    element:
+      id: credential-token
+    direction: DOWN
+    timeout: 10000
+- assertVisible:
+    id: credential-token
+    text: "الرمز الآمن"
+- tapOn:
+    id: credential-token
+- assertVisible:
+    id: credential-token
+    text: "الرمز الآمن"
+    focused: true
+- inputText: "0123456789abcdef0123456789abcdef"
+- hideKeyboard
+
+- scrollUntilVisible:
+    element:
+      id: credential-password
+    direction: DOWN
+    timeout: 10000
+- assertVisible:
+    id: credential-password
+    text: "كلمة المرور الجديدة"
+- tapOn:
+    id: credential-password
+- assertVisible:
+    id: credential-password
+    text: "كلمة المرور الجديدة"
+    focused: true
+- inputText: "Aa123456789!"
+- hideKeyboard
+
+- scrollUntilVisible:
+    element:
+      id: credential-password-requirements
+    direction: DOWN
+    timeout: 10000
+- assertVisible:
+    id: credential-password-requirements
+    text: "12 حرفاً على الأقل، مع حرف كبير وصغير ورقم ورمز."
+
+- scrollUntilVisible:
+    element:
+      id: credential-confirmation
+    direction: DOWN
+    timeout: 10000
+- assertVisible:
+    id: credential-confirmation
+    text: "تأكيد كلمة المرور"
+- tapOn:
+    id: credential-confirmation
+- assertVisible:
+    id: credential-confirmation
+    text: "تأكيد كلمة المرور"
+    focused: true
+- inputText: "Aa123456789!"
+- hideKeyboard
+
+- scrollUntilVisible:
+    element:
+      id: credential-submit
+    direction: DOWN
+    timeout: 10000
+- assertVisible:
+    id: credential-submit
+    text: "حفظ كلمة المرور"
+    enabled: true

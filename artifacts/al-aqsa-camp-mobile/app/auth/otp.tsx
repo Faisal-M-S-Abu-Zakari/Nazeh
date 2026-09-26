@@ -41,7 +41,15 @@ export default function OtpScreen() {
       <Text allowFontScaling style={[styles.copy, { color: colors.mutedForeground }]}>استخدم رمز الدعوة أو الاستعادة مرة واحدة. لن يُحفظ الرمز على هذا الجهاز.</Text>
       <Field testID="credential-token" label="الرمز الآمن" value={token} onChangeText={setToken} autoCapitalize="none" autoCorrect={false} secureTextEntry placeholder="ألصق الرمز هنا" />
       <Field testID="credential-password" label="كلمة المرور الجديدة" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" />
-      <Text allowFontScaling style={[styles.hint, { color: colors.mutedForeground }]}>12 حرفاً على الأقل، مع حرف كبير وصغير ورقم ورمز.</Text>
+      <Text
+        testID="credential-password-requirements"
+        allowFontScaling
+        accessibilityRole="text"
+        accessibilityLabel="12 حرفاً على الأقل، مع حرف كبير وصغير ورقم ورمز."
+        style={[styles.hint, { color: colors.mutedForeground }]}
+      >
+        12 حرفاً على الأقل، مع حرف كبير وصغير ورقم ورمز.
+      </Text>
       <Field testID="credential-confirmation" label="تأكيد كلمة المرور" value={confirmation} onChangeText={setConfirmation} secureTextEntry autoCapitalize="none" />
       {error ? <Text allowFontScaling accessibilityRole="alert" testID="credential-error" style={[styles.error, { color: colors.destructive }]}>{error}</Text> : null}
       <PrimaryButton testID="credential-submit" label={completeCredential.isPending ? 'جارٍ الحفظ…' : 'حفظ كلمة المرور'} icon="checkmark" disabled={completeCredential.isPending || token.trim().length < 32 || !password || !confirmation} onPress={() => void submit()} />

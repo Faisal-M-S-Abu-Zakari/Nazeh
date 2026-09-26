@@ -19,8 +19,14 @@ test('recovery and credential screens preserve native font scaling and vertical 
 
   assert.match(forgot, /<Text allowFontScaling style=\{\[styles\.copy/);
   assert.match(otp, /<Text allowFontScaling style=\{\[styles\.copy/);
-  assert.match(otp, /<Text allowFontScaling style=\{\[styles\.hint/);
+  assert.match(
+    otp,
+    /testID="credential-password-requirements"[\s\S]*?allowFontScaling[\s\S]*?style=\{\[styles\.hint/,
+  );
   assert.match(otp, /<Text allowFontScaling accessibilityRole="alert"/);
+  assert.match(otp, /testID="credential-password-requirements"/);
+  assert.match(otp, /accessibilityRole="text"/);
+  assert.match(otp, /accessibilityLabel="12 حرفاً على الأقل، مع حرف كبير وصغير ورقم ورمز\."/);
 
   const ui = source('components/ui.tsx');
 
@@ -81,4 +87,35 @@ test('native large-text flow keeps the sign-in controls and recovery actions cov
   const emptyCredentialGuard = login.indexOf("if (!email.includes('@') || password.length < 8) return setError");
   const signInRequest = login.indexOf('await signIn(');
   assert.ok(emptyCredentialGuard !== -1 && emptyCredentialGuard < signInRequest, 'empty credentials must be rejected before the sign-in request');
+});
+
+test('native large-text flow checks reset fields, labels, focus, and save access without submitting', () => {
+  const flow = source('../api-server/e2e/mobile-native-auth-large-text.yaml');
+
+  for (const [testId, label] of [
+    ['credential-token', 'الرمز الآمن'],
+    ['credential-password', 'كلمة المرور الجديدة'],
+    ['credential-password-requirements', '12 حرفاً على الأقل، مع حرف كبير وصغير ورقم ورمز.'],
+    ['credential-confirmation', 'تأكيد كلمة المرور'],
+    ['credential-submit', 'حفظ كلمة المرور'],
+  ]) {
+    assert.ok(
+      flow.includes(`id: ${testId}\n    text: "${label}"`),
+      `native flow must match ${testId} with the accessible label ${label}`,
+    );
+  }
+
+  for (const [testId, label] of [
+    ['credential-token', 'الرمز الآمن'],
+    ['credential-password', 'كلمة المرور الجديدة'],
+    ['credential-confirmation', 'تأكيد كلمة المرور'],
+  ]) {
+    assert.ok(
+      flow.includes(`id: ${testId}\n    text: "${label}"\n    focused: true`),
+      `native flow must verify focus for ${testId}`,
+    );
+  }
+
+  assert.match(flow, /id: credential-submit[\s\S]*?enabled: true/);
+  assert.doesNotMatch(flow, /tapOn:\s*\n\s+id: credential-submit/);
 });
