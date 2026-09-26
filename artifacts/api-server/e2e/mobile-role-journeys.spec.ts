@@ -26,8 +26,12 @@ const aidId = randomUUID();
 
 const aidTitle = `مساعدة التجربة ${suffix} - حملة المواد الغذائية العاجلة للأسر في القطاع الشرقي`;
 const taskId = randomUUID();
+
+const directTaskId = randomUUID();
 const newNeedTitle = `احتياج التجربة ${suffix}`;
 const taskTitle = `مهمة التجربة ${suffix}`;
+
+const directTaskTitle = `مهمة رابط مباشر ${suffix}`;
 let familyUserId: number;
 let managerId: string;
 let managerCreated = false;
@@ -256,6 +260,10 @@ test.beforeAll(async () => {
     id: taskId, title: taskTitle, description: 'نتيجة مهمة أمنية', location: 'المخيم',
     status: 'IN_PROGRESS', assignedToId: staff.SECURITY_MEMBER.id, createdById: managerId,
   });
+  await db.insert(tasks).values({
+    id: directTaskId, title: directTaskTitle, description: directTaskDescription,
+    location: directTaskLocation, priority: 'HIGH', status: 'IN_PROGRESS', createdById: managerId,
+  });
 });
 
 test.afterAll(async () => {
@@ -266,6 +274,11 @@ test.afterAll(async () => {
   await db.delete(familyNeedsTable).where(eq(familyNeedsTable.familyId, familyId));
   await db.delete(familiesTable).where(eq(familiesTable.id, familyId));
   await db.delete(tasks).where(eq(tasks.id, taskId));
+  await db.delete(syncAuditEvents).where(and(
+    eq(syncAuditEvents.entityType, 'TASK'),
+    eq(syncAuditEvents.entityId, directTaskId),
+  ));
+  await db.delete(tasks).where(eq(tasks.id, directTaskId));
   await db.delete(aids).where(eq(aids.id, aidId));
   await db.delete(syncAuditEvents).where(inArray(syncAuditEvents.actorStaffId,
     staffRoles.map((role) => staff[role].id)));
@@ -556,9 +569,11 @@ test('Expo web: security member submits a result and manager approves it at 375p
   await manager.context.close();
 });
 
-test('family head sees their own portal and notifications without staff administration', async ({ browser }) => {
+test('manager opens a direct task edit link with an empty query cache and can save', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 400, height: 720 } });
   const page = await context.newPage();
+
+  let releaseTaskList!: () => void;
   await page.goto(expoUrl!);
   await page.getByTestId('home-login').click();
   await page.getByText('رب الأسرة', { exact: true }).click();
@@ -662,3 +677,25 @@ async function expectLargeTextActionsReachable(page: Page, screenTestId: string,
     });
 
     const tabBounds = await tab.boundingBox();
+
+  const taskListBlocked = new Promise<void>((resolve) => { releaseTaskList = resolve; });
+
+const savedDirectTaskTitle = `مهمة محفوظة من الرابط ${suffix}`;
+
+    const saveResponse = page.waitForResponse((response) =>
+      response.url().includes(`/api/sync/tasks/${directTaskId}`) &&
+      response.request().method() === 'PATCH');
+
+const directTaskDescription = `تفاصيل رابط مباشر ${suffix}`;
+
+const directTaskLocation = `موقع رابط مباشر ${suffix}`;
+
+    const requestUrl = new URL(route.request().url());
+
+    const currentStatusColor = await page.getByTestId('task-status-IN_PROGRESS')
+      .evaluate((element) => getComputedStyle(element).backgroundColor);
+
+    const otherStatusColor = await page.getByTestId('task-status-PENDING')
+      .evaluate((element) => getComputedStyle(element).backgroundColor);
+
+  let taskListRequests = 0;

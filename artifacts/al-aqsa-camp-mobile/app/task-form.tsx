@@ -1,11 +1,11 @@
 import {
   getListSecurityMembersQueryKey, getListTasksQueryKey, TaskPriority, TaskStatus, type Task, useArchiveSyncTask,
-  useListSecurityMembers, useUpdateTaskStatus, useSubmitTask, useApproveTask
+  useListSecurityMembers, useListTasks, useUpdateTaskStatus, useSubmitTask, useApproveTask
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { ArchiveConfirmModal } from '@/components/ArchiveConfirmModal';
 import { Field, fonts, PrimaryButton } from '@/components/ui';
@@ -32,10 +32,44 @@ type TaskEditConflict = {
 };
 export default function TaskFormScreen() {
   const colors = useColors();
-  const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const { tasks, canManageTasks, addTask, user } = useApp();
-  const task = tasks.find((item) => item.id === id);
+  const { tasks } = useApp();
+  const tasksQuery = useListTasks({
+    query: {
+      queryKey: getListTasksQueryKey(),
+      enabled: !!id,
+      retry: false,
+    },
+  });
+  const task = tasks.find((item) => item.id === id) ?? tasksQuery.data?.find((item) => item.id === id);
+
+  if (id && !task) {
+    if (tasksQuery.isLoading || tasksQuery.isFetching) {
+      return (
+        <View testID="task-form-loading" accessibilityRole="progressbar" style={styles.missing}>
+          <ActivityIndicator color={colors.primary} />
+          <Text allowFontScaling style={[styles.intro, { color: colors.foreground }]}>جارٍ تحميل بيانات المهمة…</Text>
+        </View>
+      );
+    }
+    if (tasksQuery.isError) {
+      return (
+        <View testID="task-form-load-error" style={styles.missing}>
+          <Text allowFontScaling style={[styles.intro, { color: colors.foreground }]}>تعذر تحميل بيانات المهمة.</Text>
+          <PrimaryButton label="إعادة المحاولة" icon="refresh" onPress={() => void tasksQuery.refetch()} />
+        </View>
+      );
+    }
+    return <View style={styles.missing}><Text allowFontScaling style={[styles.intro, { color: colors.foreground }]}>لم يتم العثور على المهمة أو تمت أرشفتها.</Text></View>;
+  }
+
+  return <TaskFormEditor key={task?.id ?? 'new-task'} task={task} />;
+}
+
+function TaskFormEditor({ task }: { task?: Task }) {
+  const colors = useColors();
+  const queryClient = useQueryClient();
+  const { canManageTasks, addTask, user } = useApp();
   const originalTask = useRef<Task | null>(task ?? null);
   const canManageTaskRecords = user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'SECURITY_OFFICER';
   const updateMutation = useUpdateTaskStatus();
@@ -68,10 +102,6 @@ export default function TaskFormScreen() {
 
   const submitResultMutation = useSubmitTask();
   const approveMutation = useApproveTask();
-
-  if (id && !task) {
-    return <View style={styles.missing}><Text allowFontScaling style={[styles.intro, { color: colors.foreground }]}>لم يتم العثور على المهمة أو تمت أرشفتها.</Text></View>;
-  }
 
   const refresh = async (): Promise<Task[]> => {
     const queryKey = getListTasksQueryKey();
