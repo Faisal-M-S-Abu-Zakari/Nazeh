@@ -32,6 +32,8 @@ const newNeedTitle = `احتياج التجربة ${suffix}`;
 const taskTitle = `مهمة التجربة ${suffix}`;
 
 const directTaskTitle = `مهمة رابط مباشر ${suffix}`;
+const directTaskDescription = `تفاصيل رابط مباشر ${suffix}`;
+const directTaskLocation = `موقع رابط مباشر ${suffix}`;
 let familyUserId: number;
 let managerId: string;
 let managerCreated = false;
@@ -62,7 +64,6 @@ async function openSession(
   await expect(page.getByTestId('home-login')).toHaveCount(0);
   return { page, context };
 }
-
 async function applyLargeTextScale(page: Page, scale: number) {
   const count = await page.evaluate((multiplier) => {
     const elements = Array.from(document.querySelectorAll<HTMLElement>('*')).filter((element) =>
@@ -569,42 +570,68 @@ test('Expo web: security member submits a result and manager approves it at 375p
   await manager.context.close();
 });
 
-test('manager opens a direct task edit link with an empty query cache and can save', async ({ browser }) => {
+test('manager retries a failed task-list load from a direct edit link and can save', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 400, height: 720 } });
+  await context.addInitScript(({ token }) => {
+    sessionStorage.setItem('al-aqsa-auth-token', token);
+    sessionStorage.setItem('al-aqsa-auth-role', 'MANAGER');
+  }, { token: managerToken });
   const page = await context.newPage();
 
-  let releaseTaskList!: () => void;
-  await page.goto(expoUrl!);
-  await page.getByTestId('home-login').click();
-  await page.getByText('رب الأسرة', { exact: true }).click();
-  await page.getByTestId('login-email').fill(familyEmail);
-  await page.getByTestId('login-password').fill(password);
-  await page.getByTestId('login-submit').click();
-  await expect(page.getByTestId('home-family-portal').filter({ visible: true })).toBeVisible();
-  await expect(page.getByText('العائلات', { exact: true })).toHaveCount(0);
-  await expect(page.getByText('التقارير', { exact: true })).toHaveCount(0);
-  await page.goto(`${expoUrl}/family-head`);
-  await expect(page.getByText(`أسرة التجربة ${suffix}`)).toBeVisible();
-  await expect(page.getByText('إرسال طلب احتياج', { exact: true })).toBeVisible();
-  await expect(page.getByText(`احتياج معتمد ${suffix}`)).toBeVisible();
-  await page.goto(`${expoUrl}/notifications`);
-  await expect(page.getByText('الإشعارات', { exact: true }).first()).toBeVisible();
+  let taskListRequests = 0;
+  await page.route('**/api/sync/tasks', async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    taskListRequests++;
+    if (taskListRequests === 1) {
+      await route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"temporary"}' });
+      return;
+    }
+    await route.fallback();
+  });
+
+  const failedTaskListResponse = page.waitForResponse((response) =>
+    response.url().includes('/api/sync/tasks') && response.request().method() === 'GET' && response.status() === 503);
+  await page.goto(`${expoUrl}/task-form?id=${directTaskId}`);
+  await failedTaskListResponse;
+  await expect(page.getByTestId('task-form-load-error')).toBeVisible();
+  await expect(page.getByTestId('task-form-load-retry')).toBeVisible();
+  await expect(page.getByText('لم يتم العثور على المهمة أو تمت أرشفتها.')).toHaveCount(0);
+
+  await page.getByTestId('task-form-load-retry').click();
+  await expect(page.getByTestId('task-form-scroll')).toBeVisible();
+  await expect(page.getByTestId('task-title')).toHaveValue(directTaskTitle);
+  await expect(page.getByTestId('task-description')).toHaveValue(directTaskDescription);
+  await expect(page.getByTestId('task-location')).toHaveValue(directTaskLocation);
+  const inProgressColor = await page.getByTestId('task-status-IN_PROGRESS')
+    .evaluate((element) => getComputedStyle(element).backgroundColor);
+  const pendingColor = await page.getByTestId('task-status-PENDING')
+    .evaluate((element) => getComputedStyle(element).backgroundColor);
+  const highPriorityColor = await page.getByTestId('task-priority-HIGH')
+    .evaluate((element) => getComputedStyle(element).backgroundColor);
+  expect(inProgressColor).toBe(highPriorityColor);
+  expect(pendingColor).not.toBe(highPriorityColor);
+  expect(taskListRequests).toBe(2);
+
+  const savedDirectTaskTitle = `مهمة محفوظة من الرابط ${suffix}`;
+  await page.getByTestId('task-title').fill(savedDirectTaskTitle);
+  const saveResponse = page.waitForResponse((response) =>
+    response.url().includes(`/api/sync/tasks/${directTaskId}`) &&
+    response.request().method() === 'PATCH');
+  await page.getByTestId('save-task').click();
+  expect((await saveResponse).ok()).toBe(true);
+  await expect.poll(async () => (await db.select({
+    title: tasks.title,
+    description: tasks.description,
+    location: tasks.location,
+    status: tasks.status,
+  }).from(tasks).where(eq(tasks.id, directTaskId)))[0]).toMatchObject({
+    title: savedDirectTaskTitle,
+    description: directTaskDescription,
+    location: directTaskLocation,
+    status: 'IN_PROGRESS',
+  });
   await context.close();
 });
-
-  const tabListBounds = await page.getByRole('tablist').boundingBox();
-
-    const tab = page.getByRole('tab', { name: label }).filter({ visible: true });
-
-    const action = page.getByRole('button', { name }).filter({ visible: true });
-
-  const campaignCard = page.getByTestId(`open-aid-${aidId}`);
-
-  const expectedTabs = ['الرئيسية', 'المساعدات', 'السجل', 'التنبيهات', 'الحساب'];
-
-  const aidsTab = page.getByRole('tab', { name: /المساعدات/ }).filter({ visible: true });
-
-    const tabLabel = tab.getByText(label, { exact: true }).filter({ visible: true });
 
 async function expectLargeTextActionsReachable(page: Page, screenTestId: string, testIds: string[]) {
   const layout = await page.getByTestId(screenTestId).evaluate((screen) => {
@@ -667,35 +694,3 @@ async function expectLargeTextActionsReachable(page: Page, screenTestId: string,
     await control.click({ trial: true });
   }
 }
-
-    const labelLines = await tabLabel.evaluate((element) => {
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      return Array.from(range.getClientRects()).map((line) => ({
-        left: line.left, right: line.right, top: line.top, bottom: line.bottom,
-      }));
-    });
-
-    const tabBounds = await tab.boundingBox();
-
-  const taskListBlocked = new Promise<void>((resolve) => { releaseTaskList = resolve; });
-
-const savedDirectTaskTitle = `مهمة محفوظة من الرابط ${suffix}`;
-
-    const saveResponse = page.waitForResponse((response) =>
-      response.url().includes(`/api/sync/tasks/${directTaskId}`) &&
-      response.request().method() === 'PATCH');
-
-const directTaskDescription = `تفاصيل رابط مباشر ${suffix}`;
-
-const directTaskLocation = `موقع رابط مباشر ${suffix}`;
-
-    const requestUrl = new URL(route.request().url());
-
-    const currentStatusColor = await page.getByTestId('task-status-IN_PROGRESS')
-      .evaluate((element) => getComputedStyle(element).backgroundColor);
-
-    const otherStatusColor = await page.getByTestId('task-status-PENDING')
-      .evaluate((element) => getComputedStyle(element).backgroundColor);
-
-  let taskListRequests = 0;

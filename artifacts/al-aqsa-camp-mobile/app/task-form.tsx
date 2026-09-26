@@ -56,7 +56,7 @@ export default function TaskFormScreen() {
       return (
         <View testID="task-form-load-error" style={styles.missing}>
           <Text allowFontScaling style={[styles.intro, { color: colors.foreground }]}>تعذر تحميل بيانات المهمة.</Text>
-          <PrimaryButton label="إعادة المحاولة" icon="refresh" onPress={() => void tasksQuery.refetch()} />
+          <PrimaryButton testID="task-form-load-retry" label="إعادة المحاولة" icon="refresh" onPress={() => void tasksQuery.refetch()} />
         </View>
       );
     }
