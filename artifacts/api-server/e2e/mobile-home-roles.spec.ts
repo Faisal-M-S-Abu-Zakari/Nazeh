@@ -429,6 +429,54 @@ test('login labels, account choices and links stay readable and tappable at 375p
   await context.close();
 });
 
+test('account recovery guidance and actions stay readable and tappable at 375px and 150% text', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 1 });
+  const page = await context.newPage();
+  await page.goto(expoUrl!);
+  await page.getByTestId('home-login').filter({ visible: true }).click();
+  await page.getByTestId('forgot-password-link').click();
+  await expect(page.getByText('استعادة الوصول', { exact: true })).toBeVisible();
+  await expectFormReadableAtLargeText(page, [
+    'استعادة الوصول',
+    'لا يرسل التطبيق رسائل استعادة تلقائياً. تواصل مع مدير النظام ليصدر لك رمز إعادة تعيين لمرة واحدة عبر قناة آمنة.',
+    'لديّ رمز إعادة تعيين',
+    'العودة لتسجيل الدخول',
+  ], [
+    'forgot-complete-token',
+    'forgot-back-login',
+  ]);
+  await page.getByTestId('forgot-complete-token').click();
+  await expect(page.getByRole('heading', { name: 'تعيين كلمة المرور' })).toBeVisible();
+  await context.close();
+});
+
+test('invite and recovery code fields stay readable and tappable at 375px and 150% text', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 1 });
+  const page = await context.newPage();
+  await page.goto(expoUrl!);
+  await page.getByTestId('home-login').filter({ visible: true }).click();
+  await page.getByTestId('complete-invite-link').click();
+  await expect(page.getByRole('heading', { name: 'تعيين كلمة المرور' })).toBeVisible();
+  await page.getByTestId('credential-token').fill('a'.repeat(32));
+  await page.getByTestId('credential-password').fill('Secure-Password-123!');
+  await page.getByTestId('credential-confirmation').fill('Secure-Password-123!');
+  await expectFormReadableAtLargeText(page, [
+    'تعيين كلمة المرور',
+    'استخدم رمز الدعوة أو الاستعادة مرة واحدة. لن يُحفظ الرمز على هذا الجهاز.',
+    'الرمز الآمن',
+    'كلمة المرور الجديدة',
+    '12 حرفاً على الأقل، مع حرف كبير وصغير ورقم ورمز.',
+    'تأكيد كلمة المرور',
+    'حفظ كلمة المرور',
+  ], [
+    'credential-token',
+    'credential-password',
+    'credential-confirmation',
+    'credential-submit',
+  ]);
+  await context.close();
+});
+
 test('family head can read and tap the need request form at 375px and 150% text', async ({ browser }) => {
   const { context, page } = await openHome(browser, 'family');
   await page.getByTestId('home-family-portal').filter({ visible: true }).click();
