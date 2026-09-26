@@ -12,11 +12,66 @@ import { useColors } from '@/hooks/useColors';
 function NativeTabLayout() {
   return (
     <NativeTabs>
-      <NativeTabs.Trigger name="index"><NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} /><NativeTabs.Trigger.Label>الرئيسية</NativeTabs.Trigger.Label></NativeTabs.Trigger>
-      <NativeTabs.Trigger name="operations"><NativeTabs.Trigger.Icon sf={{ default: 'shippingbox', selected: 'shippingbox.fill' }} /><NativeTabs.Trigger.Label>المساعدات</NativeTabs.Trigger.Label></NativeTabs.Trigger>
-      <NativeTabs.Trigger name="people"><NativeTabs.Trigger.Icon sf={{ default: 'person.2', selected: 'person.2.fill' }} /><NativeTabs.Trigger.Label>السجل</NativeTabs.Trigger.Label></NativeTabs.Trigger>
-      <NativeTabs.Trigger name="alerts"><NativeTabs.Trigger.Icon sf={{ default: 'bell', selected: 'bell.fill' }} /><NativeTabs.Trigger.Label>التنبيهات</NativeTabs.Trigger.Label></NativeTabs.Trigger>
-      <NativeTabs.Trigger name="account"><NativeTabs.Trigger.Icon sf={{ default: 'person.crop.circle', selected: 'person.crop.circle.fill' }} /><NativeTabs.Trigger.Label>الحساب</NativeTabs.Trigger.Label></NativeTabs.Trigger>
+      <NativeTabs.Trigger
+        name="index"
+        testID="native-tab-home"
+        accessibilityLabel="الرئيسية"
+        labelVisibilityMode="labeled"
+      >
+        <NativeTabs.Trigger.Icon
+          sf={{ default: 'house', selected: 'house.fill' }}
+          md="home"
+        />
+        <NativeTabs.Trigger.Label>الرئيسية</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger
+        name="operations"
+        testID="native-tab-aids"
+        accessibilityLabel="المساعدات"
+        labelVisibilityMode="labeled"
+      >
+        <NativeTabs.Trigger.Icon
+          sf={{ default: 'shippingbox', selected: 'shippingbox.fill' }}
+          md="inventory_2"
+        />
+        <NativeTabs.Trigger.Label>المساعدات</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger
+        name="people"
+        testID="native-tab-people"
+        accessibilityLabel="السجل"
+        labelVisibilityMode="labeled"
+      >
+        <NativeTabs.Trigger.Icon
+          sf={{ default: 'person.2', selected: 'person.2.fill' }}
+          md="groups"
+        />
+        <NativeTabs.Trigger.Label>السجل</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger
+        name="alerts"
+        testID="native-tab-alerts"
+        accessibilityLabel="التنبيهات"
+        labelVisibilityMode="labeled"
+      >
+        <NativeTabs.Trigger.Icon
+          sf={{ default: 'bell', selected: 'bell.fill' }}
+          md="notifications"
+        />
+        <NativeTabs.Trigger.Label>التنبيهات</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger
+        name="account"
+        testID="native-tab-account"
+        accessibilityLabel="الحساب"
+        labelVisibilityMode="labeled"
+      >
+        <NativeTabs.Trigger.Icon
+          sf={{ default: 'person.crop.circle', selected: 'person.crop.circle.fill' }}
+          md="account_circle"
+        />
+        <NativeTabs.Trigger.Label>الحساب</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
@@ -77,5 +132,6 @@ const styles = StyleSheet.create({
 });
 
 export default function TabLayout() {
-  return isLiquidGlassAvailable() ? <NativeTabLayout /> : <ClassicTabLayout />;
+  const useNativeTabs = Platform.OS === 'android' || isLiquidGlassAvailable();
+  return useNativeTabs ? <NativeTabLayout /> : <ClassicTabLayout />;
 }

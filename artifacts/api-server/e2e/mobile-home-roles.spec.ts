@@ -28,6 +28,7 @@ const dashboardNumbers = {
   totalDisplacedPersons: 321, activeAids: 42, openComplaints: 8,
   totalDelegates: 13, unreadNotifications: 5,
 };
+const tabLabels = ['الرئيسية', 'المساعدات', 'السجل', 'التنبيهات', 'الحساب'];
 const metricLabels = ['فرداً في السجل', 'مساعدة نشطة', 'شكوى مفتوحة', 'مندوباً', 'إشعاراً جديداً'];
 const managementActions = ['تسجيل مساعدة', 'إضافة فرد', 'تسجيل شكوى', 'تكليف مهمة', 'العائلات', 'الاحتياجات', 'وحدات الإيواء', 'التقارير', 'إدارة الإعلانات'];
 
@@ -195,6 +196,19 @@ async function expectReadableAtLargeText(page: Page, home: ReturnType<Page['getB
   const buttons = home.getByRole('button').filter({ visible: true });
   for (const button of await buttons.all()) await button.click({ trial: true });
   const tabs = page.getByRole('tab').filter({ visible: true });
+  await expect(tabs).toHaveCount(tabLabels.length);
+  const visibleTabLabels = await tabs.evaluateAll((elements) => elements.map((element) =>
+    Array.from(element.textContent ?? '')
+      .filter((character) => {
+        const codePoint = character.codePointAt(0) ?? 0;
+        return !((codePoint >= 0xe000 && codePoint <= 0xf8ff) ||
+          (codePoint >= 0xf0000 && codePoint <= 0xffffd) ||
+          (codePoint >= 0x100000 && codePoint <= 0x10fffd));
+      })
+      .join('')
+      .trim(),
+  ));
+  expect(visibleTabLabels).toEqual(tabLabels);
   for (const tab of await tabs.all()) await tab.click({ trial: true });
 }
 
@@ -334,7 +348,7 @@ test.afterAll(async () => {
   if (managerCreated) await db.delete(staffUsers).where(eq(staffUsers.id, managerId));
 });
 
-test('guest sees public feed and login but no private controls or counts at 375px and 150% text', async ({ browser }) => {
+test('guest sees public feed and login but no private controls or counts in the 375px web fallback at 150% text', async ({ browser }) => {
   const { context, page, home } = await openHome(browser, 'guest');
   await expect(home.getByTestId('home-login')).toBeVisible();
   await expect(home.getByTestId('home-notifications')).toHaveCount(0);
@@ -346,7 +360,7 @@ test('guest sees public feed and login but no private controls or counts at 375p
   await context.close();
 });
 
-test('manager sees actions, all five figures and operations freshness at 375px and 150% text', async ({ browser }) => {
+test('manager sees actions, all five figures and operations freshness in the 375px web fallback at 150% text', async ({ browser }) => {
   const { context, page, home } = await openHome(browser, 'manager');
   for (const title of managementActions) {
     await expect(home.getByRole('button', { name: new RegExp(title) })).toBeVisible();
@@ -364,7 +378,7 @@ test('manager sees actions, all five figures and operations freshness at 375px a
   await context.close();
 });
 
-test('limited security member sees assigned-task alert without management actions or figures at 375px and 150% text', async ({ browser }) => {
+test('limited security member sees assigned-task alert without management actions or figures in the 375px web fallback at 150% text', async ({ browser }) => {
   const { context, page, home } = await openHome(browser, 'member');
   await expect(home.getByTestId('home-notifications')).toBeVisible();
   await expect(home.getByTestId('home-staff-alert')).toContainText('1 مهام جارية أو معلّقة');
@@ -376,7 +390,7 @@ test('limited security member sees assigned-task alert without management action
   await context.close();
 });
 
-test('family head sees only family portal and pending need alert at 375px and 150% text', async ({ browser }) => {
+test('family head sees only family portal and pending need alert in the 375px web fallback at 150% text', async ({ browser }) => {
   const { context, page, home } = await openHome(browser, 'family');
   await expect(home.getByTestId('home-notifications')).toBeVisible();
   await expect(home.getByTestId('home-family-portal')).toBeVisible();
