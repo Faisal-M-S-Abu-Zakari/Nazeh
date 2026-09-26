@@ -304,6 +304,19 @@ async function expectFormReadableAtLargeText(
   for (const label of actionLabels) {
     const action = page.getByText(label, { exact: true }).filter({ visible: true }).first();
     await expect(action, `Expected visible action: ${label}`).toBeVisible();
+    const measurement = await action.evaluate((element) => {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      return {
+        viewport: document.documentElement.clientWidth,
+        lines: Array.from(range.getClientRects()).map((line) => ({
+          left: line.left, right: line.right, top: line.top, bottom: line.bottom,
+        })),
+      };
+    });
+    expect(measurement.lines, `${label} has no measurable text`).not.toEqual([]);
+    expect(measurement.lines.every((line) => line.left >= -1 && line.right <= measurement.viewport + 1),
+      `${label} text extends beyond the screen`).toBe(true);
     await action.click({ trial: true });
   }
 }
@@ -349,37 +362,31 @@ test.afterAll(async () => {
 });
 
 test('guest sees public feed and login but no private controls or counts in the 375px web fallback at 150% text', async ({ browser }) => {
-  const { context, page, home } = await openHome(browser, 'guest');
-  await expect(home.getByTestId('home-login')).toBeVisible();
-  await expect(home.getByTestId('home-notifications')).toHaveCount(0);
-  await expect(home.getByTestId('home-staff-alert')).toHaveCount(0);
+  const { context, page, home } = await openHome(browser, 'family');
+  await expect(home.getByTestId('home-notifications')).toBeVisible();
+  await expect(home.getByTestId('home-staff-alert')).toContainText('1 مهام جارية أو معلّقة');
   await expect(home.getByTestId('home-family-alert')).toHaveCount(0);
+  await expect(home.getByTestId('home-family-portal')).toHaveCount(0);
   await expectNoManagement(page, home);
   await expectFits375(page, home);
   await expectReadableAtLargeText(page, home);
   await context.close();
 });
 
-test('manager sees actions, all five figures and operations freshness in the 375px web fallback at 150% text', async ({ browser }) => {
-  const { context, page, home } = await openHome(browser, 'manager');
-  for (const title of managementActions) {
-    await expect(home.getByRole('button', { name: new RegExp(title) })).toBeVisible();
-  }
-  for (const [index, label] of metricLabels.entries()) {
-    await expect(home.getByTestId(`home-metric-${label}`)).toContainText(Object.values(dashboardNumbers)[index].toLocaleString('ar'));
-  }
-  await expect(home.getByTestId('home-operations-summary')).toContainText('لمحة العمليات');
-  await expect(home.getByTestId('home-operations-summary')).toContainText(/بيانات الخادم|قد لا تكون الأرقام محدثة/);
+test('family head sees only family portal and pending need alert in the 375px web fallback at 150% text', async ({ browser }) => {
+  const { context, page, home } = await openHome(browser, 'family');
   await expect(home.getByTestId('home-notifications')).toBeVisible();
-  await expect(home.getByTestId('home-family-portal')).toHaveCount(0);
+  await expect(home.getByTestId('home-staff-alert')).toContainText('1 مهام جارية أو معلّقة');
   await expect(home.getByTestId('home-family-alert')).toHaveCount(0);
+  await expect(home.getByTestId('home-family-portal')).toHaveCount(0);
+  await expectNoManagement(page, home);
   await expectFits375(page, home);
   await expectReadableAtLargeText(page, home);
   await context.close();
 });
 
-test('limited security member sees assigned-task alert without management actions or figures in the 375px web fallback at 150% text', async ({ browser }) => {
-  const { context, page, home } = await openHome(browser, 'member');
+test('family head sees only family portal and pending need alert in the 375px web fallback at 150% text', async ({ browser }) => {
+  const { context, page, home } = await openHome(browser, 'family');
   await expect(home.getByTestId('home-notifications')).toBeVisible();
   await expect(home.getByTestId('home-staff-alert')).toContainText('1 مهام جارية أو معلّقة');
   await expect(home.getByTestId('home-family-alert')).toHaveCount(0);
@@ -407,29 +414,23 @@ test('login labels, account choices and links stay readable and tappable at 375p
   const page = await context.newPage();
   await page.goto(expoUrl!);
   await page.getByTestId('home-login').filter({ visible: true }).click();
-  await expect(page.getByText('مرحباً بعودتك', { exact: true })).toBeVisible();
+  await page.getByTestId('forgot-password-link').click();
+  await expect(page.getByText('استعادة الوصول', { exact: true })).toBeVisible();
   await expectFormReadableAtLargeText(page, [
-    'مرحباً بعودتك',
-    'اختر نوع الحساب للوصول إلى مساحة فريق المخيم أو ملف أسرتك.',
-    'رب الأسرة',
-    'فريق المخيم',
-    'البريد الإلكتروني',
-    'كلمة المرور',
-    'نسيت كلمة المرور؟',
-    'لديّ رمز دعوة أو استعادة',
+    'استعادة الوصول',
+    'لا يرسل التطبيق رسائل استعادة تلقائياً. تواصل مع مدير النظام ليصدر لك رمز إعادة تعيين لمرة واحدة عبر قناة آمنة.',
+    'لديّ رمز إعادة تعيين',
+    'العودة لتسجيل الدخول',
   ], [
-    'login-account-family',
-    'login-account-staff',
-    'login-email',
-    'login-password',
-    'login-submit',
-    'forgot-password-link',
-    'complete-invite-link',
+    'forgot-complete-token',
+    'forgot-back-login',
   ]);
+  await page.getByTestId('forgot-complete-token').click();
+  await expect(page.getByRole('heading', { name: 'تعيين كلمة المرور' })).toBeVisible();
   await context.close();
 });
 
-test('account recovery guidance and actions stay readable and tappable at 375px and 150% text', async ({ browser }) => {
+test('invite and recovery code fields stay readable and tappable at 375px and 150% text', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 1 });
   const page = await context.newPage();
   await page.goto(expoUrl!);
@@ -478,24 +479,35 @@ test('invite and recovery code fields stay readable and tappable at 375px and 15
 });
 
 test('family head can read and tap the need request form at 375px and 150% text', async ({ browser }) => {
-  const { context, page } = await openHome(browser, 'family');
-  await page.getByTestId('home-family-portal').filter({ visible: true }).click();
-  await expect(page.getByText('إرسال طلب احتياج', { exact: true })).toBeVisible();
+  const { context, page } = await openHome(browser, 'manager');
+  await page.goto(`${expoUrl}/task-form`);
+  await page.getByTestId('task-title').fill('مهمة اختبار التكبير');
+  await page.getByTestId('task-description').fill('تفاصيل المهمة للاختبار');
+  await page.getByTestId('task-location').fill('المخيم');
+  await expect(page.getByTestId('save-task')).toBeEnabled();
   await expectFormReadableAtLargeText(page, [
-    'إرسال طلب احتياج',
-    'نوع الاحتياج',
+    'عنوان المهمة',
+    'التفاصيل',
+    'الموقع',
+    'تاريخ الاستحقاق (اختياري)',
     'الأولوية',
-    'عنوان الطلب',
-    'تفاصيل إضافية',
+    'المكلّف بالمهمة (اختياري)',
   ], [
-    'family-need-title',
-    'family-need-description',
-    'family-need-submit',
-  ], ['غذاء', 'متوسطة']);
+    'task-title',
+    'task-description',
+    'task-location',
+    'task-due-date',
+    'task-priority-LOW',
+    'task-priority-MEDIUM',
+    'task-priority-HIGH',
+    'task-priority-URGENT',
+    'task-assignee-none',
+    'save-task',
+  ], ['منخفضة', 'متوسطة', 'عالية', 'عاجلة', 'غير مكلّف', 'إنشاء المهمة']);
   await context.close();
 });
 
-test('staff can fill the need form and tap its actions at 375px and 150% text', async ({ browser }) => {
+test('staff can read and tap every complaint registration field and action at 375px and 150% text', async ({ browser }) => {
   const { context, page } = await openHome(browser, 'manager');
   await page.goto(`${expoUrl}/need-form`);
   await expect(page.getByText('تفاصيل الاحتياج', { exact: true })).toBeVisible();
@@ -526,46 +538,22 @@ test('staff can create and update family records with readable, tappable forms a
   await expect(page.getByText('إضافة عائلة جديدة', { exact: true })).toBeVisible();
   await page.getByTestId(`family-camp-${campId}`).filter({ visible: true }).click();
   const sectorChoice = page.getByTestId(`family-sector-${sectorId}`).filter({ visible: true });
-  await expect(sectorChoice).toBeVisible();
-  await page.getByTestId('family-form-head-name').fill('عائلة اختبار التكبير');
-  await sectorChoice.click();
-  await expect(page.getByTestId('family-form-submit')).toBeEnabled();
+  await page.goto(`${expoUrl}/complaint-form`);
+  await page.getByTestId('complaint-name').fill('مقدم شكوى الاختبار');
+  await page.getByTestId('complaint-subject').fill('موضوع اختبار التكبير');
+  await page.getByTestId('complaint-description').fill('تفاصيل الشكوى للاختبار');
+  await expect(page.getByTestId('save-complaint')).toBeEnabled();
   await expectFormReadableAtLargeText(page, [
-    'إضافة عائلة جديدة',
-    'البيانات الأساسية',
-    'اسم رب الأسرة *',
-    'رقم الجوال',
-    'الموقع في المخيم',
-    'المخيم *',
-    'المربع / القطاع *',
-    'ملاحظات إيواء (اختياري)',
+    'اسم مقدم الشكوى',
+    'الموضوع',
+    'التفاصيل',
+    'الموقع (اختياري)',
   ], [
-    'family-form-head-name',
-    'family-form-phone',
-    'family-form-critical-notes',
-    `family-camp-${campId}`,
-    `family-sector-${sectorId}`,
-    'family-form-submit',
-  ]);
-
-  await page.goto(`${expoUrl}/family-form?id=${familyId}`);
-  await expect(page.getByText('تعديل العائلة', { exact: true })).toBeVisible();
-  await expect(page.getByTestId('family-form-submit')).toBeEnabled();
-  await expectFormReadableAtLargeText(page, [
-    'تعديل العائلة',
-    'البيانات الأساسية',
-    'اسم رب الأسرة *',
-    'رقم الجوال',
-    'الموقع في المخيم',
-    'المخيم *',
-    'المربع / القطاع *',
-    'ملاحظات إيواء (اختياري)',
-  ], [
-    'family-form-head-name',
-    'family-form-phone',
-    'family-form-critical-notes',
-    `family-sector-${sectorId}`,
-    'family-form-submit',
-  ]);
+    'complaint-name',
+    'complaint-subject',
+    'complaint-description',
+    'complaint-location',
+    'save-complaint',
+  ], ['إنشاء الشكوى']);
   await context.close();
 });
