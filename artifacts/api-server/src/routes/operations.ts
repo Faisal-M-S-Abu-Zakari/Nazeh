@@ -469,7 +469,8 @@ router.patch("/tasks/:taskId", allowRoles(...taskReaders), async (req, res): Pro
       });
       return { statusCode: 200, responseBody: UpdateTaskStatusResponse.parse(updated) };
     }
-    const [current] = await tx.select().from(tasks).where(and(eq(tasks.id, params.taskId), taskScope)).limit(1);
+    const [current] = await tx.select().from(tasks)
+      .where(and(eq(tasks.id, params.taskId), taskScope, isNull(tasks.archivedAt))).limit(1);
     if (!current) return { statusCode: 404, responseBody: { error: "Task not found" } };
     return conflict("Task", current);
   }, { required: false });

@@ -11,7 +11,7 @@ import { ArchiveConfirmModal } from '@/components/ArchiveConfirmModal';
 import { Field, fonts, PrimaryButton } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
-import { getErrorStatus, getMutationErrorMessage, isVersionConflict, showMutationError } from '@/lib/mutationErrors';
+import { getMutationErrorMessage, isVersionConflict, showMutationError } from '@/lib/mutationErrors';
 
 const priorities = [[TaskPriority.LOW, 'منخفضة'], [TaskPriority.MEDIUM, 'متوسطة'], [TaskPriority.HIGH, 'عالية'], [TaskPriority.URGENT, 'عاجلة']] as const;
 const statuses = [[TaskStatus.PENDING, 'معلّقة'], [TaskStatus.IN_PROGRESS, 'قيد التنفيذ'], [TaskStatus.COMPLETED, 'مكتملة'], [TaskStatus.CANCELLED, 'ملغاة']] as const;
@@ -25,12 +25,18 @@ type TaskActionError = {
     acknowledged: boolean;
   };
 };
+type TaskEditConflict = {
+  expectedVersion: number;
+  latestVersion: number | null;
+  acknowledged: boolean;
+};
 export default function TaskFormScreen() {
   const colors = useColors();
   const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { tasks, canManageTasks, addTask, user } = useApp();
   const task = tasks.find((item) => item.id === id);
+  const originalTask = useRef<Task | null>(task ?? null);
   const canManageTaskRecords = user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'SECURITY_OFFICER';
   const updateMutation = useUpdateTaskStatus();
   const archiveMutation = useArchiveSyncTask();
@@ -50,6 +56,8 @@ export default function TaskFormScreen() {
   const [assignedToId, setAssignedToId] = useState<string | null>(task?.assignedToId ?? null);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [taskEditConflict, setTaskEditConflict] = useState<TaskEditConflict | null>(null);
+  const [refreshingTaskConflict, setRefreshingTaskConflict] = useState(false);
   const [taskActionError, setTaskActionError] = useState<TaskActionError | null>(null);
   const [refreshingConflict, setRefreshingConflict] = useState(false);
 
@@ -69,6 +77,55 @@ export default function TaskFormScreen() {
     const queryKey = getListTasksQueryKey();
     await queryClient.refetchQueries({ queryKey, type: 'active' }, { throwOnError: true });
     return queryClient.getQueryData<Task[]>(queryKey) ?? [];
+  };
+  const resetTaskEditReview = () => {
+    setTaskEditConflict((current) => current ? { ...current, acknowledged: false } : current);
+  };
+  const mergeTaskDraftWithLatest = (latest: Task) => {
+    const baseline = originalTask.current;
+    if (!baseline || baseline.id !== latest.id) {
+      setTitle(latest.title);
+      setDescription(latest.description);
+      setLocation(latest.location);
+      setPriority(latest.priority);
+      setStatus(latest.status);
+      setDueAt(latest.dueAt?.slice(0, 10) ?? '');
+      setAssignedToId(latest.assignedToId ?? null);
+      originalTask.current = latest;
+      return;
+    }
+
+    if (title === baseline.title) setTitle(latest.title);
+    if (description === baseline.description) setDescription(latest.description);
+    if (location === baseline.location) setLocation(latest.location);
+    if (priority === baseline.priority) setPriority(latest.priority);
+    if (status === baseline.status) setStatus(latest.status);
+    if (dueAt === (baseline.dueAt?.slice(0, 10) ?? '')) setDueAt(latest.dueAt?.slice(0, 10) ?? '');
+    if (assignedToId === (baseline.assignedToId ?? null)) setAssignedToId(latest.assignedToId ?? null);
+    originalTask.current = latest;
+  };
+  const loadLatestAfterTaskEditConflict = async (expectedVersion: number) => {
+    let latestVersion: number | null = null;
+    try {
+      const latestTasks = await refresh();
+      const latest = latestTasks.find((item) => item.id === task?.id);
+      if (latest && latest.version > expectedVersion) {
+        mergeTaskDraftWithLatest(latest);
+        latestVersion = latest.version;
+      }
+    } catch {
+      // Keep the draft and require a successful refresh before enabling another save.
+    }
+    setTaskEditConflict({ expectedVersion, latestVersion, acknowledged: false });
+  };
+  const refreshTaskEditConflict = async () => {
+    if (!taskEditConflict || refreshingTaskConflict) return;
+    setRefreshingTaskConflict(true);
+    try {
+      await loadLatestAfterTaskEditConflict(taskEditConflict.expectedVersion);
+    } finally {
+      setRefreshingTaskConflict(false);
+    }
   };
   const handleTaskActionFailure = async (error: unknown, action: TaskAction, expectedVersion: number) => {
     if (isVersionConflict(error)) {
@@ -146,6 +203,12 @@ export default function TaskFormScreen() {
   };
   const save = async () => {
     if (!canManageTaskRecords || !canManageTasks || saveInFlight.current) return;
+    if (taskEditConflict && (
+      !task ||
+      !taskEditConflict.acknowledged ||
+      taskEditConflict.latestVersion === null ||
+      task.version !== taskEditConflict.latestVersion
+    )) return;
     saveInFlight.current = true;
     setSaving(true);
     setSaveError(null);
@@ -158,12 +221,16 @@ export default function TaskFormScreen() {
         const result = await addTask({ title: title.trim(), description: description.trim(), location: location.trim(), priority, dueAt: due, assignedToId });
         Alert.alert(result.queued ? 'بانتظار المزامنة' : 'تم إنشاء المهمة', result.queued ? 'حُفظت المهمة على الجهاز وستُرسل عند عودة الاتصال.' : 'تمت مزامنة المهمة مع الفريق.');
       }
+      setTaskEditConflict(null);
       await refresh();
       router.back();
     } catch (error) {
       setSaveError(getMutationErrorMessage(error));
-      await showMutationError(error, refresh);
-      if (getErrorStatus(error) === 409) router.back();
+      if (task && isVersionConflict(error)) {
+        await loadLatestAfterTaskEditConflict(task.version);
+      } else {
+        await showMutationError(error, refresh);
+      }
     } finally {
       setCreating(false);
       saveInFlight.current = false;
@@ -250,6 +317,13 @@ export default function TaskFormScreen() {
     );
   };
   const busy = saving || creating || updateMutation.isPending || archiveMutation.isPending;
+  const taskEditConflictLatestLoaded = !!(
+    taskEditConflict &&
+    task &&
+    taskEditConflict.latestVersion !== null &&
+    task.version === taskEditConflict.latestVersion &&
+    task.version > taskEditConflict.expectedVersion
+  );
   const valid = title.trim().length >= 2 && description.trim().length > 0 && location.trim().length >= 2 && (!dueAt.trim() || !Number.isNaN(new Date(dueAt).getTime()));
   const showResultForm = task && canSubmitResult && (
     task.status === TaskStatus.IN_PROGRESS ||
@@ -268,32 +342,71 @@ export default function TaskFormScreen() {
         <Text allowFontScaling style={[styles.intro, { color: colors.mutedForeground }]}>{task.description} · {task.location}</Text>
       </> : null}
       {canManageTaskRecords ? <>
-      <Field testID="task-title" label="عنوان المهمة" value={title} onChangeText={setTitle} />
-      <Field testID="task-description" label="التفاصيل" value={description} onChangeText={setDescription} multiline />
-      <Field testID="task-location" label="الموقع" value={location} onChangeText={setLocation} />
-      <Field testID="task-due-date" label="تاريخ الاستحقاق (اختياري)" value={dueAt} onChangeText={setDueAt} placeholder="2026-08-28" />
+      <Field testID="task-title" label="عنوان المهمة" value={title} editable={!busy && !refreshingTaskConflict} onChangeText={(value) => { setTitle(value); resetTaskEditReview(); }} />
+      <Field testID="task-description" label="التفاصيل" value={description} editable={!busy && !refreshingTaskConflict} onChangeText={(value) => { setDescription(value); resetTaskEditReview(); }} multiline />
+      <Field testID="task-location" label="الموقع" value={location} editable={!busy && !refreshingTaskConflict} onChangeText={(value) => { setLocation(value); resetTaskEditReview(); }} />
+      <Field testID="task-due-date" label="تاريخ الاستحقاق (اختياري)" value={dueAt} editable={!busy && !refreshingTaskConflict} onChangeText={(value) => { setDueAt(value); resetTaskEditReview(); }} placeholder="2026-08-28" />
       <Text allowFontScaling style={[styles.label, { color: colors.foreground }]}>الأولوية</Text>
-      <View style={styles.options}>{priorities.map(([value, label]) => <Pressable testID={`task-priority-${value}`} key={value} onPress={() => setPriority(value)} style={[styles.option, { backgroundColor: priority === value ? colors.primary : colors.muted }]}><Text allowFontScaling style={[styles.optionText, { color: priority === value ? colors.primaryForeground : colors.foreground }]}>{label}</Text></Pressable>)}</View>
+      <View style={styles.options}>{priorities.map(([value, label]) => <Pressable testID={`task-priority-${value}`} key={value} disabled={busy || refreshingTaskConflict} onPress={() => { setPriority(value); resetTaskEditReview(); }} style={[styles.option, { backgroundColor: priority === value ? colors.primary : colors.muted }]}><Text allowFontScaling style={[styles.optionText, { color: priority === value ? colors.primaryForeground : colors.foreground }]}>{label}</Text></Pressable>)}</View>
       <Text allowFontScaling style={[styles.label, { color: colors.foreground }]}>المكلّف بالمهمة (اختياري)</Text>
       <View style={styles.options}>
-        <Pressable testID="task-assignee-none" onPress={() => setAssignedToId(null)} style={[styles.option, { backgroundColor: assignedToId === null ? colors.primary : colors.muted }]}><Text allowFontScaling style={[styles.optionText, { color: assignedToId === null ? colors.primaryForeground : colors.foreground }]}>غير مكلّف</Text></Pressable>
-        {(officersQuery.data ?? []).filter((officer) => officer.active).map((officer) => <Pressable testID={`task-assignee-${officer.id}`} key={officer.id} onPress={() => setAssignedToId(officer.id)} style={[styles.option, { backgroundColor: assignedToId === officer.id ? colors.primary : colors.muted }]}><Text allowFontScaling style={[styles.optionText, { color: assignedToId === officer.id ? colors.primaryForeground : colors.foreground }]}>{officer.name}</Text></Pressable>)}
+        <Pressable testID="task-assignee-none" disabled={busy || refreshingTaskConflict} onPress={() => { setAssignedToId(null); resetTaskEditReview(); }} style={[styles.option, { backgroundColor: assignedToId === null ? colors.primary : colors.muted }]}><Text allowFontScaling style={[styles.optionText, { color: assignedToId === null ? colors.primaryForeground : colors.foreground }]}>غير مكلّف</Text></Pressable>
+        {(officersQuery.data ?? []).filter((officer) => officer.active).map((officer) => <Pressable testID={`task-assignee-${officer.id}`} key={officer.id} disabled={busy || refreshingTaskConflict} onPress={() => { setAssignedToId(officer.id); resetTaskEditReview(); }} style={[styles.option, { backgroundColor: assignedToId === officer.id ? colors.primary : colors.muted }]}><Text allowFontScaling style={[styles.optionText, { color: assignedToId === officer.id ? colors.primaryForeground : colors.foreground }]}>{officer.name}</Text></Pressable>)}
       </View>
       {officersQuery.isLoading ? <Text allowFontScaling style={[styles.helper, { color: colors.mutedForeground }]}>جارٍ تحميل مسؤولي الأمن…</Text> : null}
       {officersQuery.isError ? <Text allowFontScaling style={[styles.helper, { color: colors.destructive }]}>تعذر تحميل قائمة مسؤولي الأمن.</Text> : null}
       {task ? <>
         <Text allowFontScaling style={[styles.label, { color: colors.foreground }]}>الحالة</Text>
-        <View style={styles.options}>{statuses.map(([value, label]) => <Pressable testID={`task-status-${value}`} key={value} onPress={() => setStatus(value)} style={[styles.option, { backgroundColor: status === value ? colors.primary : colors.muted }]}><Text allowFontScaling style={[styles.optionText, { color: status === value ? colors.primaryForeground : colors.foreground }]}>{label}</Text></Pressable>)}</View>
+        <View style={styles.options}>{statuses.map(([value, label]) => <Pressable testID={`task-status-${value}`} key={value} disabled={busy || refreshingTaskConflict} onPress={() => { setStatus(value); resetTaskEditReview(); }} style={[styles.option, { backgroundColor: status === value ? colors.primary : colors.muted }]}><Text allowFontScaling style={[styles.optionText, { color: status === value ? colors.primaryForeground : colors.foreground }]}>{label}</Text></Pressable>)}</View>
       </> : null}
       {!task && !canManageTaskRecords ? <Text allowFontScaling style={[styles.intro, { color: colors.destructive }]}>لا تملك الصلاحية لإنشاء المهام.</Text> : null}
       </> : null}
-      {saveError ? (
+      {taskEditConflict && task && canManageTaskRecords ? (
+        <View testID="task-edit-conflict" accessibilityRole="alert" style={[styles.saveError, { backgroundColor: colors.errorSurface, borderColor: colors.destructive }]}>
+          <Text allowFontScaling testID="task-edit-conflict-message" style={[styles.saveErrorMessage, { color: colors.foreground }]}>{saveError ?? 'تعارض في التحديث: تغيّرت البيانات منذ آخر تحميل. راجع أحدث نسخة قبل إعادة المحاولة.'}</Text>
+          <Text allowFontScaling style={[styles.saveErrorMessage, { color: colors.foreground }]}>
+            احتفظنا بتغييراتك في النموذج. الحقول التي لم تعدّلها ستأخذ قيم أحدث نسخة؛ أما حقولك المعدّلة فستُحفظ فوقها بعد مراجعتك.
+          </Text>
+          <Text allowFontScaling testID="task-edit-current-title" style={[styles.saveErrorMessage, { color: colors.foreground }]}>العنوان في أحدث نسخة: {task.title}</Text>
+          <Text allowFontScaling testID="task-edit-current-description" style={[styles.saveErrorMessage, { color: colors.foreground }]}>التفاصيل في أحدث نسخة: {task.description}</Text>
+          <Text allowFontScaling testID="task-edit-current-status" style={[styles.saveErrorMessage, { color: colors.foreground }]}>الحالة في أحدث نسخة: {statuses.find(([value]) => value === task.status)?.[1] ?? task.status}</Text>
+          <Text allowFontScaling testID="task-edit-draft-summary" style={[styles.saveErrorMessage, { color: colors.foreground }]}>مسودتك المحفوظة: {title} · {description} · {statuses.find(([value]) => value === status)?.[1] ?? status}</Text>
+          {!taskEditConflictLatestLoaded ? (
+            <PrimaryButton
+              testID="task-edit-refresh-current"
+              label={refreshingTaskConflict ? 'جارٍ تحديث المهمة…' : 'تحديث بيانات المهمة'}
+              icon="refresh"
+              disabled={busy || refreshingTaskConflict}
+              onPress={() => void refreshTaskEditConflict()}
+            />
+          ) : !taskEditConflict.acknowledged ? (
+            <>
+              <Text allowFontScaling style={[styles.saveErrorMessage, { color: colors.foreground }]}>قارن أحدث نسخة بالمسودة أعلاه. لا يمكن الحفظ حتى تؤكد مراجعتها.</Text>
+              <PrimaryButton
+                testID="task-edit-review-current"
+                label="راجعت النسخة الحالية"
+                icon="checkmark"
+                disabled={busy}
+                onPress={() => setTaskEditConflict((current) => current ? { ...current, acknowledged: true } : current)}
+              />
+            </>
+          ) : (
+            <PrimaryButton
+              testID="task-edit-retry"
+              label="حفظ التغييرات على أحدث نسخة"
+              icon="refresh"
+              disabled={busy || !valid}
+              onPress={() => void save()}
+            />
+          )}
+        </View>
+      ) : saveError ? (
         <View testID="task-save-error" accessibilityRole="alert" style={[styles.saveError, { backgroundColor: colors.errorSurface, borderColor: colors.destructive }]}>
           <Text allowFontScaling testID="task-save-error-message" style={[styles.saveErrorMessage, { color: colors.foreground }]}>{saveError}</Text>
           <PrimaryButton testID="task-save-error-retry" label="إعادة المحاولة" icon="refresh" disabled={busy} onPress={() => void save()} />
         </View>
       ) : null}
-      {canManageTaskRecords ? <PrimaryButton testID="save-task" label={busy ? 'جارٍ الحفظ…' : task ? 'حفظ التعديلات' : 'إنشاء المهمة'} icon="checkmark" disabled={!valid || busy || !canManageTasks} onPress={() => void save()} /> : null}
+      {canManageTaskRecords ? <PrimaryButton testID="save-task" label={busy ? 'جارٍ الحفظ…' : task ? 'حفظ التعديلات' : 'إنشاء المهمة'} icon="checkmark" disabled={!valid || busy || !canManageTasks || !!taskEditConflict} onPress={() => void save()} /> : null}
       {task && canManageTaskRecords ? <Pressable testID="archive-task" disabled={busy} onPress={() => setArchiveOpen(true)} style={[styles.archive, { borderColor: colors.destructive }]}><Text allowFontScaling style={[styles.archiveText, { color: colors.destructive }]}>أرشفة المهمة</Text></Pressable> : null}
 
       {showResultForm && (

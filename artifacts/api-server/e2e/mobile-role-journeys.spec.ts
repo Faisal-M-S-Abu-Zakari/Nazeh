@@ -389,7 +389,9 @@ test('Expo web: security member submits a result and manager approves it at 375p
   await member.context.close();
 
   const manager = await openSession(browser, 'MANAGER', { width: 375, height: 812 });
-  await manager.page.goto(`${expoUrl}/task-form?id=${taskId}`);
+  await manager.page.getByText('التنبيهات', { exact: true }).last().click();
+  await expect(manager.page.getByText(updatedTaskTitle, { exact: true }).filter({ visible: true })).toBeVisible();
+  await manager.page.getByTestId(`edit-task-${taskId}`).click();
   await expect(manager.page.getByText('اعتماد نتيجة المهمة', { exact: true })).toBeVisible();
   const approvalNote = 'تم فحص الموقع بعد التسليم';
   const latestResult = 'اكتملت الجولة الأمنية بعد مراجعة إضافية';
@@ -444,6 +446,69 @@ test('Expo web: security member submits a result and manager approves it at 375p
   const approvalAuditRows = await db.select().from(syncAuditEvents).where(approvalAuditFilter);
   expect(approvalAuditRows).toHaveLength(1);
   expect(approvalAuditRows[0]?.metadata).toMatchObject({ note: approvalNote });
+
+  const draftTitle = `عنوان المدير ${suffix}`;
+  const draftDescription = `تفاصيل المدير ${suffix}`;
+  const latestTitle = `عنوان المستخدم الآخر ${suffix}`;
+  const latestDescription = `تفاصيل المستخدم الآخر ${suffix}`;
+  const latestLocation = `موقع المستخدم الآخر ${suffix}`;
+  await manager.page.goBack();
+  await expect(manager.page.getByText(updatedTaskTitle, { exact: true }).filter({ visible: true })).toBeVisible();
+  await manager.page.getByTestId(`edit-task-${taskId}`).click();
+  await manager.page.getByTestId('task-title').fill(draftTitle);
+  await manager.page.getByTestId('task-description').fill(draftDescription);
+  await manager.page.getByTestId('task-status-PENDING').click();
+  let taskUpdateAttempts = 0;
+  let retryPayload: Record<string, unknown> | null = null;
+  await manager.page.route(`**/api/sync/tasks/${taskId}`, async (route) => {
+    if (route.request().method() !== 'PATCH') return route.fallback();
+    taskUpdateAttempts++;
+    if (taskUpdateAttempts === 1) {
+      await db.update(tasks).set({
+        title: latestTitle,
+        description: latestDescription,
+        location: latestLocation,
+        status: 'IN_PROGRESS',
+        version: sql`${tasks.version} + 1`,
+        updatedAt: new Date(),
+      }).where(eq(tasks.id, taskId));
+    } else {
+      retryPayload = route.request().postDataJSON() as Record<string, unknown>;
+    }
+    await route.fallback();
+  });
+  const taskEditConflictResponse = manager.page.waitForResponse((response) =>
+    response.url().includes(`/api/sync/tasks/${taskId}`) && response.request().method() === 'PATCH' && response.status() === 409);
+  await manager.page.getByTestId('save-task').click();
+  const taskEditConflict = await taskEditConflictResponse;
+  expect((await taskEditConflict.json()).code).toBe('VERSION_CONFLICT');
+  await expect(manager.page).toHaveURL(new RegExp(`/task-form\\?id=${taskId}`));
+  await expect(manager.page.getByTestId('task-edit-conflict')).toBeVisible();
+  await expect(manager.page.getByTestId('task-title')).toHaveValue(draftTitle);
+  await expect(manager.page.getByTestId('task-description')).toHaveValue(draftDescription);
+  await expect(manager.page.getByTestId('task-edit-draft-summary')).toContainText('معلّقة');
+  await expect(manager.page.getByTestId('task-location')).toHaveValue(latestLocation);
+  await expect(manager.page.getByTestId('task-edit-current-title')).toContainText(latestTitle);
+  await expect(manager.page.getByTestId('task-edit-current-description')).toContainText(latestDescription);
+  await expect(manager.page.getByTestId('task-edit-current-status')).toContainText('قيد التنفيذ');
+  await expect(manager.page.getByTestId('task-edit-draft-summary')).toContainText(draftTitle);
+  await expect(manager.page.getByTestId('task-edit-retry')).toHaveCount(0);
+  await expect.poll(async () => (await db.select({
+    title: tasks.title, description: tasks.description, status: tasks.status,
+  }).from(tasks).where(eq(tasks.id, taskId)))[0]).toMatchObject({
+    title: latestTitle, description: latestDescription, status: 'IN_PROGRESS',
+  });
+  await manager.page.getByTestId('task-edit-review-current').click();
+  await manager.page.getByTestId('task-edit-retry').click();
+  await expect.poll(async () => (await db.select({
+    title: tasks.title, description: tasks.description, location: tasks.location, status: tasks.status,
+  }).from(tasks).where(eq(tasks.id, taskId)))[0]).toMatchObject({
+    title: draftTitle, description: draftDescription, location: latestLocation, status: 'PENDING',
+  });
+  expect(retryPayload).toMatchObject({
+    title: draftTitle, description: draftDescription, location: latestLocation, status: 'PENDING',
+  });
+  expect(taskUpdateAttempts).toBe(2);
   await manager.context.close();
 });
 
