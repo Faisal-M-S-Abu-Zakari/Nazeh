@@ -1,13 +1,32 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { TaskStatus } from '@workspace/api-client-react';
+import { useState } from 'react';
 import { Card, fonts, PrimaryButton, ScreenHeader, StatusPill, SyncBanner } from '@/components/ui';
 import { getRoleArabic, useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 
+const taskStatusLabel: Record<TaskStatus, string> = {
+  PENDING: 'معلّقة',
+  IN_PROGRESS: 'قيد التنفيذ',
+  COMPLETED: 'مكتملة',
+  CANCELLED: 'ملغاة',
+};
+
 export default function AccountScreen() {
   const colors = useColors();
-  const { signedIn, authLoading, signOut, user, queuedCount, pendingWrites, retrySync, discardQueuedWrite } = useApp();
+  const { signedIn, authLoading, signOut, user, queuedCount, pendingWrites, tasks, retrySync, discardQueuedWrite, reviewTaskConflict } = useApp();
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const reviewConflict = async (id: string) => {
+    setReviewError(null);
+    try {
+      await reviewTaskConflict(id);
+      router.push('/alerts' as never);
+    } catch {
+      setReviewError('تعذر تحديث حالة المهمة. تحقّق من الاتصال ثم راجعها مجدداً.');
+    }
+  };
   const requestSignOut = () => {
     if (Platform.OS === 'web') {
       void signOut();
@@ -26,7 +45,11 @@ export default function AccountScreen() {
     if (item.kind === 'person') return `إضافة سجل: ${item.data.fullName}`;
     if (item.kind === 'complaint-create') return `إضافة شكوى: ${item.data.subject}`;
     if (item.kind === 'task-create') return `إضافة مهمة: ${item.data.title}`;
-    return item.kind === 'task' ? `تحديث مهمة: ${item.status}` : item.kind === 'complaint' ? `تحديث شكوى: ${item.status}` : `طلب احتياج: ${item.data.title}`;
+    if (item.kind === 'task') {
+      const taskTitle = tasks.find((task) => task.id === item.targetId)?.title ?? item.conflict?.title;
+      return `تحديث المهمة: ${taskTitle ?? item.targetId}`;
+    }
+    return item.kind === 'complaint' ? `تحديث شكوى: ${item.status}` : `طلب احتياج: ${item.data.title}`;
   };
   return (
     <View style={[styles.page, { backgroundColor: colors.surfaceTint }]}>
@@ -58,11 +81,29 @@ export default function AccountScreen() {
             </Card> : null}
             {pendingWrites.length ? <Card>
               <Text style={[styles.heading, { color: colors.foreground }]}>إجراءات بانتظار المزامنة</Text>
-              {pendingWrites.map((item) => <View key={item.id} style={[styles.pending, { borderTopColor: colors.border }]}>
-                <View style={styles.pendingText}><Text style={[styles.meta, { color: colors.foreground }]}>{pendingLabel(item)}</Text><Text style={[styles.pendingState, { color: colors.warning }]}>بانتظار الإرسال إلى الخادم</Text></View>
-                <Pressable testID={`discard-pending-${item.id}`} onPress={() => void discardQueuedWrite(item.id)}><Text style={[styles.pendingAction, { color: colors.destructive }]}>حذف</Text></Pressable>
-                <Pressable testID={`retry-pending-${item.id}`} onPress={() => void retrySync()}><Text style={[styles.pendingAction, { color: colors.primary }]}>إعادة المحاولة</Text></Pressable>
-              </View>)}
+              {reviewError ? <Text testID="task-conflict-review-error" accessibilityRole="alert" style={[styles.pendingState, { color: colors.destructive }]}>{reviewError}</Text> : null}
+              {pendingWrites.map((item) => {
+                const taskConflict = item.kind === 'task' ? item.conflict : undefined;
+                return (
+                  <View key={item.id} style={[styles.pending, { borderTopColor: colors.border }]}>
+                    <View style={styles.pendingText}>
+                      <Text style={[styles.meta, { color: colors.foreground }]}>{pendingLabel(item)}</Text>
+                      {taskConflict ? <>
+                        <Text style={[styles.pendingState, { color: colors.warning }]}>تغيّرت هذه المهمة على جهاز آخر. لم يُعَد إرسال التغيير القديم.</Text>
+                        <Text style={[styles.pendingState, { color: colors.foreground }]}>{taskConflict.refreshed
+                          ? taskConflict.status
+                            ? `أحدث حالة: ${taskStatusLabel[taskConflict.status]} · الإصدار ${taskConflict.version}`
+                            : 'لم تعد المهمة ظاهرة ضمن المهام المتاحة.'
+                          : 'تعذر تحميل أحدث حالة؛ راجعها قبل إنشاء أي تغيير جديد.'}</Text>
+                      </> : <Text style={[styles.pendingState, { color: colors.warning }]}>بانتظار الإرسال إلى الخادم</Text>}
+                    </View>
+                    <Pressable testID={`discard-pending-${item.id}`} onPress={() => void discardQueuedWrite(item.id)}><Text style={[styles.pendingAction, { color: colors.destructive }]}>حذف</Text></Pressable>
+                    {taskConflict
+                      ? <Pressable testID={`review-pending-task-${item.id}`} onPress={() => void reviewConflict(item.id)}><Text style={[styles.pendingAction, { color: colors.primary }]}>مراجعة الحالة</Text></Pressable>
+                      : <Pressable testID={`retry-pending-${item.id}`} onPress={() => void retrySync()}><Text style={[styles.pendingAction, { color: colors.primary }]}>إعادة المحاولة</Text></Pressable>}
+                  </View>
+                );
+              })}
             </Card> : null}
             <PrimaryButton testID="account-logout" label="تسجيل الخروج" icon="log-out-outline" onPress={requestSignOut} />
           </>

@@ -63,3 +63,16 @@ test('mutation error messages never expose a raw server response', () => {
   assert.doesNotMatch(mutationErrors, /error\.message/);
   assert.doesNotMatch(mutationErrors, /JSON\.stringify/);
 });
+
+test('offline task conflicts require a latest-state review instead of a stale retry', () => {
+  const appContext = source('context/AppContext.tsx');
+  const accountScreen = source('app/(tabs)/account.tsx');
+
+  assert.match(appContext, /isConflict: \(item, error\) => item\.kind === 'task' && isVersionConflict\(error\)/);
+  assert.match(appContext, /isBlocked: \(item\) => item\.kind === 'task' && !!item\.conflict/);
+  assert.match(appContext, /status === 401 \|\| status === 403/);
+  assert.match(appContext, /status === undefined\) setManualError\('تعذر الاتصال بالخادم/);
+  assert.match(accountScreen, /أحدث حالة:/);
+  assert.match(accountScreen, /testID=\{`review-pending-task-\$\{item\.id\}`\}/);
+  assert.match(accountScreen, /لم يُعَد إرسال التغيير القديم/);
+});

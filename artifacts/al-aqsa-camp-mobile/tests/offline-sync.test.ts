@@ -126,6 +126,115 @@ test('an in-flight replay is cancelled without touching the next account queue',
   );
 });
 
+test('a task changed by another account after reconnection is shown for review and never replayed again', async () => {
+  type TaskWrite = {
+    id: string;
+    ownerUserId: string;
+    kind: 'task';
+    targetId: string;
+    status: 'IN_PROGRESS';
+    expectedVersion: number;
+    conflict?: { refreshed: boolean; title: string | null; status: string | null; version: number | null };
+  };
+  const queued: TaskWrite = {
+    id: 'offline-task-update',
+    ownerUserId: 'staff-a',
+    kind: 'task',
+    targetId: 'task-1',
+    status: 'IN_PROGRESS',
+    expectedVersion: 1,
+  };
+  let serverTask = { title: 'تفقد البوابة', status: 'PENDING', version: 1 };
+  let replayAttempts = 0;
+  let latestTaskRefreshes = 0;
+  let persisted: TaskWrite[] = [queued];
+  const updateFromAnotherAccount = (ownerUserId: string) => {
+    assert.equal(ownerUserId, 'staff-b');
+    serverTask = { ...serverTask, status: 'COMPLETED', version: 2 };
+  };
+  const replay = (items: TaskWrite[]) => replayOwnerQueue<TaskWrite>({
+    ownerUserId: 'staff-a',
+    items,
+    signal: new AbortController().signal,
+    isCurrent: () => true,
+    execute: async (item) => {
+      replayAttempts += 1;
+      if (item.expectedVersion !== serverTask.version) {
+        throw Object.assign(new Error('conflict'), {
+          status: 409,
+          data: { code: 'VERSION_CONFLICT' },
+        });
+      }
+      serverTask = { ...serverTask, status: item.status, version: serverTask.version + 1 };
+    },
+    isConflict: (item, error) => item.kind === 'task' &&
+      typeof error === 'object' && error !== null &&
+      'status' in error && error.status === 409 &&
+      'data' in error && typeof error.data === 'object' && error.data !== null &&
+      'code' in error.data && error.data.code === 'VERSION_CONFLICT',
+    markConflict: async (item) => {
+      latestTaskRefreshes += 1;
+      return {
+        ...item,
+        conflict: {
+          refreshed: true,
+          title: serverTask.title,
+          status: serverTask.status,
+          version: serverTask.version,
+        },
+      };
+    },
+    isBlocked: (item) => !!item.conflict,
+    persist: async (_owner, remaining) => { persisted = remaining; },
+  });
+
+  updateFromAnotherAccount('staff-b');
+  const firstReplay = await replay([queued]);
+  assert.equal(serverTask.status, 'COMPLETED');
+  assert.equal(serverTask.version, 2);
+  assert.equal(firstReplay[0]?.conflict?.title, 'تفقد البوابة');
+  assert.equal(firstReplay[0]?.conflict?.status, 'COMPLETED');
+  assert.equal(firstReplay[0]?.conflict?.version, 2);
+  assert.deepEqual(persisted.map((item) => item.id), ['offline-task-update']);
+
+  const restoredQueue = readOwnerQueue<TaskWrite>(JSON.stringify(persisted), 'staff-a');
+  await replay(restoredQueue);
+  assert.equal(replayAttempts, 1);
+  assert.equal(latestTaskRefreshes, 1);
+  assert.equal(serverTask.status, 'COMPLETED');
+});
+
+test('permission and connection failures stay queued without being labeled as version conflicts', async () => {
+  const queued: Write = { id: 'pending', ownerUserId: 'staff-a', value: 'task update' };
+  for (const failure of [
+    Object.assign(new Error('forbidden'), { status: 403 }),
+    new TypeError('network unavailable'),
+  ]) {
+    let conflictMarked = false;
+    let persisted: Write[] = [queued];
+    await assert.rejects(
+      replayOwnerQueue<Write>({
+        ownerUserId: 'staff-a',
+        items: [queued],
+        signal: new AbortController().signal,
+        isCurrent: () => true,
+        execute: async () => { throw failure; },
+        isConflict: (_item, error) =>
+          typeof error === 'object' && error !== null &&
+          'status' in error && error.status === 409,
+        markConflict: async (item) => {
+          conflictMarked = true;
+          return item;
+        },
+        persist: async (_owner, remaining) => { persisted = remaining; },
+      }),
+      failure,
+    );
+    assert.equal(conflictMarked, false);
+    assert.deepEqual(persisted, [queued]);
+  }
+});
+
 test('Expo login, reload, synchronized refresh and logout use the same token store', async () => {
   let persisted: string | null = null;
   const makeLifecycle = () => createMobileAuthLifecycle({

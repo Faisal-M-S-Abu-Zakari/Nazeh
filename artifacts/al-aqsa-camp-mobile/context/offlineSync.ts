@@ -68,6 +68,9 @@ type ReplayOptions<T extends OwnerScopedWrite> = {
   signal: AbortSignal;
   isCurrent: () => boolean;
   execute: (item: T, signal: AbortSignal) => Promise<void>;
+  isConflict?: (item: T, error: unknown) => boolean;
+  markConflict?: (item: T, error: unknown) => Promise<T>;
+  isBlocked?: (item: T) => boolean;
   persist: (ownerUserId: string, remaining: T[]) => Promise<void>;
 };
 
@@ -82,12 +85,27 @@ export async function replayOwnerQueue<T extends OwnerScopedWrite>({
   signal,
   isCurrent,
   execute,
+  isConflict,
+  markConflict,
+  isBlocked,
   persist,
 }: ReplayOptions<T>): Promise<T[]> {
   const remaining = items.filter((item) => item.ownerUserId === ownerUserId);
   for (const item of [...remaining]) {
     if (signal.aborted || !isCurrent()) break;
-    await execute(item, signal);
+    if (isBlocked?.(item)) continue;
+    try {
+      await execute(item, signal);
+    } catch (error) {
+      if (!isConflict?.(item, error) || !markConflict) throw error;
+      const index = remaining.findIndex((entry) => entry.id === item.id);
+      if (index < 0) continue;
+      const conflicted = await markConflict(item, error);
+      if (signal.aborted || !isCurrent()) break;
+      remaining[index] = conflicted;
+      await persist(ownerUserId, [...remaining]);
+      continue;
+    }
     if (signal.aborted || !isCurrent()) break;
     const index = remaining.findIndex((entry) => entry.id === item.id);
     if (index >= 0) remaining.splice(index, 1);

@@ -19,6 +19,7 @@ import { getReceivedDistributionCount, selectLatestAids } from '@/lib/aidPresent
 import { getLastSuccessfulAidsSyncAt, retryAidList } from '@/lib/aidSyncPresentation';
 import { selectLatestPeople } from '@/lib/personPresentation';
 import { getLastSuccessfulPeopleSyncAt, getPeopleSyncPresentation } from '@/lib/peopleSyncPresentation';
+import { getMutationErrorMessage, getErrorStatus, isVersionConflict } from '@/lib/mutationErrors';
 
 export type Aid = { id: string; title: string; type: string; apiType: AidType; families: number; receivedDistributionCount: number; unit: string; location: string; distributionDate: string; notes?: string | null; version: number; status: 'نشطة' | 'مكتملة'; date: string };
 export type Person = { id: string; name: string; role: 'نازح'; phone: string; nationalId: string; gender: ApiPerson['gender']; birthDate: string; tentNumber: string; familySize: number; notes?: string | null; version: number; location: string };
@@ -31,7 +32,7 @@ type QueuedWrite =
   | { id: string; idempotencyKey: string; ownerUserId: string; kind: 'complaint-create'; data: ComplaintInput }
   | { id: string; idempotencyKey: string; ownerUserId: string; kind: 'task-create'; data: TaskInput }
   | { id: string; ownerUserId: string; kind: 'complaint'; targetId: string; status: ComplaintStatus; expectedVersion: number }
-  | { id: string; ownerUserId: string; kind: 'task'; targetId: string; status: TaskStatus; expectedVersion: number }
+  | { id: string; ownerUserId: string; kind: 'task'; targetId: string; status: TaskStatus; expectedVersion: number; conflict?: { refreshed: boolean; title: string | null; status: TaskStatus | null; version: number | null } }
   | { id: string; idempotencyKey: string; ownerUserId: string; kind: 'family-need'; data: FamilyHeadNeedInput };
 type MutationResult = { queued: boolean };
 type AppValue = {
@@ -50,7 +51,7 @@ type AppValue = {
   addFamilyNeed: (data: FamilyHeadNeedInput) => Promise<MutationResult>;
   setComplaintStatus: (id: string, status: ComplaintStatus, expectedVersion: number) => Promise<MutationResult>;
   setTaskStatus: (id: string, status: TaskStatus, expectedVersion: number) => Promise<MutationResult>;
-  retrySync: () => Promise<void>; discardQueuedWrite: (id: string) => Promise<void>;
+  retrySync: () => Promise<void>; discardQueuedWrite: (id: string) => Promise<void>; reviewTaskConflict: (id: string) => Promise<void>;
 };
 
 const AppContext = createContext<AppValue | null>(null);
@@ -269,13 +270,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (item.kind === 'task') await updateTaskStatus(item.targetId, { status: item.status, expectedVersion: item.expectedVersion }, requestHeaders(key, signal));
           await invalidateFor(item);
         },
+        isConflict: (item, error) => item.kind === 'task' && isVersionConflict(error),
+        markConflict: async (item) => {
+          if (item.kind !== 'task') return item;
+          const refreshed = await tasksQuery.refetch();
+          const latest = refreshed.isError ? undefined : refreshed.data?.find((task) => task.id === item.targetId);
+          return {
+            ...item,
+            conflict: {
+              refreshed: !refreshed.isError && refreshed.data !== undefined,
+              title: latest?.title ?? null,
+              status: latest?.status ?? null,
+              version: latest?.version ?? null,
+            },
+          };
+        },
+        isBlocked: (item) => item.kind === 'task' && !!item.conflict,
         persist: saveQueueForOwner,
       });
     } catch (error) {
-      if (!controller.signal.aborted && httpStatus(error)) setManualError(httpStatus(error) === 403 ? 'ليس لديك صلاحية لتنفيذ أحد الإجراءات المعلّقة.' : `تعذر إرسال إجراء معلّق: ${(error as Error).message}`);
+      if (!controller.signal.aborted) {
+        const status = getErrorStatus(error);
+        if (status === 401 || status === 403) setManualError('ليس لديك صلاحية لتنفيذ أحد الإجراءات المعلّقة.');
+        else if (status === undefined) setManualError('تعذر الاتصال بالخادم. بقيت الإجراءات غير المتعارضة بانتظار المزامنة.');
+        else if (isVersionConflict(error)) setManualError('تعارض تحديث. راجع أحدث حالة للسجل قبل إنشاء إجراء جديد.');
+        else setManualError(getMutationErrorMessage(error));
+      }
     }
     if (remaining.length === 0) await refetchAll();
-  }, [invalidateFor, ownerUserId, protectedHydrated, queue, refetchAll, saveQueueForOwner, token, user]);
+  }, [invalidateFor, ownerUserId, protectedHydrated, queue, refetchAll, saveQueueForOwner, tasksQuery.refetch, token, user]);
   useEffect(() => { if (enabled && protectedHydrated && queue.length) void replayQueue(); }, [enabled, protectedHydrated]); // replay after validated owner hydration
   const queueOnNetworkError = useCallback(async (error: unknown, item: QueuedWrite, expectedEpoch: number): Promise<MutationResult> => {
     if (!isNetworkFailure(error)) { if (httpStatus(error) === 403) throw new Error('ليس لديك صلاحية لتنفيذ هذا الإجراء (403).'); throw error; }
@@ -309,6 +332,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     activeOwner.current = null; setOwnerUserId(null); setProtectedHydrated(false); setCache(emptyCache); setLastAidsSyncAt(null); setStoredLastPeopleSyncAt(null); setHasLocalPeopleCache(false); setQueue([]); queryClient.clear();
   }, [authRole, cache, logoutMutation, ownerUserId, queryClient, rotateIdentity]);
+  const reviewTaskConflict = useCallback(async (id: string) => {
+    const item = queue.find((write) => write.id === id && write.kind === 'task' && !!write.conflict);
+    if (!item) return;
+    const refreshed = await tasksQuery.refetch();
+    if (refreshed.isError || refreshed.data === undefined) throw refreshed.error ?? new Error('Task refresh failed');
+    await saveQueue(queue.filter((write) => write.id !== id));
+  }, [queue, saveQueue, tasksQuery.refetch]);
 
   const manager = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const delegate = user?.role === 'DELEGATE';
@@ -316,7 +346,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const queries = [me, aidsQuery, peopleQuery, complaintsQuery, tasksQuery, familyProfileQuery, familyNeedsQuery, receivedAidsQuery];
   const queryError = queries.find((query) => query.error)?.error;
   const syncState: SyncState = queries.some((query) => query.isFetching) ? 'syncing' : queryError && isNetworkFailure(queryError) ? 'offline' : queryError || manualError ? 'error' : 'synced';
-  const syncMessage = queue.length ? `${queue.length} إجراء بانتظار المزامنة` : syncState === 'syncing' ? 'جارٍ مزامنة بيانات الفريق…' : syncState === 'offline' ? 'غير متصل — تُعرض آخر نسخة محفوظة' : syncState === 'error' ? (manualError || 'تعذرت المزامنة. اسحب للتحديث أو أعد المحاولة.') : 'متزامن مع خادم الفريق';
+  const conflictedTaskCount = queue.filter((item) => item.kind === 'task' && !!item.conflict).length;
+  const syncMessage = conflictedTaskCount ? `${conflictedTaskCount} مهمة تغيّرت على الخادم. راجع أحدث حالة من الحساب قبل إجراء تغيير جديد.` : manualError || (queue.length ? `${queue.length} إجراء بانتظار المزامنة` : syncState === 'syncing' ? 'جارٍ مزامنة بيانات الفريق…' : syncState === 'offline' ? 'غير متصل — تُعرض آخر نسخة محفوظة' : syncState === 'error' ? 'تعذرت المزامنة. اسحب للتحديث أو أعد المحاولة.' : 'متزامن مع خادم الفريق');
   const aidsSyncState: SyncState = aidsQuery.isFetching ? 'syncing' : aidsQuery.error && isNetworkFailure(aidsQuery.error) ? 'offline' : aidsQuery.error ? 'error' : 'synced';
   const aidsSyncMessage = aidsSyncState === 'syncing' ? 'جارٍ تحديث بيانات المساعدات…' : aidsSyncState === 'offline' ? 'تعذر الاتصال بخادم المساعدات' : aidsSyncState === 'error' ? 'تعذر تحديث بيانات المساعدات' : 'بيانات المساعدات متزامنة';
   const peopleSync = getPeopleSyncPresentation({
@@ -355,9 +386,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try { await updateTaskStatus(id, { status, expectedVersion }, requestHeaders(writeId)); await queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() }); return { queued: false }; }
       catch (error) { return queueOnNetworkError(error, { id: writeId, ownerUserId: user?.id || '', kind: 'task', targetId: id, status, expectedVersion }, epoch); }
     },
-    retrySync: async () => { await replayQueue(); await refetchAll(); },
+    retrySync: async () => { await refetchAll(); await replayQueue(); },
     discardQueuedWrite: async (id) => saveQueue(queue.filter((item) => item.id !== id)),
-  }), [aidsSyncMessage, aidsSyncState, authRole, createOperation, delegate, lastAidsSyncAt, lastPeopleSyncAt, lastReceivedAidsSyncAt, manager, peopleSync.message, peopleSync.state, queryClient, queue, queueOnNetworkError, receivedAidsOwnerReady, receivedAidsQuery.isError, receivedAidsQuery.isPending, refetchAll, replayQueue, retryAids, retryPeople, retryReceivedAids, saveQueue, security, serverCache, signIn, signOut, syncMessage, syncState, token, user]);
+    reviewTaskConflict,
+  }), [aidsSyncMessage, aidsSyncState, authRole, createOperation, delegate, lastAidsSyncAt, lastPeopleSyncAt, lastReceivedAidsSyncAt, manager, peopleSync.message, peopleSync.state, queryClient, queue, queueOnNetworkError, receivedAidsOwnerReady, receivedAidsQuery.isError, receivedAidsQuery.isPending, refetchAll, replayQueue, retryAids, retryPeople, retryReceivedAids, reviewTaskConflict, saveQueue, security, serverCache, signIn, signOut, syncMessage, syncState, token, user]);
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 export function useApp() {
