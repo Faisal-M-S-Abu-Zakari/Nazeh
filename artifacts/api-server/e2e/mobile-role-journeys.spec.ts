@@ -420,6 +420,13 @@ test('Expo web: security member submits a result and manager approves it at 375p
   await expect(manager.page.getByTestId('task-approval-error-retry')).toHaveCount(0);
   await expect(manager.page.getByTestId('task-approval-review-update')).toBeVisible();
   await expect.poll(async () => (await db.select({ approvedAt: tasks.approvedAt }).from(tasks).where(eq(tasks.id, taskId)))[0]?.approvedAt).toBeNull();
+  const approvalAuditFilter = and(
+    eq(syncAuditEvents.entityType, 'TASK'),
+    eq(syncAuditEvents.entityId, taskId),
+    eq(syncAuditEvents.action, 'APPROVE'),
+    eq(syncAuditEvents.actorStaffId, managerId),
+  );
+  await expect.poll(async () => db.select().from(syncAuditEvents).where(approvalAuditFilter)).toHaveLength(0);
   await expectTaskFormReadableAtLargeText(manager.page, [
     'اعتماد نتيجة المهمة',
     `النتيجة المقدمة: ${latestResult}`,
@@ -434,6 +441,9 @@ test('Expo web: security member submits a result and manager approves it at 375p
   await manager.page.getByTestId('task-approval-error-retry').click();
   await expect.poll(async () => (await db.select({ approvedAt: tasks.approvedAt }).from(tasks).where(eq(tasks.id, taskId)))[0]?.approvedAt).not.toBeNull();
   expect(approvalAttempts).toBe(2);
+  const approvalAuditRows = await db.select().from(syncAuditEvents).where(approvalAuditFilter);
+  expect(approvalAuditRows).toHaveLength(1);
+  expect(approvalAuditRows[0]?.metadata).toMatchObject({ note: approvalNote });
   await manager.context.close();
 });
 
