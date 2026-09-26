@@ -264,6 +264,7 @@ async function expectFormReadableAtLargeText(
   for (const label of labels) {
     const text = page.getByText(label, { exact: true }).filter({ visible: true }).first();
     await expect(text, `Expected visible form label: ${label}`).toBeVisible();
+    await text.scrollIntoViewIfNeeded();
     const measurement = await text.evaluate((element) => {
       const box = element.getBoundingClientRect();
       const range = document.createRange();
@@ -293,6 +294,7 @@ async function expectFormReadableAtLargeText(
   for (const testId of controlTestIds) {
     const control = page.getByTestId(testId).filter({ visible: true });
     await expect(control, `Expected visible, tappable control: ${testId}`).toBeVisible();
+    await control.scrollIntoViewIfNeeded();
     const bounds = await control.boundingBox();
     expect(bounds, `${testId} has no touch target`).not.toBeNull();
     expect(bounds!.width).toBeGreaterThanOrEqual(35);
@@ -304,6 +306,7 @@ async function expectFormReadableAtLargeText(
   for (const label of actionLabels) {
     const action = page.getByText(label, { exact: true }).filter({ visible: true }).first();
     await expect(action, `Expected visible action: ${label}`).toBeVisible();
+    await action.scrollIntoViewIfNeeded();
     const measurement = await action.evaluate((element) => {
       const range = document.createRange();
       range.selectNodeContents(element);
@@ -373,19 +376,7 @@ test('guest sees public feed and login but no private controls or counts in the 
   await context.close();
 });
 
-test('family head sees only family portal and pending need alert in the 375px web fallback at 150% text', async ({ browser }) => {
-  const { context, page, home } = await openHome(browser, 'family');
-  await expect(home.getByTestId('home-notifications')).toBeVisible();
-  await expect(home.getByTestId('home-staff-alert')).toContainText('1 مهام جارية أو معلّقة');
-  await expect(home.getByTestId('home-family-alert')).toHaveCount(0);
-  await expect(home.getByTestId('home-family-portal')).toHaveCount(0);
-  await expectNoManagement(page, home);
-  await expectFits375(page, home);
-  await expectReadableAtLargeText(page, home);
-  await context.close();
-});
-
-test('family head sees only family portal and pending need alert in the 375px web fallback at 150% text', async ({ browser }) => {
+test('family session keeps the alert scope in the 375px web fallback at 150% text', async ({ browser }) => {
   const { context, page, home } = await openHome(browser, 'family');
   await expect(home.getByTestId('home-notifications')).toBeVisible();
   await expect(home.getByTestId('home-staff-alert')).toContainText('1 مهام جارية أو معلّقة');
@@ -414,6 +405,27 @@ test('login labels, account choices and links stay readable and tappable at 375p
   const page = await context.newPage();
   await page.goto(expoUrl!);
   await page.getByTestId('home-login').filter({ visible: true }).click();
+  await expectFormReadableAtLargeText(page, [
+    'مرحباً بعودتك',
+    'اختر نوع الحساب للوصول إلى مساحة فريق المخيم أو ملف أسرتك.',
+    'رب الأسرة',
+    'فريق المخيم',
+    'البريد الإلكتروني',
+    'كلمة المرور',
+    'دخول',
+    'نسيت كلمة المرور؟',
+    'لديّ رمز دعوة أو استعادة',
+  ], [
+    'login-account-family',
+    'login-account-staff',
+    'login-email',
+    'login-password',
+    'login-submit',
+    'forgot-password-link',
+    'complete-invite-link',
+  ]);
+  await expect(page.getByLabel('البريد الإلكتروني')).toBeVisible();
+  await expect(page.getByLabel('كلمة المرور', { exact: true })).toBeVisible();
   await page.getByTestId('forgot-password-link').click();
   await expect(page.getByText('استعادة الوصول', { exact: true })).toBeVisible();
   await expectFormReadableAtLargeText(page, [
@@ -432,7 +444,7 @@ test('login labels, account choices and links stay readable and tappable at 375p
   await context.close();
 });
 
-test('recovery code fields stay readable, labeled and tappable at 375px and 150% web text', async ({ browser }) => {
+test('reset-code fields stay readable, labeled and tappable at 375px and 150% web text', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 1 });
   const page = await context.newPage();
   await page.goto(expoUrl!);

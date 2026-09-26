@@ -1,4 +1,4 @@
-# Native recovery and password-reset large-text check
+# Native sign-in, recovery, and password-reset large-text check
 
 The Playwright checks in `mobile-home-roles.spec.ts` enlarge text in the web
 fallback. They do not emulate iOS Dynamic Type or Android's system font-size
@@ -18,6 +18,21 @@ includes the current mobile app:
 
 Use a narrow supported phone and restart the app after changing the setting.
 Enable VoiceOver or TalkBack for the accessibility-name checks.
+
+## Sign-in
+
+1. Open the sign-in screen and confirm **رب الأسرة** and **فريق المخيم** are
+   fully readable, selectable, and reachable. The selected account choice
+   should be announced as selected.
+2. Focus each field and confirm the **البريد الإلكتروني** and **كلمة المرور**
+   labels are announced with their inputs. Confirm neither label or input text
+   is clipped.
+3. Scroll through the form and confirm **دخول**, **نسيت كلمة المرور؟**, and
+   **لديّ رمز دعوة أو استعادة** are complete, reachable, and announced as
+   buttons. With both fields empty, activate **دخول** once and confirm the
+   validation message is announced; do not enter real credentials.
+4. Open each recovery action and return to sign-in before checking the next
+   one. Confirm the destination opens and the sign-in form remains reachable.
 
 ## Recovery guidance
 
@@ -41,6 +56,7 @@ Enable VoiceOver or TalkBack for the accessibility-name checks.
 
 ## Record
 
-Record the OS version, device model, maximum font setting, and pass/fail result
-for each screen and platform. Any clipped or missing text, inaccessible input
-label, obscured button, or button that cannot be reached is a failure.
+Record the OS version, device model, maximum font setting, VoiceOver/TalkBack
+result, and pass/fail result for sign-in, recovery, and password reset on each
+platform. Any clipped or missing text, inaccessible input label, obscured
+button, or button that cannot be reached is a failure.

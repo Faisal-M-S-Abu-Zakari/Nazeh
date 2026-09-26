@@ -39,6 +39,7 @@ export function PrimaryButton({ label, icon, onPress, disabled, testID }: { labe
     <Pressable
       testID={testID}
       accessibilityRole="button"
+      accessibilityLabel={label}
       disabled={disabled}
       onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
       style={({ pressed }) => [styles.button, { backgroundColor: disabled ? colors.mutedForeground : colors.primary, opacity: pressed ? 0.78 : 1 }]}

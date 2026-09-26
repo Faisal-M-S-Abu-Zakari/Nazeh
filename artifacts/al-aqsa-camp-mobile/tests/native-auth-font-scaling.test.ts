@@ -23,8 +23,19 @@ test('recovery and credential screens preserve native font scaling and vertical 
   assert.match(otp, /<Text allowFontScaling accessibilityRole="alert"/);
 
   const ui = source('components/ui.tsx');
-  assert.match(ui, /accessibilityRole="button"/);
+
+  const login = source('app/auth/login.tsx');
+
+  assert.match(login, /<KeyboardAwareScrollViewCompat contentContainerStyle=\{styles\.content\}/);
+  assert.match(login, /<Text allowFontScaling style=\{\[styles\.title/);
+  assert.match(login, /<Text allowFontScaling style=\{\[styles\.copy/);
+  assert.match(login, /login-account-family" accessibilityRole="button" accessibilityLabel="رب الأسرة" accessibilityState=\{\{ selected: accountType === 'family' \}\}/);
+  assert.match(login, /login-account-staff" accessibilityRole="button" accessibilityLabel="فريق المخيم" accessibilityState=\{\{ selected: accountType === 'staff' \}\}/);
+  assert.match(login, /<Field testID="login-email" label="البريد الإلكتروني"/);
+  assert.match(login, /<Field testID="login-password" label="كلمة المرور"/);
+  assert.match(login, /testID="forgot-password-link" accessibilityRole="button" accessibilityLabel="نسيت كلمة المرور؟"/);
+  assert.match(login, /testID="complete-invite-link" accessibilityRole="button" accessibilityLabel="لديّ رمز دعوة أو استعادة"/);
+  assert.match(ui, /accessibilityLabel=\{label\}/);
   assert.match(ui, /<Text allowFontScaling style=\{\[styles\.buttonText/);
-  assert.match(ui, /<Text allowFontScaling style=\{\[styles\.label/);
   assert.match(ui, /allowFontScaling\s+accessibilityLabel=\{props\.accessibilityLabel \?\? label\}/);
 });

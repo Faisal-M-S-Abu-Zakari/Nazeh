@@ -17,6 +17,7 @@
 - [Expo mobile browser URL](expo-mobile-browser-url.md) — mobile Playwright suites need EXPO_E2E_URL set to the current Expo dev domain in the test shell.
 - [Expo web mutation errors](expo-web-mutation-errors.md) — critical mutation failures need inline UI because React Native Alert is not observable as a browser dialog.
 - [Playwright test formatting](playwright-test-formatting.md) — narrow browser specs use the repository's single-quote Prettier style even without a root config file.
+- [RTL Playwright locator matching](rtl-playwright-labels.md) — use exact accessible-name matching when Arabic controls share phrases.
 - [React Native Web disabled selectors](react-native-web-disabled-selectors.md) — assert `aria-disabled` for Pressable buttons; Playwright's disabled matcher targets native controls.
 - [Need lifecycle transitions](need-lifecycle-transitions.md) — keep status transitions enforced by the server, not just hidden in mobile controls.
 - [Family aid offline retention](family-aid-offline-retention.md) — retain only owner-scoped read-only family history across logout so offline return works without exposing it to another account.
