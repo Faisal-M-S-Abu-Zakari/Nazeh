@@ -168,7 +168,7 @@ test('aid details render the unavailable sync state without removing cached-data
   );
   assert.match(
     uiSource,
-    /<Text testID=\{testID\}[^>]*>\s*\{formatLastSuccessfulSyncAt\(lastSyncedAt\)\}\s*<\/Text>/,
+    /<Text allowFontScaling testID=\{testID\}[^>]*>\s*\{formatLastSuccessfulSyncAt\(lastSyncedAt\)\}\s*<\/Text>/,
   );
   assert.match(uiSource, /syncTimestamp: \{ flexShrink: 1,/);
   assert.match(

@@ -24,3 +24,4 @@
 - [Expo browser route visibility](expo-browser-route-visibility.md) — hidden prior screens can remain mounted; scope browser locators to visible nodes and navigate through the app stack for back actions.
 - [Expo peers in a pnpm workspace](expo-pnpm-peer-resolution.md) — align optional Expo peers across sibling packages to avoid duplicate native-module snapshots in Expo Doctor.
 - [React Native Web tab labels](react-native-web-tab-label-scaling.md) — large text can clip inside single-line tab labels without causing page overflow; measure label bounds directly.
+- [Native large-text validation](native-large-text-validation.md) — CSS-scaled Expo web checks catch layout issues but do not verify iOS/Android font settings or screen readers.

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { ReactNode } from 'react';
-import { Image, Platform, Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, Text, TextInput, TextInputProps, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/context/AppContext';
@@ -14,16 +14,32 @@ const logoSource = require('@/assets/images/nazeh-phoenix-logo.png');
 export function ScreenHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { width, fontScale } = useWindowDimensions();
+  const expanded = width <= 340 || fontScale >= 1.5;
+  const heading = (
+    <View style={expanded ? styles.expandedHeaderText : styles.headerText}>
+      <Text allowFontScaling accessibilityRole="header" style={[styles.headerTitle, { color: colors.foreground }]}>{title}</Text>
+      {subtitle ? <Text allowFontScaling style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>{subtitle}</Text> : null}
+    </View>
+  );
+  const logo = <Image source={logoSource} style={{ width: 44, height: 44, resizeMode: 'contain' }} />;
   return (
     <View style={[styles.header, { paddingTop: Platform.OS === 'web' ? 67 : insets.top + 8, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-      <View style={styles.headerRow}>
-        {action}
-        <View style={styles.headerText}>
-          <Text style={[styles.headerTitle, { color: colors.foreground }]}>{title}</Text>
-          {subtitle ? <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>{subtitle}</Text> : null}
+      {expanded ? (
+        <>
+          <View style={styles.expandedHeaderTop}>
+            {action ?? <View style={styles.headerActionPlaceholder} />}
+            {logo}
+          </View>
+          {heading}
+        </>
+      ) : (
+        <View style={styles.headerRow}>
+          {action}
+          {heading}
+          {logo}
         </View>
-        <Image source={logoSource} style={{ width: 44, height: 44, resizeMode: 'contain' }} />
-      </View>
+      )}
     </View>
   );
 }
@@ -71,13 +87,13 @@ export function StatusPill({ text, tone = 'green' }: { text: string; tone?: 'gre
   const colors = useColors();
   const backgroundColor = tone === 'green' ? colors.successSurface : tone === 'red' ? colors.errorSurface : colors.accent;
   const color = tone === 'red' ? colors.destructive : tone === 'gold' ? colors.warning : colors.success;
-  return <View style={[styles.pill, { backgroundColor }]}><Text style={[styles.pillText, { color }]}>{text}</Text></View>;
+  return <View style={[styles.pill, { backgroundColor }]}><Text allowFontScaling style={[styles.pillText, { color }]}>{text}</Text></View>;
 }
 
 export function SyncTimestamp({ lastSyncedAt, testID }: { lastSyncedAt?: string | null; testID: string }) {
   const colors = useColors();
   return (
-    <Text testID={testID} style={[styles.syncTimestamp, { color: colors.mutedForeground }]}>
+    <Text allowFontScaling testID={testID} style={[styles.syncTimestamp, { color: colors.mutedForeground }]}>
       {formatLastSuccessfulSyncAt(lastSyncedAt)}
     </Text>
   );
@@ -100,7 +116,7 @@ export function SyncBanner({ scope = 'all' }: { scope?: 'all' | 'aids' | 'people
         onPress={() => void retry()}
         style={[styles.sync, { backgroundColor: bad ? colors.errorSurface : scopedState === 'syncing' ? colors.accent : colors.successSurface }]}
       >
-        <Text style={[styles.syncText, { color: statusColor }]}>{scopedMessage}</Text>
+        <Text allowFontScaling style={[styles.syncText, { color: statusColor }]}>{scopedMessage}</Text>
         <Ionicons name={bad ? 'cloud-offline-outline' : scopedState === 'syncing' ? 'sync-outline' : 'cloud-done-outline'} size={18} color={statusColor} />
       </Pressable>
       {scope !== 'all' ? (
@@ -116,10 +132,10 @@ export function DataFreshnessNotice({ title, message, lastSyncedAt, onRetry, tes
     <View testID={testID} style={[styles.freshnessNotice, { backgroundColor: colors.errorSurface, borderColor: colors.destructive }]}>
       <View style={styles.freshnessHeading}>
         <Ionicons name="warning-outline" size={18} color={colors.destructive} />
-        <Text style={[styles.freshnessTitle, { color: colors.destructive }]}>{title}</Text>
+        <Text allowFontScaling style={[styles.freshnessTitle, { color: colors.destructive }]}>{title}</Text>
       </View>
-      <Text style={[styles.freshnessMessage, { color: colors.foreground }]}>{message}</Text>
-      <Text testID={`${testID}-last-sync`} style={[styles.freshnessTimestamp, { color: colors.mutedForeground }]}>{formatLastSuccessfulSyncAt(lastSyncedAt)}</Text>
+      <Text allowFontScaling style={[styles.freshnessMessage, { color: colors.foreground }]}>{message}</Text>
+      <Text allowFontScaling testID={`${testID}-last-sync`} style={[styles.freshnessTimestamp, { color: colors.mutedForeground }]}>{formatLastSuccessfulSyncAt(lastSyncedAt)}</Text>
       <PrimaryButton testID={`${testID}-retry`} label="إعادة المحاولة" icon="refresh" onPress={onRetry} />
     </View>
   );
@@ -128,7 +144,10 @@ export function DataFreshnessNotice({ title, message, lastSyncedAt, onRetry, tes
 const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 18, borderBottomWidth: 1 },
   headerRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  expandedHeaderTop: { width: '100%', minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerActionPlaceholder: { width: 44, height: 44 },
   headerText: { flex: 1, minWidth: 0, alignItems: 'flex-end' },
+  expandedHeaderText: { width: '100%', alignItems: 'flex-end', paddingTop: 7 },
   headerTitle: { flexShrink: 1, maxWidth: '100%', fontFamily: fonts.extraBold, fontSize: 22, textAlign: 'right' },
   headerSubtitle: { fontFamily: fonts.regular, fontSize: 13, textAlign: 'right', marginTop: 2 },
   card: { borderWidth: 1, borderRadius: 12, padding: 16, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
@@ -146,6 +165,6 @@ const styles = StyleSheet.create({
   freshnessNotice: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 9 },
   freshnessHeading: { flexDirection: 'row-reverse', alignItems: 'center', gap: 7 },
   freshnessTitle: { flex: 1, fontFamily: fonts.bold, fontSize: 14, textAlign: 'right' },
-  freshnessMessage: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, textAlign: 'right' },
+  freshnessMessage: { fontFamily: fonts.regular, fontSize: 13, textAlign: 'right' },
   freshnessTimestamp: { fontFamily: fonts.medium, fontSize: 12, textAlign: 'right' },
 });

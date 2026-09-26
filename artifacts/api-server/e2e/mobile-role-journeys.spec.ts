@@ -23,6 +23,8 @@ const campId = randomUUID();
 const sectorId = randomUUID();
 const approvedNeedId = randomUUID();
 const aidId = randomUUID();
+
+const aidTitle = `مساعدة التجربة ${suffix} - حملة المواد الغذائية العاجلة للأسر في القطاع الشرقي`;
 const taskId = randomUUID();
 const newNeedTitle = `احتياج التجربة ${suffix}`;
 const taskTitle = `مهمة التجربة ${suffix}`;
@@ -57,6 +59,38 @@ async function openSession(
   return { page, context };
 }
 
+async function applyLargeTextScale(page: Page, scale: number) {
+  const count = await page.evaluate((multiplier) => {
+    const elements = Array.from(document.querySelectorAll<HTMLElement>('*')).filter((element) =>
+      Array.from(element.childNodes).some((node) => node.nodeType === Node.TEXT_NODE && !!node.textContent?.trim()),
+    );
+    for (const element of elements) {
+      const text = Array.from(element.childNodes)
+        .filter((node): node is Text => node.nodeType === Node.TEXT_NODE)
+        .map((node) => node.textContent?.trim() ?? '')
+        .filter(Boolean)
+        .join('');
+      if (!text || Array.from(text).every((character) => {
+        const codePoint = character.codePointAt(0) ?? 0;
+        return (codePoint >= 0xe000 && codePoint <= 0xf8ff) ||
+          (codePoint >= 0xf0000 && codePoint <= 0xffffd) ||
+          (codePoint >= 0x100000 && codePoint <= 0x10fffd);
+      })) continue;
+      const style = getComputedStyle(element);
+      const fontSize = Number.parseFloat(style.fontSize);
+      const lineHeight = Number.parseFloat(style.lineHeight);
+      if (!Number.isFinite(fontSize)) continue;
+      element.style.setProperty('font-size', `${fontSize * multiplier}px`, 'important');
+      element.style.setProperty(
+        'line-height',
+        `${(Number.isFinite(lineHeight) ? lineHeight : fontSize * 1.25) * multiplier}px`,
+        'important',
+      );
+    }
+    return elements.length;
+  }, scale);
+  expect(count).toBeGreaterThan(0);
+}
 async function expectTaskFormReadableAtLargeText(
   page: Page,
   labels: string[],
@@ -214,7 +248,7 @@ test.beforeAll(async () => {
     priority: 'MEDIUM', status: 'APPROVED', createdById: managerId,
   });
   await db.insert(aids).values({
-    id: aidId, title: `مساعدة التجربة ${suffix}`, type: 'FOOD', quantity: 20,
+    id: aidId, title: aidTitle, type: 'FOOD', quantity: 20,
     unit: 'سلة', location: 'المستودع', distributionDate: '2030-01-01',
     createdById: managerId,
   });
@@ -247,8 +281,13 @@ test.afterAll(async () => {
   if (managerCreated) await db.delete(staffUsers).where(eq(staffUsers.id, managerId));
 });
 
-test('manager sees reports and content, including loading, empty, error and retry states', async ({ browser }) => {
-  const { page, context } = await openSession(browser, 'MANAGER');
+test('manager dashboard and operations actions stay readable and announced at 320px and 200% text', async ({ browser }) => {
+  const { page, context } = await openSession(browser, 'DELEGATE');
+
+  const homeActions = [
+    'home-notifications',
+    'home-staff-alert',
+  ];
   await expect(page.getByText('التقارير', { exact: true })).toBeVisible();
   await expect(page.getByText('إدارة الإعلانات', { exact: true })).toBeVisible();
   await page.getByText('التقارير', { exact: true }).click();
@@ -283,6 +322,11 @@ test('manager sees reports and content, including loading, empty, error and retr
 
 test('delegate creates a need, changes its status and assigns approved aid', async ({ browser }) => {
   const { page, context } = await openSession(browser, 'DELEGATE');
+
+  const homeActions = [
+    'home-notifications',
+    'home-staff-alert',
+  ];
   await expect(page.getByText('التقارير', { exact: true })).toHaveCount(0);
   await expect(page.getByText('الإعلانات', { exact: true })).toHaveCount(0);
   await page.goto(`${expoUrl}/reports`);
@@ -532,3 +576,89 @@ test('family head sees their own portal and notifications without staff administ
   await expect(page.getByText('الإشعارات', { exact: true }).first()).toBeVisible();
   await context.close();
 });
+
+  const tabListBounds = await page.getByRole('tablist').boundingBox();
+
+    const tab = page.getByRole('tab', { name: label }).filter({ visible: true });
+
+    const action = page.getByRole('button', { name }).filter({ visible: true });
+
+  const campaignCard = page.getByTestId(`open-aid-${aidId}`);
+
+  const expectedTabs = ['الرئيسية', 'المساعدات', 'السجل', 'التنبيهات', 'الحساب'];
+
+  const aidsTab = page.getByRole('tab', { name: /المساعدات/ }).filter({ visible: true });
+
+    const tabLabel = tab.getByText(label, { exact: true }).filter({ visible: true });
+
+async function expectLargeTextActionsReachable(page: Page, screenTestId: string, testIds: string[]) {
+  const layout = await page.getByTestId(screenTestId).evaluate((screen) => {
+    const viewport = document.documentElement.clientWidth;
+    const controls = Array.from(screen.querySelectorAll<HTMLElement>('[role="button"]'))
+      .filter((element) => {
+        const style = getComputedStyle(element);
+        const box = element.getBoundingClientRect();
+        return box.width > 0 && box.height > 0 && style.display !== 'none' &&
+          style.visibility !== 'hidden' && style.opacity !== '0';
+      });
+    const outsideControls = controls.filter((element) => {
+      const box = element.getBoundingClientRect();
+      return box.left < -1 || box.right > viewport + 1 || box.width < 35;
+    }).map((element) => element.getAttribute('data-testid') ?? element.textContent?.trim());
+    const clippedText = controls.flatMap((control) => {
+      const controlBounds = control.getBoundingClientRect();
+      return Array.from(control.querySelectorAll<HTMLElement>('*')).flatMap((element) => {
+        if (!Array.from(element.childNodes).some((node) => node.nodeType === Node.TEXT_NODE && !!node.textContent?.trim())) return [];
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        let clippingAncestor: HTMLElement | null = element;
+        while (clippingAncestor && clippingAncestor !== control.parentElement) {
+          const style = getComputedStyle(clippingAncestor);
+          const bounds = clippingAncestor.getBoundingClientRect();
+          const clipsHorizontally = style.overflowX === 'hidden' || style.overflowX === 'clip';
+          const clipsVertically = style.overflowY === 'hidden' || style.overflowY === 'clip';
+          if (Array.from(range.getClientRects()).some((line) =>
+            (clipsHorizontally && (line.left < bounds.left - 2 || line.right > bounds.right + 2)) ||
+            (clipsVertically && (line.top < bounds.top - 2 || line.bottom > bounds.bottom + 2)) ||
+            line.left < controlBounds.left - 2 || line.right > controlBounds.right + 2 ||
+            line.top < controlBounds.top - 2 || line.bottom > controlBounds.bottom + 2,
+          )) return [element.textContent?.trim() ?? ''];
+          clippingAncestor = clippingAncestor.parentElement;
+        }
+        return [];
+      });
+    });
+    return {
+      viewport,
+      pageWidth: document.documentElement.scrollWidth,
+      outsideControls,
+      clippedText,
+    };
+  });
+  expect(layout.viewport).toBe(320);
+  expect(layout.pageWidth).toBeLessThanOrEqual(320);
+  expect(layout.outsideControls).toEqual([]);
+  expect(layout.clippedText).toEqual([]);
+
+  for (const testId of testIds) {
+    const control = page.getByTestId(testId).filter({ visible: true });
+    await expect(control, `Expected readable, visible action ${testId}`).toBeVisible();
+    await control.scrollIntoViewIfNeeded();
+    const bounds = await control.boundingBox();
+    expect(bounds, `${testId} should have a touch target`).not.toBeNull();
+    expect(bounds!.width).toBeGreaterThanOrEqual(35);
+    expect(bounds!.x).toBeGreaterThanOrEqual(-1);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(321);
+    await control.click({ trial: true });
+  }
+}
+
+    const labelLines = await tabLabel.evaluate((element) => {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      return Array.from(range.getClientRects()).map((line) => ({
+        left: line.left, right: line.right, top: line.top, bottom: line.bottom,
+      }));
+    });
+
+    const tabBounds = await tab.boundingBox();
