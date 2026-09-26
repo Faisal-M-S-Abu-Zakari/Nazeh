@@ -425,12 +425,14 @@ test('login labels, account choices and links stay readable and tappable at 375p
     'forgot-complete-token',
     'forgot-back-login',
   ]);
+  await expect(page.getByRole('button', { name: 'لديّ رمز إعادة تعيين' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'العودة لتسجيل الدخول' })).toBeVisible();
   await page.getByTestId('forgot-complete-token').click();
   await expect(page.getByRole('heading', { name: 'تعيين كلمة المرور' })).toBeVisible();
   await context.close();
 });
 
-test('invite and recovery code fields stay readable and tappable at 375px and 150% text', async ({ browser }) => {
+test('recovery code fields stay readable, labeled and tappable at 375px and 150% web text', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 1 });
   const page = await context.newPage();
   await page.goto(expoUrl!);
@@ -446,18 +448,24 @@ test('invite and recovery code fields stay readable and tappable at 375px and 15
     'forgot-complete-token',
     'forgot-back-login',
   ]);
+  await expect(page.getByRole('button', { name: 'لديّ رمز إعادة تعيين' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'العودة لتسجيل الدخول' })).toBeVisible();
   await page.getByTestId('forgot-complete-token').click();
   await expect(page.getByRole('heading', { name: 'تعيين كلمة المرور' })).toBeVisible();
   await context.close();
 });
 
-test('invite and recovery code fields stay readable and tappable at 375px and 150% text', async ({ browser }) => {
+test('recovery code fields stay readable, labeled and tappable at 375px and 150% web text', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 1 });
   const page = await context.newPage();
   await page.goto(expoUrl!);
   await page.getByTestId('home-login').filter({ visible: true }).click();
-  await page.getByTestId('complete-invite-link').click();
+  await page.getByTestId('forgot-password-link').click();
+  await page.getByTestId('forgot-complete-token').click();
   await expect(page.getByRole('heading', { name: 'تعيين كلمة المرور' })).toBeVisible();
+  await expect(page.getByLabel('الرمز الآمن')).toBeVisible();
+  await expect(page.getByLabel('كلمة المرور الجديدة')).toBeVisible();
+  await expect(page.getByLabel('تأكيد كلمة المرور')).toBeVisible();
   await page.getByTestId('credential-token').fill('a'.repeat(32));
   await page.getByTestId('credential-password').fill('Secure-Password-123!');
   await page.getByTestId('credential-confirmation').fill('Secure-Password-123!');
@@ -475,6 +483,7 @@ test('invite and recovery code fields stay readable and tappable at 375px and 15
     'credential-confirmation',
     'credential-submit',
   ]);
+  await expect(page.getByRole('button', { name: 'حفظ كلمة المرور' })).toBeVisible();
   await context.close();
 });
 

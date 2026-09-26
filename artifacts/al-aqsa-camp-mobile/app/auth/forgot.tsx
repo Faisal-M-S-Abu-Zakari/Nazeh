@@ -8,9 +8,9 @@ export default function ForgotScreen() {
   const colors = useColors();
   return (
     <KeyboardAwareScrollViewCompat contentContainerStyle={styles.content} bottomOffset={60}>
-      <Text style={[styles.title, { color: colors.foreground }]}>استعادة الوصول</Text>
+      <Text allowFontScaling style={[styles.title, { color: colors.foreground }]}>استعادة الوصول</Text>
       <Card>
-        <Text style={[styles.copy, { color: colors.mutedForeground }]}>لا يرسل التطبيق رسائل استعادة تلقائياً. تواصل مع مدير النظام ليصدر لك رمز إعادة تعيين لمرة واحدة عبر قناة آمنة.</Text>
+        <Text allowFontScaling style={[styles.copy, { color: colors.mutedForeground }]}>لا يرسل التطبيق رسائل استعادة تلقائياً. تواصل مع مدير النظام ليصدر لك رمز إعادة تعيين لمرة واحدة عبر قناة آمنة.</Text>
       </Card>
       <View style={styles.actions}>
         <PrimaryButton testID="forgot-complete-token" label="لديّ رمز إعادة تعيين" icon="key-outline" onPress={() => router.push('/auth/otp')} />

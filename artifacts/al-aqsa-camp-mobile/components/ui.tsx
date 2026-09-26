@@ -38,11 +38,12 @@ export function PrimaryButton({ label, icon, onPress, disabled, testID }: { labe
   return (
     <Pressable
       testID={testID}
+      accessibilityRole="button"
       disabled={disabled}
       onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
       style={({ pressed }) => [styles.button, { backgroundColor: disabled ? colors.mutedForeground : colors.primary, opacity: pressed ? 0.78 : 1 }]}
     >
-      <Text style={[styles.buttonText, { color: colors.primaryForeground }]}>{label}</Text>
+      <Text allowFontScaling style={[styles.buttonText, { color: colors.primaryForeground }]}>{label}</Text>
       {icon ? <Ionicons name={icon} size={19} color={colors.primaryForeground} /> : null}
     </Pressable>
   );
@@ -52,9 +53,11 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
   const colors = useColors();
   return (
     <View style={styles.fieldWrap}>
-      <Text style={[styles.label, { color: colors.foreground }]}>{label}</Text>
+      <Text allowFontScaling style={[styles.label, { color: colors.foreground }]}>{label}</Text>
       <TextInput
         {...props}
+        allowFontScaling
+        accessibilityLabel={props.accessibilityLabel ?? label}
         placeholderTextColor={colors.mutedForeground}
         textAlign="right"
         style={[styles.input, { color: colors.foreground, borderColor: colors.input, backgroundColor: colors.background }]}
