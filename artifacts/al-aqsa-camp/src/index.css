@@ -10,6 +10,13 @@
 @import 'tw-animate-css';
 @plugin "@tailwindcss/typography";
 
+/* Native country options must not inherit the footer's white text color. */
+#contact-us .footer-phone-input .PhoneInputCountrySelect,
+#contact-us .footer-phone-input .PhoneInputCountrySelect option {
+  color: #111827;
+  background-color: #fff;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

@@ -11,16 +11,16 @@ export default function Footer_Contact_Info({ className }: { className?: string 
           <ThemeIcon className='!bg-second-light !rounded-full !'>
             <Phone size={16} className='!text-primary' />
           </ThemeIcon>
-          <Text c='dark' fz={16} fw={500} dir='ltr'>
-            +972 59-579-6456
+          <Text component='a' href='tel:+972599091546' c='dark' fz={16} fw={500} dir='ltr'>
+            +972 599 091 546
           </Text>
         </Group>
         <Group gap={8}>
           <ThemeIcon className='!bg-second-light !rounded-full !'>
             <Mail size={16} className='!text-primary' />
           </ThemeIcon>
-          <Text c='dark' fz={16} fw={500} dir='ltr'>
-            AlaqsaCamp@gmail.com
+          <Text component='a' href='mailto:zkryfysl@gmail.com' c='dark' fz={16} fw={500} dir='ltr'>
+            zkryfysl@gmail.com
           </Text>
         </Group>
         <Group gap={8}>

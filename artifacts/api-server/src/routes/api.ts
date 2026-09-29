@@ -55,11 +55,14 @@ import {
   isAvatarObjectPath,
   validateAvatarMetadata,
 } from "../lib/avatarStorage";
+import { sendContactEmail } from "../lib/contactEmail";
+import { createHash } from "node:crypto";
 
 
 const router: IRouter = Router()
 ;
 const loginRateLimit = createLoginRateLimit(createPostgresLoginRateLimitStore(db));
+const contactRateLimit = createLoginRateLimit(createPostgresLoginRateLimitStore(db));
 const LegacyLoginBody = z.object({
   email: z.email(),
   password: z.string().min(8).max(128),
@@ -1924,6 +1927,29 @@ const b=parse<any>(V.CreateContactRequestBody,req.body,res)
 ;
 if(!b)return
 ;
+if (
+  b.name?.trim().length < 2 || b.name?.length > 200 ||
+  b.email?.length > 254 || b.phone?.length > 40 ||
+  b.message?.trim().length < 10 || b.message?.length > 10000
+) {
+  res.status(400).json({ error: "Invalid contact request" });
+  return;
+}
+const contactKey = `contact:ip:${createHash("sha256").update(req.ip ?? "unknown").digest("hex")}`;
+const rate = await contactRateLimit.check([contactKey]);
+if (!rate.allowed) {
+  res.set("Retry-After", String(rate.retryAfterSeconds));
+  res.status(429).json({ error: "Too many contact requests. Try again later." });
+  return;
+}
+await contactRateLimit.failure([contactKey]);
+try {
+  await sendContactEmail(b);
+} catch {
+  req.log.error("Contact email delivery failed");
+  res.status(503).json({ error: "Contact email delivery is unavailable. Please try again later." });
+  return;
+}
 const[c]=await db.insert(contactRequestsTable).values(
 {
 name:b.name,email:b.email,phoneNumber:b.phone,message:b.message

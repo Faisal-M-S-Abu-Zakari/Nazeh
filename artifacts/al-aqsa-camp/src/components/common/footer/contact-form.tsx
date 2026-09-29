@@ -26,6 +26,7 @@ export default function Footer_Form() {
   const contactUSmutation = useMutation<unknown, unknown, contactUsType>({
     mutationFn: sendEmailFun,
     onSuccess: () => {
+      form.reset();
       notifications.show({
         title: 'تم الإرسال',
         message: 'تم إرسال رسالتك بنجاح!',
@@ -47,7 +48,6 @@ export default function Footer_Form() {
 
   const handleSubmit = form.onSubmit((values: contactUsType) => {
     contactUSmutation.mutate(values);
-    form.reset();
   });
 
   const commonInputProps = {
@@ -100,6 +100,7 @@ export default function Footer_Form() {
             <Box dir='ltr' className='w-full'>
               <PhoneInput
                 name='phone_number'
+                className='footer-phone-input'
                 international
                 countryCallingCodeEditable={false}
                 defaultCountry='PS'
