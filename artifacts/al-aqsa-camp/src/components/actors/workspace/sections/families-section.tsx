@@ -1,13 +1,17 @@
-import React, { useState } from 'react';
-import { useListFamilies, useGetFamily, getListFamiliesQueryKey, useListCamps, useListSectors, useListShelters, useListDelegates, useCreateFamily, useListNeeds, useListAidDistributions } from '@workspace/api-client-react';
+import React, { useRef, useState } from 'react';
+import { useListFamilies, useGetFamily, getListFamiliesQueryKey, getListCampsQueryKey, getListSectorsQueryKey, useListCamps, useListSectors, useListShelters, useListDelegates, useCreateFamily, useCreateCamp, useCreateSector, useImportFamilies, useListNeeds, useListAidDistributions } from '@workspace/api-client-react';
 import { Link, useLocation } from 'wouter';
-import { Alert, Button, Card, Table, Text, Badge, ActionIcon, Group, TextInput, Select, Title, Tabs } from '@mantine/core';
+import { Alert, Button, Card, Table, Text, Badge, ActionIcon, Group, TextInput, Select, Title, Tabs, FileInput, Checkbox } from '@mantine/core';
 import { Search, Plus, ArrowRight, Eye, User, Home, Users, ClipboardList, Package, AlertCircle } from 'lucide-react';
 import { LoadingState, ErrorState } from '../shared/ui-states';
 import { cn } from '@/utils/cn';
+import useAuth from '@/hooks/useAuth';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ar';
 import { useQueryClient } from '@tanstack/react-query';
+import { createFamilyWorkbook, MAX_WORKBOOK_BYTES, parseFamilyWorkbook, type FamilyImportPreview } from './family-import';
+import { getLocationIdempotencyAttempt, type LocationIdempotencyAttempt } from './family-location-setup';
+import type { CampList, SectorList, ShelterList } from '@workspace/api-client-react';
 
 dayjs.locale('ar');
 
@@ -40,6 +44,10 @@ export default function FamiliesSection({ params }: { params?: Record<string, st
 function FamilyList() {
   const [search, setSearch] = React.useState('');
   const [location, setLocation] = useLocation();
+  const { isManager } = useAuth();
+  const { data: camps } = useListCamps();
+  const { data: sectors } = useListSectors();
+  const { data: shelters } = useListShelters();
   const { data: families, isLoading, error } = useListFamilies({ 
     query: { queryKey: getListFamiliesQueryKey() } 
   });
@@ -55,6 +63,13 @@ function FamilyList() {
 
   return (
     <div className="space-y-6">
+      {isManager && (
+        <FamilyImportPanel
+          camps={camps || []}
+          sectors={sectors || []}
+          shelters={shelters || []}
+        />
+      )}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <Title order={2} className="text-3xl font-display text-primary">إدارة الأسر والنازحين</Title>
@@ -147,6 +162,357 @@ function FamilyList() {
             </Table.Tbody>
           </Table>
         </div>
+      </Card>
+    </div>
+  );
+}
+
+function FamilyImportPanel({
+  camps,
+  sectors,
+  shelters,
+}: {
+  camps: CampList;
+  sectors: SectorList;
+  shelters: ShelterList;
+}) {
+  const queryClient = useQueryClient();
+  const [campId, setCampId] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<FamilyImportPreview | null>(null);
+  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
+  const [reviewConfirmed, setReviewConfirmed] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [successCount, setSuccessCount] = useState<number | null>(null);
+  const [campName, setCampName] = useState('');
+  const [sectorName, setSectorName] = useState('');
+  const [setupMessage, setSetupMessage] = useState<string | null>(null);
+  const [setupError, setSetupError] = useState<string | null>(null);
+  const campHeaders = useRef<Record<string, string>>({});
+  const sectorHeaders = useRef<Record<string, string>>({});
+  const campAttempt = useRef<LocationIdempotencyAttempt | null>(null);
+  const sectorAttempt = useRef<LocationIdempotencyAttempt | null>(null);
+  const selectedCamp = camps.find((camp) => camp.id === campId);
+  const campSectors = sectors.filter((sector) => sector.campId === campId);
+  const hasCampSector = campSectors.length > 0;
+  const createCamp = useCreateCamp({ request: { headers: campHeaders.current } });
+  const createSector = useCreateSector({ request: { headers: sectorHeaders.current } });
+  const importMutation = useImportFamilies({
+    request: { headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {} },
+  });
+
+  const selectCamp = (value: string | null) => {
+    setCampId(value);
+    sectorAttempt.current = null;
+    delete sectorHeaders.current['Idempotency-Key'];
+    setFile(null);
+    setPreview(null);
+    setIdempotencyKey(null);
+    setReviewConfirmed(false);
+    setFileError(null);
+    setSuccessCount(null);
+    setSetupMessage(null);
+    setSetupError(null);
+  };
+
+  const idempotencyKeyFor = (
+    input: string,
+    attempt: { current: LocationIdempotencyAttempt | null },
+    headers: { current: Record<string, string> },
+  ): string | null => {
+    if (attempt.current?.input === input) {
+      headers.current['Idempotency-Key'] = attempt.current.key;
+      return attempt.current.key;
+    }
+    if (!globalThis.crypto?.randomUUID) {
+      setSetupError('تعذر إنشاء مفتاح آمن لإتمام الطلب. حدّث المتصفح ثم أعد المحاولة.');
+      return null;
+    }
+    const nextAttempt = getLocationIdempotencyAttempt(input, attempt.current, () => globalThis.crypto.randomUUID());
+    attempt.current = nextAttempt;
+    headers.current['Idempotency-Key'] = nextAttempt.key;
+    return nextAttempt.key;
+  };
+
+  const clearCampAttempt = () => {
+    campAttempt.current = null;
+    delete campHeaders.current['Idempotency-Key'];
+  };
+
+  const clearSectorAttempt = () => {
+    sectorAttempt.current = null;
+    delete sectorHeaders.current['Idempotency-Key'];
+  };
+
+  const refreshLocationOptions = () => {
+    void Promise.all([
+      queryClient.invalidateQueries({ queryKey: getListCampsQueryKey() }),
+      queryClient.invalidateQueries({ queryKey: getListSectorsQueryKey() }),
+    ]);
+  };
+
+  const errorMessage = (error: unknown, fallback: string): string => {
+    if (typeof error === 'object' && error !== null && 'data' in error) {
+      const data = (error as { data?: unknown }).data;
+      if (typeof data === 'object' && data !== null && 'error' in data) {
+        return String((data as { error: unknown }).error);
+      }
+    }
+    return fallback;
+  };
+
+  const errorStatus = (error: unknown): number | undefined => {
+    if (typeof error === 'object' && error !== null && 'status' in error) {
+      const status = Number((error as { status: unknown }).status);
+      return Number.isFinite(status) ? status : undefined;
+    }
+    return undefined;
+  };
+
+  const submitCamp = () => {
+    const name = campName.trim();
+    const key = idempotencyKeyFor(name, campAttempt, campHeaders);
+    if (!key) return;
+    setSetupError(null);
+    setSetupMessage(null);
+    createCamp.mutate({ data: { name } }, {
+      onSuccess: (camp) => {
+        clearCampAttempt();
+        setCampName('');
+        selectCamp(camp.id);
+        setSetupMessage(`تم إنشاء المخيم «${camp.name}» واختياره.`);
+        refreshLocationOptions();
+      },
+      onError: (error) => {
+        setSetupError(errorMessage(error, 'تعذر إنشاء المخيم.'));
+        if (errorStatus(error) === 409) clearCampAttempt();
+        refreshLocationOptions();
+      },
+    });
+  };
+
+  const submitSector = () => {
+    if (!campId) return;
+    const name = sectorName.trim();
+    const key = idempotencyKeyFor(JSON.stringify([campId, name]), sectorAttempt, sectorHeaders);
+    if (!key) return;
+    setSetupError(null);
+    setSetupMessage(null);
+    createSector.mutate({ data: { campId, name } }, {
+      onSuccess: (sector) => {
+        clearSectorAttempt();
+        setSectorName('');
+        setSetupMessage(`تمت إضافة القطاع «${sector.name}».`);
+        refreshLocationOptions();
+      },
+      onError: (error) => {
+        setSetupError(errorMessage(error, 'تعذر إضافة القطاع.'));
+        if (errorStatus(error) === 409) clearSectorAttempt();
+        refreshLocationOptions();
+      },
+    });
+  };
+
+  const downloadTemplate = async () => {
+    if (!selectedCamp || !hasCampSector) return;
+    const workbook = createFamilyWorkbook(selectedCamp.name, campSectors, shelters);
+    const bytes = await workbook.xlsx.writeBuffer();
+    const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'قالب-استيراد-الأسر.xlsx';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const selectWorkbook = async (selectedFile: File | null) => {
+    setFile(selectedFile);
+    setPreview(null);
+    setIdempotencyKey(null);
+    setReviewConfirmed(false);
+    setSuccessCount(null);
+    setFileError(null);
+    if (!selectedFile) return;
+    if (!campId) {
+      setFileError('اختر المخيم قبل تحميل الملف حتى تُطابق أسماء القطاعات.');
+      return;
+    }
+    if (!hasCampSector) {
+      setFileError('أضف قطاعاً واحداً على الأقل إلى المخيم قبل تحميل الملف أو تنزيل القالب.');
+      return;
+    }
+    if (!selectedFile.name.toLocaleLowerCase().endsWith('.xlsx')) {
+      setFileError('الملف المدعوم هو Excel بصيغة .xlsx فقط.');
+      return;
+    }
+    if (selectedFile.size > MAX_WORKBOOK_BYTES) {
+      setFileError('حجم الملف يتجاوز الحد المسموح (5 ميغابايت).');
+      return;
+    }
+    try {
+      if (!globalThis.crypto?.subtle) throw new Error('تعذر إنشاء بصمة آمنة لهذا الملف في المتصفح.');
+      const buffer = await selectedFile.arrayBuffer();
+      const digest = await globalThis.crypto.subtle.digest('SHA-256', buffer);
+      const key = `sha256-${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+      const result = await parseFamilyWorkbook(buffer, campId, sectors, shelters);
+      setPreview(result);
+      setIdempotencyKey(key);
+    } catch (error) {
+      setFileError(error instanceof Error ? error.message : 'تعذر تحليل الملف محلياً.');
+    }
+  };
+
+  const submitImport = () => {
+    if (!hasCampSector || !preview || preview.errors.length || !reviewConfirmed || !idempotencyKey) return;
+    setFileError(null);
+    if (!campId) return;
+    importMutation.mutate({ data: { campId, families: preview.families } }, {
+      onSuccess: (result) => {
+        setSuccessCount(result.importedCount);
+        setFile(null);
+        setPreview(null);
+        setReviewConfirmed(false);
+        queryClient.invalidateQueries({ queryKey: getListFamiliesQueryKey() });
+      },
+      onError: (error) => {
+        const apiMessage = 'data' in error && typeof error.data === 'object' && error.data !== null && 'error' in error.data
+          ? String(error.data.error)
+          : '';
+        setFileError(apiMessage || 'تعذر استيراد الملف. لم تُحفظ أي أسرة؛ أعد المحاولة أو راجع البيانات.');
+      },
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card withBorder shadow="sm" radius="lg" className="space-y-4">
+        <div>
+          <Title order={3} className="text-xl font-display text-primary">إعداد المخيم والقطاعات</Title>
+          <Text size="sm" c="dimmed" mt={4}>اختر مخيماً أو أنشئ مخيماً جديداً، ثم أضف قطاعاً واحداً على الأقل لبدء إدخال الأسر.</Text>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+          <Select
+            label="المخيم المختار"
+            placeholder="اختر مخيماً"
+            data={camps.map((camp) => ({ value: camp.id, label: camp.name }))}
+            value={campId}
+            onChange={selectCamp}
+            searchable
+          />
+          <TextInput
+            label="إنشاء مخيم"
+            placeholder="اسم المخيم"
+            value={campName}
+            maxLength={160}
+            onChange={(event) => {
+              campAttempt.current = null;
+              delete campHeaders.current['Idempotency-Key'];
+              setCampName(event.currentTarget.value);
+            }}
+          />
+          <Button onClick={submitCamp} disabled={!campName.trim() || createCamp.isPending} loading={createCamp.isPending}>
+            إنشاء المخيم
+          </Button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
+          <TextInput
+            label="إضافة قطاع للمخيم المختار"
+            placeholder="اسم القطاع"
+            value={sectorName}
+            maxLength={160}
+            disabled={!campId}
+            onChange={(event) => {
+              sectorAttempt.current = null;
+              delete sectorHeaders.current['Idempotency-Key'];
+              setSectorName(event.currentTarget.value);
+            }}
+          />
+          <Button onClick={submitSector} disabled={!campId || !sectorName.trim() || createSector.isPending} loading={createSector.isPending}>
+            إضافة القطاع
+          </Button>
+        </div>
+        {campId && (
+          <Text size="sm" c="dimmed">
+            القطاعات الحالية: {campSectors.length ? campSectors.map((sector) => sector.name).join('، ') : 'لا توجد قطاعات بعد'}
+          </Text>
+        )}
+        {setupError && <Alert color="red" title="تعذر إعداد الموقع">{setupError}</Alert>}
+        {setupMessage && <Alert color="green">{setupMessage}</Alert>}
+      </Card>
+      <Card withBorder shadow="sm" radius="lg" className="space-y-4">
+        <div>
+          <Title order={3} className="text-xl font-display text-primary">استيراد الأسر من ملف Excel</Title>
+          <Text size="sm" c="dimmed" mt={4}>
+            يُحلل الملف داخل المتصفح فقط. راجع المعاينة ثم أكد الاستيراد؛ تبقى الأسر الجديدة قيد المراجعة ولا يُنشأ حساب لرب الأسرة.
+          </Text>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <TextInput label="المخيم المختار" value={selectedCamp?.name ?? ''} readOnly placeholder="اختر المخيم في إعداد الموقع أعلاه" />
+          <div className="flex items-end">
+            <Button variant="light" onClick={() => { void downloadTemplate(); }} disabled={!selectedCamp || !hasCampSector} className="w-full">
+              تنزيل قالب الأسر .xlsx
+            </Button>
+          </div>
+        </div>
+        {!hasCampSector && (
+          <Alert color="yellow" title="يلزم إعداد قطاع">
+            اختر مخيماً وأضف إليه قطاعاً واحداً على الأقل قبل اختيار ملف الاستيراد أو تنزيل القالب.
+          </Alert>
+        )}
+        <Alert color="blue" icon={<AlertCircle size={18} />} title="إرشادات آمنة">
+          <Text size="sm">استخدم ورقتي «الأسر» و«أفراد الأسرة» فقط، واربطهما بمرجع الأسرة. القطاع يطابق اسم المخيم المختار، والمأوى اختياري ويطابق الرمز داخل القطاع. الملف لا يُرفع للخادم؛ تُرسل البيانات بعد التأكيد فقط. تُراجع مطابقة أرقام الهوية مع السجلات الموجودة عند التأكيد، ويُرفض الملف كاملاً عند وجود تعارض.</Text>
+        </Alert>
+        <FileInput
+          label="اختر ملف البيانات"
+          placeholder="اختر ملف .xlsx"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          value={file}
+          onChange={(value) => { void selectWorkbook(value); }}
+          clearable
+          disabled={!selectedCamp || !hasCampSector}
+        />
+        {fileError && <Alert color="red" title="تعذر إكمال الاستيراد">{fileError}</Alert>}
+        {successCount != null && <Alert color="green" title="اكتمل الاستيراد">تم استيراد {successCount} أسرة إلى قائمة قيد المراجعة.</Alert>}
+        {preview && (
+          <div className="space-y-3">
+            {preview.errors.length ? (
+              <Alert color="red" title={`يحتاج الملف إلى تصحيح (${preview.errors.length})`}>
+                <ul className="list-disc pr-5 space-y-1">
+                  {preview.errors.map((message, index) => <li key={`${index}-${message}`}>{message}</li>)}
+                </ul>
+                {preview.duplicateNationalIdRows.length > 0 && (
+                  <Text size="sm" mt="xs">صفوف الهويات المكررة: {preview.duplicateNationalIdRows.join('، ')}</Text>
+                )}
+              </Alert>
+            ) : (
+              <Alert color="green" title="معاينة الملف جاهزة">
+                <Text size="sm">عدد الأسر: {preview.families.length}، عدد الأفراد: {preview.families.reduce((total, family) => total + family.members.length, 0)}، أمثلة مستبعدة: {preview.ignoredExampleCount}.</Text>
+                <div className="mt-2 space-y-1">
+                  {preview.families.map((family, index) => (
+                    <Text key={`${family.headName}-${index}`} size="sm">• {family.headName} — {family.members.length} فرد</Text>
+                  ))}
+                </div>
+              </Alert>
+            )}
+            {!preview.errors.length && (
+              <>
+                <Checkbox
+                  checked={reviewConfirmed}
+                  onChange={(event) => setReviewConfirmed(event.currentTarget.checked)}
+                  label="أؤكد أنني راجعت المعاينة، وأن جميع البيانات صحيحة ومصرح بإدخالها."
+                />
+                <Button
+                  onClick={submitImport}
+                  disabled={!hasCampSector || !reviewConfirmed || importMutation.isPending}
+                  loading={importMutation.isPending}
+                  color="teal"
+                >
+                  تأكيد استيراد {preview.families.length} أسرة
+                </Button>
+              </>
+            )}
+          </div>
+        )}
       </Card>
     </div>
   );

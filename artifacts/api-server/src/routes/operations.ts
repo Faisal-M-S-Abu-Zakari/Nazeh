@@ -50,12 +50,18 @@ import {
   ArchiveShelterBody,
   ArchiveShelterParams,
   ArchiveShelterResponse,
+  CreateCampBody,
+  CreateCampResponse,
   CreateFamilyBody,
   CreateFamilyResponse,
+  ImportFamiliesBody,
+  ImportFamiliesResponse,
   CreateNeedBody,
   CreateNeedResponse,
   CreateShelterBody,
   CreateShelterResponse,
+  CreateSectorBody,
+  CreateSectorResponse,
   GetFamilyParams,
   GetFamilyResponse,
   ListCampsResponse,
@@ -112,6 +118,15 @@ import {
 import { allowRoles, requireAuth } from "../middlewares/auth";
 import { withIdempotency } from "../lib/idempotency";
 import { parseRequest } from "../lib/validation";
+import { canonicalFamilyImportDigest, isMatchingFamilyImportReplay } from "../lib/family-import-idempotency";
+import { normalizeLocationName, trimLocationNameInput } from "../lib/location-setup";
+import {
+  hasExistingNationalIds,
+  isNationalIdUniqueViolation,
+  lockShelterRows,
+  normalizeNationalId,
+  uniqueNormalizedNationalIds,
+} from "../lib/family-write-guards";
 
 const router: IRouter = Router();
 const recordManagers: StaffRole[] = ["ADMIN", "MANAGER", "DELEGATE"];
@@ -585,7 +600,14 @@ async function getFamilyDetail(tx: any, familyId: string) {
   return { ...family, members };
 }
 
-async function validatePlacement(tx: any, campId: string, sectorId: string, shelterId: string | null | undefined, familyId?: string) {
+async function validatePlacement(
+  tx: any,
+  campId: string,
+  sectorId: string,
+  shelterId: string | null | undefined,
+  familyId?: string,
+  checkCapacity = true,
+) {
   const [sector] = await tx
     .select()
     .from(campSectorsTable)
@@ -598,12 +620,14 @@ async function validatePlacement(tx: any, campId: string, sectorId: string, shel
     .from(shelterUnitsTable)
     .where(and(eq(shelterUnitsTable.id, shelterId), eq(shelterUnitsTable.sectorId, sectorId)))
     .limit(1);
-  if (!shelter) return "Shelter does not belong to the selected sector";
-  const assigned = await tx
-    .select({ value: count() })
-    .from(familiesTable)
-    .where(and(eq(familiesTable.shelterId, shelterId), isNull(familiesTable.archivedAt), familyId ? sql`${familiesTable.id} <> ${familyId}` : undefined));
-  if (Number(assigned[0]?.value ?? 0) >= shelter.capacity) return "Shelter has reached its capacity";
+  if (!shelter || shelter.archivedAt) return "Shelter does not belong to the selected sector";
+  if (checkCapacity) {
+    const assigned = await tx
+      .select({ value: count() })
+      .from(familiesTable)
+      .where(and(eq(familiesTable.shelterId, shelterId), isNull(familiesTable.archivedAt), familyId ? sql`${familiesTable.id} <> ${familyId}` : undefined));
+    if (Number(assigned[0]?.value ?? 0) >= shelter.capacity) return "Shelter has reached its capacity";
+  }
   return undefined;
 }
 
@@ -611,8 +635,75 @@ router.get("/camps", allowRoles(...familyManagers, ...securityLeads), async (_re
   res.json(ListCampsResponse.parse(await db.select().from(campsTable).where(eq(campsTable.active, true))));
 });
 
+router.post("/camps", allowRoles("ADMIN", "MANAGER"), async (req, res): Promise<void> => {
+  const body = parseRequest(CreateCampBody, trimLocationNameInput(req.body), res);
+  if (!body) return;
+  const name = normalizeLocationName(body.name);
+  if (!name) {
+    res.status(400).json({ error: "Camp name must contain 1 to 160 characters" });
+    return;
+  }
+  const actorId = res.locals["staff"].id as string;
+  const result = await withIdempotency<unknown>(req, res, "createCamp", async (tx) => {
+    // Serialize the name check even when campsTable is empty, where row locks cannot prevent races.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(734201, 1)`);
+    const [duplicate] = await tx
+      .select({ id: campsTable.id })
+      .from(campsTable)
+      .where(and(
+        eq(campsTable.active, true),
+        sql`lower(btrim(${campsTable.name})) = lower(${name})`,
+      ))
+      .limit(1);
+    if (duplicate) {
+      return { statusCode: 409, responseBody: { error: "An active camp with this name already exists" } };
+    }
+    const [created] = await tx.insert(campsTable).values({ name }).returning();
+    await audit(tx, actorId, "CREATE", "CAMP", created.id, { name });
+    return { statusCode: 201, responseBody: CreateCampResponse.parse(created) };
+  });
+  if (result) res.status(result.statusCode).json(result.responseBody);
+});
+
 router.get("/sectors", allowRoles(...familyManagers, ...securityLeads), async (_req, res): Promise<void> => {
   res.json(ListSectorsResponse.parse(await db.select().from(campSectorsTable).orderBy(campSectorsTable.name)));
+});
+
+router.post("/sectors", allowRoles("ADMIN", "MANAGER"), async (req, res): Promise<void> => {
+  const body = parseRequest(CreateSectorBody, trimLocationNameInput(req.body), res);
+  if (!body) return;
+  const name = normalizeLocationName(body.name);
+  if (!name) {
+    res.status(400).json({ error: "Sector name must contain 1 to 160 characters" });
+    return;
+  }
+  const actorId = res.locals["staff"].id as string;
+  const result = await withIdempotency<unknown>(req, res, "createSector", async (tx) => {
+    const [camp] = await tx
+      .select()
+      .from(campsTable)
+      .where(and(eq(campsTable.id, body.campId), eq(campsTable.active, true)))
+      .for("update")
+      .limit(1);
+    if (!camp) return { statusCode: 404, responseBody: { error: "Active camp not found" } };
+
+    const [duplicate] = await tx
+      .select({ id: campSectorsTable.id })
+      .from(campSectorsTable)
+      .where(and(
+        eq(campSectorsTable.campId, body.campId),
+        sql`lower(btrim(${campSectorsTable.name})) = lower(${name})`,
+      ))
+      .limit(1);
+    if (duplicate) {
+      return { statusCode: 409, responseBody: { error: "A sector with this name already exists in this camp" } };
+    }
+
+    const [created] = await tx.insert(campSectorsTable).values({ campId: camp.id, name }).returning();
+    await audit(tx, actorId, "CREATE", "SECTOR", created.id, { campId: camp.id, name });
+    return { statusCode: 201, responseBody: CreateSectorResponse.parse(created) };
+  });
+  if (result) res.status(result.statusCode).json(result.responseBody);
 });
 
 router.get("/shelters", allowRoles(...familyManagers, ...securityLeads), async (_req, res): Promise<void> => {
@@ -645,6 +736,16 @@ router.patch("/shelters/:shelterId", allowRoles(...familyApprovers), async (req,
   const actorId = res.locals["staff"].id as string;
   const { expectedVersion, ...changes } = body;
   const result = await withIdempotency<unknown>(req, res, `updateShelter:${params.shelterId}`, async (tx) => {
+    await lockShelterRows(tx, [params.shelterId]);
+    if (changes.capacity !== undefined) {
+      const [assigned] = await tx
+        .select({ value: count() })
+        .from(familiesTable)
+        .where(and(eq(familiesTable.shelterId, params.shelterId), isNull(familiesTable.archivedAt)));
+      if (Number(assigned?.value ?? 0) > changes.capacity) {
+        return { statusCode: 409, responseBody: { error: "Shelter capacity cannot be lower than its current assignments" } };
+      }
+    }
     const [updated] = await tx.update(shelterUnitsTable).set({
       ...changes,
       version: sql`${shelterUnitsTable.version} + 1`,
@@ -666,6 +767,7 @@ router.patch("/shelters/:shelterId/archive", allowRoles(...familyApprovers), asy
   if (!params || !body) return;
   const actorId = res.locals["staff"].id as string;
   const result = await withIdempotency<unknown>(req, res, `archiveShelter:${params.shelterId}`, async (tx) => {
+    await lockShelterRows(tx, [params.shelterId]);
     const [updated] = await tx.update(shelterUnitsTable).set({
       archivedAt: new Date(), version: sql`${shelterUnitsTable.version} + 1`, updatedAt: new Date(),
     }).where(and(eq(shelterUnitsTable.id, params.shelterId), eq(shelterUnitsTable.version, body.expectedVersion), isNull(shelterUnitsTable.archivedAt))).returning();
@@ -686,18 +788,157 @@ router.get("/families", allowRoles(...familyManagers), async (req, res): Promise
   res.json(ListFamiliesResponse.parse(rows));
 });
 
+router.post("/families/import", allowRoles("ADMIN", "MANAGER"), async (req, res): Promise<void> => {
+  const sourceFileKey = req.get("Idempotency-Key") ?? "";
+  if (!/^sha256-[a-f0-9]{64}$/.test(sourceFileKey)) {
+    res.status(400).json({ error: "مفتاح الاستيراد يجب أن يكون بصمة SHA-256 للملف كاملاً." });
+    return;
+  }
+  const parsed = ImportFamiliesBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "ملف الاستيراد لا يطابق البنية المطلوبة أو يتجاوز الحد المسموح." });
+    return;
+  }
+  if (parsed.data.families.reduce((total, family) => total + family.members.length, 0) > 500) {
+    res.status(400).json({ error: "الحد الأقصى هو 500 فرد في طلب الاستيراد." });
+    return;
+  }
+  const actorId = res.locals["staff"].id as string;
+  const families = parsed.data.families.map((family, index) => {
+    const validated = CreateFamilyBody.safeParse(family);
+    if (!validated.success) return { row: index + 1, error: true as const };
+    return { row: index + 1, error: false as const, family: validated.data };
+  });
+  const invalidRow = families.find((entry) => entry.error);
+  if (invalidRow?.error) {
+    res.status(400).json({ error: `بيانات الأسرة رقم ${invalidRow.row} غير صالحة.` });
+    return;
+  }
+  const validFamilies = families.flatMap((entry) => entry.error ? [] : [entry.family]);
+  if (validFamilies.some((family) => family.campId !== parsed.data.campId)) {
+    res.status(400).json({ error: "يجب أن تنتمي جميع الأسر إلى المخيم المختار." });
+    return;
+  }
+  const memberIds = validFamilies.flatMap((family) => family.members
+    .map((member) => member.nationalId ?? "")
+    .filter(Boolean));
+  const normalizedMemberIds = memberIds.map(normalizeNationalId).filter(Boolean);
+  if (uniqueNormalizedNationalIds(memberIds).length !== normalizedMemberIds.length) {
+    res.status(400).json({ error: "يوجد رقم هوية مكرر بين أفراد الملف." });
+    return;
+  }
+  const inputDigest = canonicalFamilyImportDigest(parsed.data);
+
+  let result: { statusCode: number; responseBody: unknown } | undefined;
+  try {
+    result = await withIdempotency<{ inputDigest?: string; importedCount?: number; error?: string }>(
+      req,
+      res,
+      `importFamilies:${parsed.data.campId}`,
+      async (tx) => {
+    const lockedShelters = await lockShelterRows(tx, validFamilies.map((family) => family.shelterId));
+    const shelterById = new Map<string, typeof shelterUnitsTable.$inferSelect>(
+      lockedShelters.map((shelter: typeof shelterUnitsTable.$inferSelect) => [shelter.id, shelter] as [string, typeof shelterUnitsTable.$inferSelect]),
+    );
+
+    const demandByShelter = new Map<string, number>();
+    for (const [index, family] of validFamilies.entries()) {
+      const placementError = await validatePlacement(tx, family.campId, family.sectorId, family.shelterId, undefined, false);
+      if (placementError) return { statusCode: 400, responseBody: { error: `الأسرة رقم ${index + 1}: ${placementError}` } };
+      if (family.shelterId) {
+        const shelter = shelterById.get(family.shelterId);
+        if (!shelter || shelter.archivedAt) {
+          return { statusCode: 400, responseBody: { error: `وحدة الإيواء للأسرة رقم ${index + 1} غير متاحة.` } };
+        }
+        demandByShelter.set(family.shelterId, (demandByShelter.get(family.shelterId) ?? 0) + 1);
+      }
+    }
+
+    if (await hasExistingNationalIds(tx, memberIds)) {
+      return { statusCode: 409, responseBody: { error: "يوجد رقم هوية مسجل مسبقًا في النظام." } };
+    }
+
+    for (const [shelterId, demand] of demandByShelter) {
+      const shelter = shelterById.get(shelterId)!;
+      const [assigned] = await tx
+        .select({ value: count() })
+        .from(familiesTable)
+        .where(and(eq(familiesTable.shelterId, shelterId), isNull(familiesTable.archivedAt)));
+      if (Number(assigned?.value ?? 0) + demand > shelter.capacity) {
+        return { statusCode: 400, responseBody: { error: "عدد الأسر المحدد يتجاوز السعة المتاحة لوحدة إيواء." } };
+      }
+    }
+
+    for (const family of validFamilies) {
+      const [created] = await tx.insert(familiesTable).values({
+        campId: family.campId,
+        sectorId: family.sectorId,
+        shelterId: family.shelterId ?? null,
+        headName: family.headName,
+        headPhone: family.headPhone ?? null,
+        delegateId: null,
+        criticalNotes: family.criticalNotes ?? null,
+        createdById: actorId,
+      }).returning();
+      await tx.insert(familyMembersTable).values(family.members.map((member) => ({
+        familyId: created.id,
+        ...member,
+        birthDate: member.birthDate ? member.birthDate.toISOString().slice(0, 10) : null,
+        nationalId: normalizeNationalId(member.nationalId ?? "") || null,
+        criticalCase: member.criticalCase ?? false,
+        criticalNotes: member.criticalNotes ?? null,
+      })));
+      await audit(tx, actorId, "CREATE", "FAMILY", created.id, { status: created.status, version: created.version });
+    }
+      return { statusCode: 201, responseBody: { inputDigest, importedCount: validFamilies.length } };
+      },
+      { cacheErrorResponses: false },
+    );
+  } catch (error) {
+    if (isNationalIdUniqueViolation(error)) {
+      res.status(409).json({ error: "يوجد رقم هوية مسجل مسبقًا في النظام." });
+      return;
+    }
+    req.log.error({ errorType: error instanceof Error ? error.name : "UnknownError" }, "Family import transaction failed");
+    res.status(500).json({ error: "تعذر إكمال الاستيراد؛ لم تُحفظ بيانات جزئية." });
+    return;
+  }
+  if (!result) return;
+  if (result.statusCode === 201) {
+    if (!isMatchingFamilyImportReplay(result.responseBody, inputDigest)) {
+      res.status(409).json({ error: "مفتاح الملف مستخدم مع محتوى مختلف." });
+      return;
+    }
+    res.status(201).json(ImportFamiliesResponse.parse({ importedCount: result.responseBody.importedCount }));
+    return;
+  }
+  res.status(result.statusCode).json(result.responseBody);
+});
+
 router.post("/families", allowRoles(...familyManagers), async (req, res): Promise<void> => {
   const body = parseRequest(CreateFamilyBody, req.body, res);
   if (!body) return;
+  const nationalIds = body.members.map((member) => member.nationalId ?? "").filter(Boolean);
+  const normalizedIds = nationalIds.map(normalizeNationalId).filter(Boolean);
+  if (uniqueNormalizedNationalIds(nationalIds).length !== normalizedIds.length) {
+    res.status(409).json({ error: "يوجد رقم هوية مكرر بين أفراد الأسرة." });
+    return;
+  }
   const actorId = res.locals["staff"].id as string;
   const staff = res.locals["staff"] as { id: string; role: StaffRole };
   if (staff.role === "DELEGATE" && body.delegateId !== undefined && body.delegateId !== actorId) {
     res.status(403).json({ error: "Delegates may only create families assigned to themselves" });
     return;
   }
-  const result = await withIdempotency<unknown>(req, res, "createFamily", async (tx) => {
+  let result: { statusCode: number; responseBody: unknown } | undefined;
+  try {
+    result = await withIdempotency<unknown>(req, res, "createFamily", async (tx) => {
+    await lockShelterRows(tx, [body.shelterId]);
     const placementError = await validatePlacement(tx, body.campId, body.sectorId, body.shelterId);
     if (placementError) return { statusCode: 400, responseBody: { error: placementError } };
+    if (await hasExistingNationalIds(tx, nationalIds)) {
+      return { statusCode: 409, responseBody: { error: "يوجد رقم هوية مسجل مسبقًا في النظام." } };
+    }
     const delegateId = staff.role === "DELEGATE" ? actorId : body.delegateId ?? null;
     const [created] = await tx.insert(familiesTable).values({
       campId: body.campId,
@@ -713,14 +954,23 @@ router.post("/families", allowRoles(...familyManagers), async (req, res): Promis
       familyId: created.id,
       ...member,
       birthDate: member.birthDate ? member.birthDate.toISOString().slice(0, 10) : null,
-      nationalId: member.nationalId ?? null,
+      nationalId: normalizeNationalId(member.nationalId ?? "") || null,
       criticalCase: member.criticalCase ?? false,
       criticalNotes: member.criticalNotes ?? null,
     })));
     await audit(tx, actorId, "CREATE", "FAMILY", created.id, { status: created.status, version: created.version });
     const detail = await getFamilyDetail(tx, created.id);
     return { statusCode: 201, responseBody: CreateFamilyResponse.parse(detail) };
-  });
+    }, { cacheErrorResponses: false });
+  } catch (error) {
+    if (isNationalIdUniqueViolation(error)) {
+      res.status(409).json({ error: "يوجد رقم هوية مسجل مسبقًا في النظام." });
+      return;
+    }
+    req.log.error({ errorType: error instanceof Error ? error.name : "UnknownError" }, "Family creation failed");
+    res.status(500).json({ error: "تعذر حفظ الأسرة." });
+    return;
+  }
   if (result) res.status(result.statusCode).json(result.responseBody);
 });
 
@@ -751,7 +1001,9 @@ router.patch("/families/:familyId", allowRoles(...familyManagers), async (req, r
       return { statusCode: 403, responseBody: { error: "Delegates cannot reassign family responsibility or shelter" } };
     }
     const sectorId = body.sectorId ?? current.sectorId;
-    const placementError = await validatePlacement(tx, current.campId, sectorId, body.shelterId === undefined ? current.shelterId : body.shelterId, current.id);
+    const targetShelterId = body.shelterId === undefined ? current.shelterId : body.shelterId;
+    await lockShelterRows(tx, [current.shelterId, targetShelterId]);
+    const placementError = await validatePlacement(tx, current.campId, sectorId, targetShelterId, current.id);
     if (placementError) return { statusCode: 400, responseBody: { error: placementError } };
     const changes = {
       ...(body.sectorId !== undefined ? { sectorId: body.sectorId } : {}),
@@ -818,6 +1070,9 @@ router.patch("/families/:familyId/archive", allowRoles(...familyApprovers), asyn
   if (!params || !body) return;
   const actorId = res.locals["staff"].id as string;
   const result = await withIdempotency<unknown>(req, res, `archiveFamily:${params.familyId}`, async (tx) => {
+    const [current] = await tx.select({ shelterId: familiesTable.shelterId }).from(familiesTable)
+      .where(eq(familiesTable.id, params.familyId)).limit(1);
+    await lockShelterRows(tx, [current?.shelterId]);
     const [updated] = await tx.update(familiesTable).set({
       status: "ARCHIVED",
       archivedAt: new Date(),

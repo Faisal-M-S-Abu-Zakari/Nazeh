@@ -1,4 +1,10 @@
 import { pool } from "./index";
+import {
+  assertFamilyNationalIdIndex,
+  FAMILY_NATIONAL_ID_INDEX_NAME,
+  FAMILY_NATIONAL_ID_INDEX_QUERY,
+  type FamilyNationalIdIndexCatalogRow,
+} from "./verify-family-national-id-index";
 
 const requiredColumns: Record<string, readonly string[]> = {
   staff_users: ["id", "email", "role", "password_hash"],
@@ -10,7 +16,7 @@ const requiredColumns: Record<string, readonly string[]> = {
   camp_sectors: ["id", "camp_id", "name"],
   shelter_units: ["id", "sector_id", "code", "capacity", "status", "version", "archived_at"],
   families: ["id", "camp_id", "sector_id", "shelter_id", "delegate_id", "status", "version"],
-  family_members: ["id", "family_id", "full_name", "critical_case"],
+  family_members: ["id", "family_id", "full_name", "national_id", "critical_case"],
   family_assignment_history: ["id", "family_id", "changed_by_id"],
   family_needs: ["id", "family_id", "category", "status", "priority", "version"],
   need_status_history: ["id", "need_id", "to_status", "changed_by_id"],
@@ -48,6 +54,12 @@ async function verifySchema() {
       )}. Apply a reviewed, data-preserving schema migration before starting the API.`,
     );
   }
+
+  const { rows: familyNationalIdIndexRows } = await pool.query<FamilyNationalIdIndexCatalogRow>(
+    FAMILY_NATIONAL_ID_INDEX_QUERY,
+    [FAMILY_NATIONAL_ID_INDEX_NAME],
+  );
+  assertFamilyNationalIdIndex(familyNationalIdIndexRows);
 
   const { rows: managerInvariantRows } = await pool.query<{
     active_privileged_count: string;

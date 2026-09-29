@@ -1035,11 +1035,28 @@ export interface Camp {
   createdAt: string;
 }
 
+export interface CampInput {
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  name: string;
+}
+
 export interface Sector {
   id: string;
   campId: string;
   name: string;
   createdAt: string;
+}
+
+export interface SectorInput {
+  campId: string;
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  name: string;
 }
 
 export interface Shelter {
@@ -1186,6 +1203,20 @@ export interface FamilyInput {
   criticalNotes?: string;
   /** @minItems 1 */
   members: FamilyMemberInput[];
+}
+
+export interface FamilyImportInput {
+  campId: string;
+  /**
+     * @minItems 1
+     * @maxItems 100
+     */
+  families: FamilyInput[];
+}
+
+export interface FamilyImportResult {
+  /** @minimum 0 */
+  importedCount: number;
 }
 
 export interface FamilyUpdate {

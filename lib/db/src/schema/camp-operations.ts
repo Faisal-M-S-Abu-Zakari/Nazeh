@@ -12,6 +12,7 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { staffUsers, usersTable } from "./auth";
@@ -126,7 +127,12 @@ export const familyMembersTable = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("family_members_family_idx").on(table.familyId)],
+  (table) => [
+    index("family_members_family_idx").on(table.familyId),
+    uniqueIndex("family_members_national_id_normalized_unique")
+      .on(sql`lower(btrim(${table.nationalId}))`)
+      .where(sql`${table.nationalId} IS NOT NULL AND btrim(${table.nationalId}) <> ''`),
+  ],
 );
 
 export const familyAssignmentHistoryTable = pgTable(

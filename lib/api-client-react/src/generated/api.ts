@@ -37,6 +37,8 @@ import type {
   AvatarUploadRequest,
   AvatarUploadResponse,
   BadRequestResponse,
+  Camp,
+  CampInput,
   CampList,
   Complaint,
   ComplaintInput,
@@ -72,6 +74,8 @@ import type {
   FamilyHeadNeedInput,
   FamilyHeadNeedList,
   FamilyHeadProfile,
+  FamilyImportInput,
+  FamilyImportResult,
   FamilyInput,
   FamilyList,
   FamilyReceivedAid,
@@ -101,6 +105,8 @@ import type {
   PasswordResetTokenResponse,
   Person,
   PersonUpdate,
+  Sector,
+  SectorInput,
   SectorList,
   SecurityMemberList,
   SecurityTask,
@@ -5269,6 +5275,74 @@ export function useListCamps<TData = Awaited<ReturnType<typeof listCamps>>, TErr
 
 
 
+export const getCreateCampUrl = () => {
+
+
+
+
+  return `/api/sync/camps`
+}
+
+/**
+ * Manager-only camp creation.
+ */
+export const createCamp = async (campInput: CampInput, options?: Parameters<typeof customFetch>[1]): Promise<Camp> => {
+
+  return customFetch<Camp>(getCreateCampUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(campInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCampMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCamp>>, TError,{data: BodyType<CampInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCamp>>, TError,{data: BodyType<CampInput>}, TContext> => {
+
+const mutationKey = ['createCamp'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCamp>>, {data: BodyType<CampInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createCamp(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCampMutationResult = NonNullable<Awaited<ReturnType<typeof createCamp>>>
+    export type CreateCampMutationBody = BodyType<CampInput>
+    export type CreateCampMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | ConflictResponse>
+
+    export const useCreateCamp = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCamp>>, TError,{data: BodyType<CampInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCamp>>,
+        TError,
+        {data: BodyType<CampInput>},
+        TContext
+      > => {
+      return useMutation(getCreateCampMutationOptions(options));
+    }
+
 export const getListSectorsUrl = () => {
 
 
@@ -5339,6 +5413,74 @@ export function useListSectors<TData = Awaited<ReturnType<typeof listSectors>>, 
 
 
 
+
+export const getCreateSectorUrl = () => {
+
+
+
+
+  return `/api/sync/sectors`
+}
+
+/**
+ * Manager-only sector creation within an active camp.
+ */
+export const createSector = async (sectorInput: SectorInput, options?: Parameters<typeof customFetch>[1]): Promise<Sector> => {
+
+  return customFetch<Sector>(getCreateSectorUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(sectorInput)
+  }
+);}
+
+
+
+
+
+export const getCreateSectorMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSector>>, TError,{data: BodyType<SectorInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSector>>, TError,{data: BodyType<SectorInput>}, TContext> => {
+
+const mutationKey = ['createSector'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSector>>, {data: BodyType<SectorInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createSector(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSectorMutationResult = NonNullable<Awaited<ReturnType<typeof createSector>>>
+    export type CreateSectorMutationBody = BodyType<SectorInput>
+    export type CreateSectorMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>
+
+    export const useCreateSector = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSector>>, TError,{data: BodyType<SectorInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createSector>>,
+        TError,
+        {data: BodyType<SectorInput>},
+        TContext
+      > => {
+      return useMutation(getCreateSectorMutationOptions(options));
+    }
 
 export const getListSheltersUrl = () => {
 
@@ -5742,6 +5884,78 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getCreateFamilyMutationOptions(options));
+    }
+
+export const getImportFamiliesUrl = () => {
+
+
+
+
+  return `/api/sync/families/import`
+}
+
+/**
+ * Manager-only atomic import. All records remain pending approval. The Idempotency-Key must be the SHA-256 digest of the complete source workbook.
+ * @summary Import validated families in one transaction
+ */
+export const importFamilies = async (familyImportInput: FamilyImportInput, options?: Parameters<typeof customFetch>[1]): Promise<FamilyImportResult> => {
+
+  return customFetch<FamilyImportResult>(getImportFamiliesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(familyImportInput)
+  }
+);}
+
+
+
+
+
+export const getImportFamiliesMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importFamilies>>, TError,{data: BodyType<FamilyImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importFamilies>>, TError,{data: BodyType<FamilyImportInput>}, TContext> => {
+
+const mutationKey = ['importFamilies'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importFamilies>>, {data: BodyType<FamilyImportInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  importFamilies(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportFamiliesMutationResult = NonNullable<Awaited<ReturnType<typeof importFamilies>>>
+    export type ImportFamiliesMutationBody = BodyType<FamilyImportInput>
+    export type ImportFamiliesMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>
+
+    /**
+ * @summary Import validated families in one transaction
+ */
+export const useImportFamilies = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importFamilies>>, TError,{data: BodyType<FamilyImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importFamilies>>,
+        TError,
+        {data: BodyType<FamilyImportInput>},
+        TContext
+      > => {
+      return useMutation(getImportFamiliesMutationOptions(options));
     }
 
 export const getGetFamilyUrl = (familyId: string,) => {

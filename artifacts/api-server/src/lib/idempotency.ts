@@ -14,7 +14,7 @@ export async function withIdempotency<T>(
   res: Response,
   operation: string,
   work: (tx: any) => Promise<StoredResult<T>>,
-  options: { required?: boolean } = {},
+  options: { required?: boolean; cacheErrorResponses?: boolean } = {},
 ): Promise<StoredResult<T> | undefined> {
   const key = req.get("Idempotency-Key");
   if (!key && options.required === false) {
@@ -31,6 +31,18 @@ export async function withIdempotency<T>(
 
   const userId = res.locals["staff"].id as string;
   return db.transaction(async (tx) => {
+    const executeClaimed = async (claimId: string) => {
+      const result = await work(tx);
+      if (options.cacheErrorResponses === false && result.statusCode >= 400) {
+        await tx.delete(idempotencyKeys).where(eq(idempotencyKeys.id, claimId));
+      } else {
+        await tx
+          .update(idempotencyKeys)
+          .set({ statusCode: result.statusCode, responseBody: result.responseBody })
+          .where(eq(idempotencyKeys.id, claimId));
+      }
+      return result;
+    };
     const [claim] = await tx
       .insert(idempotencyKeys)
       .values({
@@ -46,12 +58,7 @@ export async function withIdempotency<T>(
       .returning({ id: idempotencyKeys.id });
 
     if (claim) {
-      const result = await work(tx);
-      await tx
-        .update(idempotencyKeys)
-        .set({ statusCode: result.statusCode, responseBody: result.responseBody })
-        .where(eq(idempotencyKeys.id, claim.id));
-      return result;
+      return executeClaimed(claim.id);
     }
 
     const [stored] = await tx
@@ -68,6 +75,43 @@ export async function withIdempotency<T>(
         ),
       )
       .limit(1);
+
+    if (stored && stored.statusCode >= 400 && options.cacheErrorResponses === false) {
+      await tx
+        .delete(idempotencyKeys)
+        .where(and(
+          eq(idempotencyKeys.userId, userId),
+          eq(idempotencyKeys.operation, operation),
+          eq(idempotencyKeys.key, key),
+        ));
+      const [retryClaim] = await tx
+        .insert(idempotencyKeys)
+        .values({
+          userId,
+          operation,
+          key,
+          statusCode: 0,
+          responseBody: {},
+        })
+        .onConflictDoNothing()
+        .returning({ id: idempotencyKeys.id });
+      if (retryClaim) return executeClaimed(retryClaim.id);
+
+      const [retryStored] = await tx
+        .select({
+          statusCode: idempotencyKeys.statusCode,
+          responseBody: idempotencyKeys.responseBody,
+        })
+        .from(idempotencyKeys)
+        .where(and(
+          eq(idempotencyKeys.userId, userId),
+          eq(idempotencyKeys.operation, operation),
+          eq(idempotencyKeys.key, key),
+        ))
+        .limit(1);
+      if (!retryStored || retryStored.statusCode === 0) throw new Error("Idempotency record was not completed");
+      return { statusCode: retryStored.statusCode, responseBody: retryStored.responseBody as T };
+    }
 
     // A unique conflict can only occur for the key above. This guards against
     // unexpected data corruption without ever repeating the mutation.

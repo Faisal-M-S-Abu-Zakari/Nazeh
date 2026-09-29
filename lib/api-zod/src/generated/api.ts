@@ -2182,6 +2182,33 @@ export const ListCampsResponseItem = zod.object({
 export const ListCampsResponse = zod.array(ListCampsResponseItem)
 
 
+/**
+ * Manager-only camp creation.
+ */
+export const createCampHeaderIdempotencyKeyMax = 200;
+
+
+
+export const CreateCampHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(createCampHeaderIdempotencyKeyMax).describe('A caller-generated, non-empty key (maximum 200 characters) used to safely retry this mutation.')
+})
+
+export const createCampBodyNameMax = 160;
+
+
+
+export const CreateCampBody = zod.object({
+  "name": zod.string().min(1).max(createCampBodyNameMax)
+})
+
+export const CreateCampResponse = zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "active": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
+
 export const ListSectorsResponseItem = zod.object({
   "id": zod.uuid(),
   "campId": zod.uuid(),
@@ -2189,6 +2216,34 @@ export const ListSectorsResponseItem = zod.object({
   "createdAt": zod.coerce.date()
 })
 export const ListSectorsResponse = zod.array(ListSectorsResponseItem)
+
+
+/**
+ * Manager-only sector creation within an active camp.
+ */
+export const createSectorHeaderIdempotencyKeyMax = 200;
+
+
+
+export const CreateSectorHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(createSectorHeaderIdempotencyKeyMax).describe('A caller-generated, non-empty key (maximum 200 characters) used to safely retry this mutation.')
+})
+
+export const createSectorBodyNameMax = 160;
+
+
+
+export const CreateSectorBody = zod.object({
+  "campId": zod.uuid(),
+  "name": zod.string().min(1).max(createSectorBodyNameMax)
+})
+
+export const CreateSectorResponse = zod.object({
+  "id": zod.uuid(),
+  "campId": zod.uuid(),
+  "name": zod.string(),
+  "createdAt": zod.coerce.date()
+})
 
 
 
@@ -2438,6 +2493,71 @@ export const CreateFamilyResponse = zod.object({
   "updatedAt": zod.coerce.date()
 }))
 }))
+
+
+/**
+ * Manager-only atomic import. All records remain pending approval. The Idempotency-Key must be the SHA-256 digest of the complete source workbook.
+ * @summary Import validated families in one transaction
+ */
+export const importFamiliesHeaderIdempotencyKeyMax = 200;
+
+
+
+export const ImportFamiliesHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1).max(importFamiliesHeaderIdempotencyKeyMax).describe('A caller-generated, non-empty key (maximum 200 characters) used to safely retry this mutation.')
+})
+
+export const importFamiliesBodyFamiliesItemHeadNameMin = 2;
+export const importFamiliesBodyFamiliesItemHeadNameMax = 200;
+
+export const importFamiliesBodyFamiliesItemHeadPhoneMax = 40;
+
+export const importFamiliesBodyFamiliesItemCriticalNotesMax = 5000;
+
+export const importFamiliesBodyFamiliesItemMembersItemFullNameMin = 2;
+export const importFamiliesBodyFamiliesItemMembersItemFullNameMax = 200;
+
+export const importFamiliesBodyFamiliesItemMembersItemNationalIdMax = 80;
+
+export const importFamiliesBodyFamiliesItemMembersItemRelationshipMin = 2;
+export const importFamiliesBodyFamiliesItemMembersItemRelationshipMax = 80;
+
+export const importFamiliesBodyFamiliesItemMembersItemCriticalNotesMax = 5000;
+
+
+export const importFamiliesBodyFamiliesMax = 100;
+
+
+
+export const ImportFamiliesBody = zod.object({
+  "campId": zod.uuid(),
+  "families": zod.array(zod.object({
+  "campId": zod.uuid(),
+  "sectorId": zod.uuid(),
+  "shelterId": zod.uuid().nullish(),
+  "headName": zod.string().min(importFamiliesBodyFamiliesItemHeadNameMin).max(importFamiliesBodyFamiliesItemHeadNameMax),
+  "headPhone": zod.string().max(importFamiliesBodyFamiliesItemHeadPhoneMax).optional(),
+  "delegateId": zod.uuid().nullish(),
+  "criticalNotes": zod.string().max(importFamiliesBodyFamiliesItemCriticalNotesMax).optional(),
+  "members": zod.array(zod.object({
+  "fullName": zod.string().min(importFamiliesBodyFamiliesItemMembersItemFullNameMin).max(importFamiliesBodyFamiliesItemMembersItemFullNameMax),
+  "nationalId": zod.string().max(importFamiliesBodyFamiliesItemMembersItemNationalIdMax).optional(),
+  "gender": zod.enum(['MALE', 'FEMALE', 'OTHER']),
+  "birthDate": zod.coerce.date().optional(),
+  "relationship": zod.string().min(importFamiliesBodyFamiliesItemMembersItemRelationshipMin).max(importFamiliesBodyFamiliesItemMembersItemRelationshipMax),
+  "criticalCase": zod.boolean().optional(),
+  "criticalNotes": zod.string().max(importFamiliesBodyFamiliesItemMembersItemCriticalNotesMax).optional()
+})).min(1)
+})).min(1).max(importFamiliesBodyFamiliesMax)
+})
+
+export const importFamiliesResponseImportedCountMin = 0;
+
+
+
+export const ImportFamiliesResponse = zod.object({
+  "importedCount": zod.int().min(importFamiliesResponseImportedCountMin)
+})
 
 
 export const GetFamilyParams = zod.object({
