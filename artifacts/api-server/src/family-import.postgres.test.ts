@@ -141,9 +141,10 @@ describe("family import concurrency on isolated PostgreSQL tables", {
     // Distinct keys prevent idempotency from serializing the competing writes.
     const key = path === "/families/import"
       ? `sha256-${createHash("sha256").update(randomUUID()).digest("hex")}`
-      : randomUUID();
+      : method === "PATCH" ? undefined : randomUUID();
     const response = await fetch(`${baseUrl}${path}`, {
-      method, headers: { ...headers, "Idempotency-Key": key },
+      method,
+      headers: { ...headers, ...(key ? { "Idempotency-Key": key } : {}) },
       body: JSON.stringify(body), signal: AbortSignal.timeout(20_000),
     });
     return { status: response.status, body: await response.json() };
@@ -282,6 +283,99 @@ describe("family import concurrency on isolated PostgreSQL tables", {
       [assignments.rows.map((row) => row.id)],
     );
     assert.deepEqual(audits.rows, [{ entity_id: winnerFamilyId }], "Only the winner has a creation audit");
+  });
+
+  test("concurrent import and family reassignment cannot exceed shelter capacity", async () => {
+    const { db, shelterUnitsTable, familiesTable, familyMembersTable } = database;
+    const targetShelterId = randomUUID();
+    const sourceShelterId = randomUUID();
+    const occupiedFamilyId = randomUUID();
+    const movingFamilyId = randomUUID();
+    const movingMemberId = `moving-${randomUUID()}`;
+    await db.insert(shelterUnitsTable).values([
+      { id: targetShelterId, sectorId, code: "SYNTHETIC-IMPORT-MOVE-TARGET", capacity: 2 },
+      { id: sourceShelterId, sectorId, code: "SYNTHETIC-IMPORT-MOVE-SOURCE", capacity: 2 },
+    ]);
+    await db.insert(familiesTable).values([
+      {
+        id: occupiedFamilyId, campId, sectorId, shelterId: targetShelterId,
+        headName: "Synthetic target occupant", createdById: actorId, status: "ACTIVE",
+      },
+      {
+        id: movingFamilyId, campId, sectorId, shelterId: sourceShelterId,
+        headName: "Synthetic family to move", createdById: actorId, status: "ACTIVE",
+      },
+    ]);
+    await db.insert(familyMembersTable).values({
+      familyId: movingFamilyId,
+      fullName: "Synthetic moving family member",
+      nationalId: movingMemberId,
+      gender: "MALE",
+      relationship: "HEAD",
+    });
+
+    const imported = family(`import-${randomUUID()}`, targetShelterId);
+    const before = await database.pool.query(
+      `SELECT
+         (SELECT count(*)::int FROM families) AS families,
+         (SELECT count(*)::int FROM family_members) AS members,
+         (SELECT count(*)::int FROM family_assignment_history) AS assignments,
+         (SELECT count(*)::int FROM sync_audit_events) AS audits,
+         (SELECT count(*)::int FROM idempotency_keys) AS claims`,
+    );
+    const responses = await race(
+      "SELECT id FROM shelter_units WHERE id = '" + targetShelterId + "' FOR UPDATE",
+      'from "shelter_units"',
+      [
+        () => request("/families/import", { campId, families: [imported] }),
+        () => request(`/families/${movingFamilyId}`, { shelterId: targetShelterId, expectedVersion: 1 }, "PATCH"),
+      ],
+    );
+
+    const importWon = responses[0].status === 201;
+    const moveWon = responses[1].status === 200;
+    assert.equal(Number(importWon) + Number(moveWon), 1, "Exactly one write takes the final shelter place");
+    assert.equal(responses[0].status, importWon ? 201 : 400);
+    assert.equal(responses[1].status, moveWon ? 200 : 400);
+    if (!importWon) {
+      assert.deepEqual(responses[0].body, { error: "عدد الأسر المحدد يتجاوز السعة المتاحة لوحدة إيواء." });
+    }
+    if (!moveWon) {
+      assert.deepEqual(responses[1].body, { error: "Shelter has reached its capacity" });
+    }
+
+    const assignments = await database.pool.query(
+      `SELECT id FROM families
+       WHERE shelter_id = $1 AND archived_at IS NULL`,
+      [targetShelterId],
+    );
+    assert.equal(assignments.rowCount, 2, "The full shelter is never over capacity");
+    assert(assignments.rows.some((row) => row.id === occupiedFamilyId), "The existing occupant remains assigned");
+
+    const movingFamily = await database.pool.query(
+      "SELECT shelter_id FROM families WHERE id = $1",
+      [movingFamilyId],
+    );
+    assert.equal(movingFamily.rows[0].shelter_id, moveWon ? targetShelterId : sourceShelterId);
+    const importedMembers = await database.pool.query(
+      "SELECT family_id, national_id FROM family_members WHERE national_id = ANY($1::text[])",
+      [imported.members.map((member) => member.nationalId)],
+    );
+    assert.equal(importedMembers.rowCount, importWon ? 2 : 0, "A rejected import leaves no partial members");
+
+    const after = await database.pool.query(
+      `SELECT
+         (SELECT count(*)::int FROM families) AS families,
+         (SELECT count(*)::int FROM family_members) AS members,
+         (SELECT count(*)::int FROM family_assignment_history) AS assignments,
+         (SELECT count(*)::int FROM sync_audit_events) AS audits,
+         (SELECT count(*)::int FROM idempotency_keys) AS claims`,
+    );
+    assert.equal(after.rows[0].families, before.rows[0].families + Number(importWon));
+    assert.equal(after.rows[0].members, before.rows[0].members + (importWon ? 2 : 0));
+    assert.equal(after.rows[0].assignments, before.rows[0].assignments + Number(moveWon), "Only a successful move records assignment history");
+    assert.equal(after.rows[0].audits, before.rows[0].audits + 1, "Only the successful operation is audited");
+    assert.equal(after.rows[0].claims, before.rows[0].claims + Number(importWon), "Rejected writes leave no import claim");
   });
 
   test("concurrent imports with reversed shelter order both finish without deadlock", async () => {
