@@ -12,7 +12,7 @@ describe("family import concurrency on isolated PostgreSQL tables", {
   const schema = `family_import_test_${randomUUID().replaceAll("-", "")}`;
   const tables = [
     "staff_users", "staff_sessions", "camps", "camp_sectors", "shelter_units",
-    "families", "family_members", "idempotency_keys", "sync_audit_events",
+    "families", "family_members", "family_assignment_history", "idempotency_keys", "sync_audit_events",
   ];
   const previousOptions = process.env.PGOPTIONS;
   const previousNodeEnv = process.env.NODE_ENV;
@@ -137,19 +137,19 @@ describe("family import concurrency on isolated PostgreSQL tables", {
     };
   }
 
-  async function request(path: string, body: unknown) {
+  async function request(path: string, body: unknown, method = "POST") {
     // Distinct keys prevent idempotency from serializing the competing writes.
     const key = path === "/families/import"
       ? `sha256-${createHash("sha256").update(randomUUID()).digest("hex")}`
       : randomUUID();
     const response = await fetch(`${baseUrl}${path}`, {
-      method: "POST", headers: { ...headers, "Idempotency-Key": key },
+      method, headers: { ...headers, "Idempotency-Key": key },
       body: JSON.stringify(body), signal: AbortSignal.timeout(20_000),
     });
     return { status: response.status, body: await response.json() };
   }
 
-  async function waitForBlockedWrites(fragment: string, expectedCount = 2) {
+  async function waitForBlockedWrites(fragment: string, expectedWaiters = 2) {
     const deadline = Date.now() + 10_000;
     while (Date.now() < deadline) {
       const waiting = await database.pool.query(
@@ -158,17 +158,17 @@ describe("family import concurrency on isolated PostgreSQL tables", {
            AND position($2 in query) > 0 AND pid <> pg_backend_pid()`,
         [schema, fragment],
       );
-      if (waiting.rowCount === expectedCount) {
+      if (waiting.rowCount === expectedWaiters) {
         assert.equal(
           new Set(waiting.rows.map((row) => row.pid)).size,
-          expectedCount,
+          expectedWaiters,
           "Independent PostgreSQL transactions must overlap",
         );
         return;
       }
       await delay(20);
     }
-    assert.fail(`Both API transactions must reach the real PostgreSQL lock: ${fragment}`);
+    assert.fail(`All API transactions must reach the real PostgreSQL lock: ${fragment}`);
   }
 
   async function race(lockSql: string, fragment: string, operations: Array<() => ReturnType<typeof request>>) {
@@ -177,11 +177,14 @@ describe("family import concurrency on isolated PostgreSQL tables", {
     try {
       await blocker.query("BEGIN");
       await blocker.query(lockSql);
-      pending.push(...operations.map((operation) => operation()));
-      // Attach rejection handlers immediately; drain all requests on failure.
+      for (const operation of operations) {
+        const requestPromise = operation();
+        pending.push(requestPromise);
+        // Drain requests and avoid unhandled rejections if a later waiter times out.
+        void requestPromise.catch(() => {});
+        await waitForBlockedWrites(fragment, pending.length);
+      }
       const results = Promise.all(pending);
-      void results.catch(() => {});
-      await waitForBlockedWrites(fragment);
       await blocker.query("COMMIT");
       return await results;
     } finally {
@@ -378,4 +381,148 @@ describe("family import concurrency on isolated PostgreSQL tables", {
     assert.equal(membersPerFamily.rowCount, 4, "All four imported families must persist");
     assert(membersPerFamily.rows.every((row) => row.count === 2), "Each imported family must have both members");
   });
-});
+
+  test("a family move and import cannot both take the final place in the same shelter", async () => {
+    const { db, shelterUnitsTable, familiesTable } = database;
+    const targetShelterId = randomUUID();
+    const sourceShelterId = randomUUID();
+    await db.insert(shelterUnitsTable).values([
+      { id: targetShelterId, sectorId, code: "SYNTHETIC-MOVE-TARGET", capacity: 2 },
+      { id: sourceShelterId, sectorId, code: "SYNTHETIC-MOVE-SOURCE", capacity: 2 },
+    ]);
+    const occupiedId = randomUUID();
+    const movingFamilyId = randomUUID();
+    await db.insert(familiesTable).values([
+      {
+        id: occupiedId, campId, sectorId, shelterId: targetShelterId,
+        headName: "Synthetic target occupant", createdById: actorId, status: "ACTIVE",
+      },
+      {
+        id: movingFamilyId, campId, sectorId, shelterId: sourceShelterId,
+        headName: "Synthetic moving family", createdById: actorId, status: "ACTIVE",
+      },
+    ]);
+    const imported = family(`move-race-${randomUUID()}`, targetShelterId);
+    const before = await database.pool.query(
+      "SELECT (SELECT count(*)::int FROM families) AS families",
+    );
+    const responses = await race(
+      `SELECT id FROM shelter_units WHERE id = '${targetShelterId}' FOR UPDATE`,
+      'from "shelter_units"',
+      [
+        () => request(`/families/${movingFamilyId}`, {
+          shelterId: targetShelterId,
+          expectedVersion: 1,
+        }, "PATCH"),
+        () => request("/families/import", { campId, families: [imported] }),
+      ],
+    );
+    const moveSucceeded = responses[0].status === 200;
+    const importSucceeded = responses[1].status === 201;
+    assert.notEqual(importSucceeded, moveSucceeded, "Exactly one operation succeeds");
+    assert.equal(responses[importSucceeded ? 0 : 1].status, 400);
+    assert.deepEqual(responses[importSucceeded ? 0 : 1].body, {
+      error: importSucceeded
+        ? "Shelter has reached its capacity"
+        : "عدد الأسر المحدد يتجاوز السعة المتاحة لوحدة إيواء.",
+    });
+
+    const assignments = await database.pool.query(
+      `SELECT id FROM families
+       WHERE shelter_id = $1 AND archived_at IS NULL
+       ORDER BY id`,
+      [targetShelterId],
+    );
+    assert.equal(assignments.rowCount, 2, "The target shelter must never exceed capacity");
+    assert(assignments.rows.some((row) => row.id === occupiedId), "The existing occupant stays assigned");
+
+    const movedFamily = await database.pool.query(
+      "SELECT shelter_id, version FROM families WHERE id = $1",
+      [movingFamilyId],
+    );
+    assert.equal(movedFamily.rowCount, 1);
+    assert.equal(movedFamily.rows[0].shelter_id, moveSucceeded ? targetShelterId : sourceShelterId);
+    assert.equal(movedFamily.rows[0].version, moveSucceeded ? 2 : 1, "A rejected move must not partially update the family");
+    const history = await database.pool.query(
+      "SELECT from_shelter_id, to_shelter_id FROM family_assignment_history WHERE family_id = $1",
+      [movingFamilyId],
+    );
+    assert.equal(history.rowCount, moveSucceeded ? 1 : 0, "Only a successful move may write assignment history");
+    if (moveSucceeded) {
+      assert.deepEqual(history.rows[0], { from_shelter_id: sourceShelterId, to_shelter_id: targetShelterId });
+    }
+
+    const importedMembers = await database.pool.query(
+      "SELECT family_id, national_id FROM family_members WHERE national_id = ANY($1::text[])",
+      [[...imported.members].map((member) => member.nationalId)],
+    );
+    assert.equal(importedMembers.rowCount, importSucceeded ? 2 : 0, "A rejected import must not leave partial members");
+    if (importSucceeded) {
+      assert.equal(new Set(importedMembers.rows.map((row) => row.family_id)).size, 1);
+      assert(assignments.rows.some((row) => row.id === importedMembers.rows[0].family_id));
+    }
+    const after = await database.pool.query("SELECT count(*)::int AS families FROM families");
+    assert.equal(after.rows[0].families, before.rows[0].families + Number(importSucceeded));
+  });
+
+  test("reducing shelter capacity and importing cannot leave assignments above capacity", async () => {
+    const { db, shelterUnitsTable, familiesTable } = database;
+    const shelterId = randomUUID();
+    await db.insert(shelterUnitsTable).values({
+      id: shelterId, sectorId, code: "SYNTHETIC-CAPACITY-RACE", capacity: 3,
+    });
+    await db.insert(familiesTable).values([1, 2].map((index) => ({
+      id: randomUUID(), campId, sectorId, shelterId,
+      headName: `Synthetic capacity occupant ${index}`,
+      createdById: actorId, status: "ACTIVE" as const,
+    })));
+    const imported = family(`capacity-race-${randomUUID()}`, shelterId);
+    const before = await database.pool.query(
+      "SELECT (SELECT count(*)::int FROM families) AS families",
+    );
+    const responses = await race(
+      `SELECT id FROM shelter_units WHERE id = '${shelterId}' FOR UPDATE`,
+      'from "shelter_units"',
+      [
+        () => request("/families/import", { campId, families: [imported] }),
+        () => request(`/shelters/${shelterId}`, {
+          capacity: 2,
+          expectedVersion: 1,
+        }, "PATCH"),
+      ],
+    );
+    const importSucceeded = responses[0].status === 201;
+    const capacityReductionSucceeded = responses[1].status === 200;
+    assert.notEqual(importSucceeded, capacityReductionSucceeded, "Exactly one operation succeeds");
+    assert.equal(responses[importSucceeded ? 1 : 0].status, importSucceeded ? 409 : 400);
+    assert.deepEqual(responses[importSucceeded ? 1 : 0].body, {
+      error: importSucceeded
+        ? "Shelter capacity cannot be lower than its current assignments"
+        : "عدد الأسر المحدد يتجاوز السعة المتاحة لوحدة إيواء.",
+    });
+
+    const shelter = await database.pool.query(
+      "SELECT capacity, version FROM shelter_units WHERE id = $1",
+      [shelterId],
+    );
+    assert.equal(shelter.rowCount, 1);
+    assert.equal(shelter.rows[0].capacity, capacityReductionSucceeded ? 2 : 3);
+    assert.equal(shelter.rows[0].version, capacityReductionSucceeded ? 2 : 1);
+    const assignments = await database.pool.query(
+      "SELECT count(*)::int AS count FROM families WHERE shelter_id = $1 AND archived_at IS NULL",
+      [shelterId],
+    );
+    assert(assignments.rows[0].count <= shelter.rows[0].capacity, "Assigned families must stay within the committed capacity");
+
+    const importedMembers = await database.pool.query(
+      "SELECT family_id, national_id FROM family_members WHERE national_id = ANY($1::text[])",
+      [[...imported.members].map((member) => member.nationalId)],
+    );
+    assert.equal(importedMembers.rowCount, importSucceeded ? 2 : 0, "A rejected import must not leave partial members");
+    if (importSucceeded) {
+      assert.equal(new Set(importedMembers.rows.map((row) => row.family_id)).size, 1);
+    }
+    const after = await database.pool.query("SELECT count(*)::int AS families FROM families");
+    assert.equal(after.rows[0].families, before.rows[0].families + Number(importSucceeded));
+  });
+  });

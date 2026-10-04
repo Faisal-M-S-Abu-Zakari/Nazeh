@@ -30,6 +30,11 @@ mistaking replay serialization for family-write protection.
 - Two imports targeting the same shelters in reverse file order: PostgreSQL
   confirms both transactions are waiting on the real shelter-row lock before
   release; both then finish and persist the expected families and members.
+- Family reassignment versus import for the last shelter place: exactly one
+  succeeds, with a clear capacity rejection and no partial family move/import.
+- Shelter capacity reduction versus import: exactly one succeeds; the final
+  assignments never exceed the committed capacity and rejected imports leave
+  no partial family or members.
 
 Teardown runs on success and assertion/setup failure, drops only the suite's
 allowlisted synthetic schema, checks that it is gone, and closes the server
