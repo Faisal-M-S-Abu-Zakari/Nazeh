@@ -26,3 +26,4 @@
 - [React Native Web tab labels](react-native-web-tab-label-scaling.md) — large text can clip inside single-line tab labels without causing page overflow; measure label bounds directly.
 - [Native large-text validation](native-large-text-validation.md) — CSS-scaled Expo web checks catch layout issues but do not verify iOS/Android font settings or screen readers.
 - [Publish diff and expression indexes](publish-diff-expression-indexes.md) — inspect generated Publish SQL; comma-bearing index expressions can produce malformed diffs.
+- [Deployment environment guards](deployment-environment-guards.md) — the platform environment label is not an app deployment marker; use REPLIT_DEPLOYMENT for published-process safeguards.
