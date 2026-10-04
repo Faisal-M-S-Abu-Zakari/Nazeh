@@ -1,4 +1,4 @@
-# Family import concurrency tests
+# Family-write concurrency tests
 
 Run against the workspace's **development PostgreSQL database only**:
 
@@ -30,6 +30,10 @@ mistaking replay serialization for family-write protection.
 - Two imports targeting the same shelters in reverse file order: PostgreSQL
   confirms both transactions are waiting on the real shelter-row lock before
   release; both then finish and persist the expected families and members.
+- Two family updates moving families between the same shelters in opposite
+  directions: PostgreSQL confirms both real PATCH transactions are waiting on
+  the shelter-row lock before release; both then finish with consistent family
+  assignments, unchanged members, matching assignment history, and valid capacity.
 - Family reassignment versus import for the last shelter place: exactly one
   succeeds, with a clear capacity rejection and no partial family move/import.
 - Shelter capacity reduction versus import: exactly one succeeds; the final

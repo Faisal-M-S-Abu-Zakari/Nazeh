@@ -6,7 +6,7 @@ import type { Server } from "node:http";
 
 // Run explicitly with test:family-import-postgres. Never reuse a production
 // connection or let an absent test table resolve to a populated public table.
-describe("family import concurrency on isolated PostgreSQL tables", {
+describe("family-write concurrency on isolated PostgreSQL tables", {
   skip: process.env.FAMILY_IMPORT_POSTGRES_TEST !== "1",
 }, () => {
   const schema = `family_import_test_${randomUUID().replaceAll("-", "")}`;
@@ -137,7 +137,7 @@ describe("family import concurrency on isolated PostgreSQL tables", {
     };
   }
 
-  async function request(path: string, body: unknown, method = "POST") {
+  async function request(path: string, body: unknown, method: "POST" | "PATCH" = "POST") {
     // Distinct keys prevent idempotency from serializing the competing writes.
     const key = path === "/families/import"
       ? `sha256-${createHash("sha256").update(randomUUID()).digest("hex")}`
@@ -474,6 +474,137 @@ describe("family import concurrency on isolated PostgreSQL tables", {
     );
     assert.equal(membersPerFamily.rowCount, 4, "All four imported families must persist");
     assert(membersPerFamily.rows.every((row) => row.count === 2), "Each imported family must have both members");
+  });
+
+  test("concurrent family transfers with reversed shelter order both finish without deadlock", async () => {
+    const { db, shelterUnitsTable, familiesTable, familyMembersTable } = database;
+    const [firstShelterId, secondShelterId] = [randomUUID(), randomUUID()].sort();
+    await db.insert(shelterUnitsTable).values([
+      { id: firstShelterId, sectorId, code: "SYNTHETIC-TRANSFER-A", capacity: 2 },
+      { id: secondShelterId, sectorId, code: "SYNTHETIC-TRANSFER-B", capacity: 2 },
+    ]);
+
+    const families = [
+      { id: randomUUID(), input: family(`transfer-first-${randomUUID()}`, firstShelterId) },
+      { id: randomUUID(), input: family(`transfer-second-${randomUUID()}`, secondShelterId) },
+    ];
+    await db.insert(familiesTable).values(families.map(({ id, input }) => ({
+      id,
+      campId,
+      sectorId,
+      shelterId: input.shelterId,
+      headName: input.headName,
+      createdById: actorId,
+      status: "ACTIVE" as const,
+    })));
+    await db.insert(familyMembersTable).values(families.flatMap(({ id, input }) =>
+      input.members.map((member) => ({
+        familyId: id,
+        fullName: member.fullName,
+        nationalId: member.nationalId,
+        gender: member.gender as "MALE" | "FEMALE" | "OTHER",
+        relationship: member.relationship,
+      })),
+    ));
+
+    const blocker = await database.pool.connect();
+    const pending: Array<ReturnType<typeof request>> = [];
+    let blockerOpen = true;
+    try {
+      await blocker.query("BEGIN");
+      await blocker.query("SELECT id FROM shelter_units WHERE id = $1 FOR UPDATE", [firstShelterId]);
+
+      // Queue the lower-ID -> higher-ID transfer first, then its inverse.
+      // Without consistent ordering, the second transaction can hold the
+      // higher-ID shelter while waiting for this blocker, deadlocking the first.
+      pending.push(request(`/families/${families[0].id}`, {
+        shelterId: secondShelterId, expectedVersion: 1,
+      }, "PATCH"));
+      void pending[0].catch(() => {});
+      await waitForBlockedWrites('from "shelter_units"', 1);
+
+      pending.push(request(`/families/${families[1].id}`, {
+        shelterId: firstShelterId, expectedVersion: 1,
+      }, "PATCH"));
+      const results = Promise.all(pending);
+      void results.catch(() => {});
+      await waitForBlockedWrites('from "shelter_units"', 2);
+
+      await blocker.query("COMMIT");
+      blockerOpen = false;
+      const responses = await results;
+      assert.deepEqual(responses.map((response) => response.status), [200, 200]);
+      assert.deepEqual(
+        responses.map((response) => (response.body as { shelterId: string }).shelterId),
+        [secondShelterId, firstShelterId],
+      );
+    } finally {
+      if (blockerOpen) await blocker.query("ROLLBACK");
+      blocker.release();
+      await Promise.allSettled(pending);
+    }
+
+    const persistedFamilies = await database.pool.query(
+      `SELECT id, shelter_id, version FROM families
+       WHERE id = ANY($1::uuid[]) ORDER BY id`,
+      [families.map(({ id }) => id)],
+    );
+    const expectedAssignments = [
+      [families[0].id, secondShelterId, 2],
+      [families[1].id, firstShelterId, 2],
+    ].sort(([leftId], [rightId]) => String(leftId).localeCompare(String(rightId)));
+    assert.deepEqual(
+      persistedFamilies.rows.map((row) => [row.id, row.shelter_id, row.version]),
+      expectedAssignments,
+      "Both families must end in their requested shelter and increment exactly once",
+    );
+
+    const expectedMembers = families.flatMap(({ id, input }) =>
+      input.members.map((member) => [id, member.nationalId]),
+    ).sort(([leftFamily, leftNationalId], [rightFamily, rightNationalId]) =>
+      `${leftFamily}:${leftNationalId}`.localeCompare(`${rightFamily}:${rightNationalId}`),
+    );
+    const persistedMembers = await database.pool.query(
+      `SELECT family_id, national_id FROM family_members
+       WHERE family_id = ANY($1::uuid[]) ORDER BY family_id, national_id`,
+      [families.map(({ id }) => id)],
+    );
+    assert.equal(persistedMembers.rowCount, 4, "Both families must retain both members");
+    assert.deepEqual(
+      persistedMembers.rows.map((row) => [row.family_id, row.national_id]),
+      expectedMembers,
+      "Every member must remain associated with its original family",
+    );
+
+    const assignmentHistory = await database.pool.query(
+      `SELECT family_id, from_shelter_id, to_shelter_id
+       FROM family_assignment_history
+       WHERE family_id = ANY($1::uuid[]) ORDER BY family_id`,
+      [families.map(({ id }) => id)],
+    );
+    const expectedHistory = [
+      [families[0].id, firstShelterId, secondShelterId],
+      [families[1].id, secondShelterId, firstShelterId],
+    ].sort(([leftId], [rightId]) => String(leftId).localeCompare(String(rightId)));
+    assert.deepEqual(
+      assignmentHistory.rows.map((row) => [row.family_id, row.from_shelter_id, row.to_shelter_id]),
+      expectedHistory,
+      "Both successful moves must have matching assignment history",
+    );
+
+    const occupiedPerShelter = await database.pool.query(
+      `SELECT s.id, s.capacity, count(f.id)::int AS occupied
+       FROM shelter_units s
+       LEFT JOIN families f ON f.shelter_id = s.id AND f.archived_at IS NULL
+       WHERE s.id = ANY($1::uuid[])
+       GROUP BY s.id, s.capacity ORDER BY s.id`,
+      [[firstShelterId, secondShelterId]],
+    );
+    assert.deepEqual(
+      occupiedPerShelter.rows.map((row) => [row.id, row.capacity, row.occupied]),
+      [[firstShelterId, 2, 1], [secondShelterId, 2, 1]],
+      "Shelter assignments must remain within capacity after both transfers",
+    );
   });
 
   test("a family move and import cannot both take the final place in the same shelter", async () => {
