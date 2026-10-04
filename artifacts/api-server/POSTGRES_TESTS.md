@@ -27,6 +27,9 @@ mistaking replay serialization for family-write protection.
 - Import versus manual creation at the last shelter place: exactly one 201
   and one explicit capacity-validation 400, with no excess assignment or
   partial rejected family.
+- Two imports targeting the same shelters in reverse file order: PostgreSQL
+  confirms both transactions are waiting on the real shelter-row lock before
+  release; both then finish and persist the expected families and members.
 
 Teardown runs on success and assertion/setup failure, drops only the suite's
 allowlisted synthetic schema, checks that it is gone, and closes the server

@@ -149,7 +149,7 @@ describe("family import concurrency on isolated PostgreSQL tables", {
     return { status: response.status, body: await response.json() };
   }
 
-  async function waitForBlockedWrites(fragment: string) {
+  async function waitForBlockedWrites(fragment: string, expectedCount = 2) {
     const deadline = Date.now() + 10_000;
     while (Date.now() < deadline) {
       const waiting = await database.pool.query(
@@ -158,8 +158,12 @@ describe("family import concurrency on isolated PostgreSQL tables", {
            AND position($2 in query) > 0 AND pid <> pg_backend_pid()`,
         [schema, fragment],
       );
-      if (waiting.rowCount === 2) {
-        assert.equal(new Set(waiting.rows.map((row) => row.pid)).size, 2, "Two independent PostgreSQL transactions must overlap");
+      if (waiting.rowCount === expectedCount) {
+        assert.equal(
+          new Set(waiting.rows.map((row) => row.pid)).size,
+          expectedCount,
+          "Independent PostgreSQL transactions must overlap",
+        );
         return;
       }
       await delay(20);
@@ -275,5 +279,103 @@ describe("family import concurrency on isolated PostgreSQL tables", {
       [assignments.rows.map((row) => row.id)],
     );
     assert.deepEqual(audits.rows, [{ entity_id: winnerFamilyId }], "Only the winner has a creation audit");
+  });
+
+  test("concurrent imports with reversed shelter order both finish without deadlock", async () => {
+    const { db, shelterUnitsTable } = database;
+    const [firstShelterId, secondShelterId] = [randomUUID(), randomUUID()].sort();
+    await db.insert(shelterUnitsTable).values([
+      { id: firstShelterId, sectorId, code: "SYNTHETIC-ORDER-A", capacity: 10 },
+      { id: secondShelterId, sectorId, code: "SYNTHETIC-ORDER-B", capacity: 10 },
+    ]);
+
+    const firstImport = [
+      family(`ordered-first-a-${randomUUID()}`, firstShelterId),
+      family(`ordered-first-b-${randomUUID()}`, secondShelterId),
+    ];
+    const secondImport = [
+      family(`ordered-second-b-${randomUUID()}`, secondShelterId),
+      family(`ordered-second-a-${randomUUID()}`, firstShelterId),
+    ];
+    const imports = [firstImport, secondImport];
+    const blocker = await database.pool.connect();
+    const pending: Array<ReturnType<typeof request>> = [];
+    let blockerOpen = true;
+
+    try {
+      await blocker.query("BEGIN");
+      await blocker.query(
+        "SELECT id FROM shelter_units WHERE id = $1 FOR UPDATE",
+        [firstShelterId],
+      );
+
+      // Queue the first file on the lower shelter ID before starting the
+      // inverse-order file. If locks followed file order, the latter could
+      // hold the other shelter while waiting here, creating a deadlock when
+      // PostgreSQL grants this lock to the first transaction.
+      pending.push(request("/families/import", { campId, families: firstImport }));
+      void pending[0].catch(() => {});
+      await waitForBlockedWrites('from "shelter_units"', 1);
+
+      pending.push(request("/families/import", { campId, families: secondImport }));
+      const results = Promise.all(pending);
+      void results.catch(() => {});
+      await waitForBlockedWrites('from "shelter_units"', 2);
+
+      await blocker.query("COMMIT");
+      blockerOpen = false;
+      const responses = await results;
+      assert.deepEqual(responses.map((response) => response.status), [201, 201]);
+      assert.deepEqual(responses.map((response) => response.body), [
+        { importedCount: 2 },
+        { importedCount: 2 },
+      ]);
+    } finally {
+      if (blockerOpen) await blocker.query("ROLLBACK");
+      blocker.release();
+      await Promise.allSettled(pending);
+    }
+
+    const expectedMembers = imports.flatMap((families) =>
+      families.flatMap((entry) => entry.members.map((member) => [member.nationalId, entry.shelterId])),
+    ).sort(([leftId], [rightId]) => String(leftId).localeCompare(String(rightId)));
+    const persistedMembers = await database.pool.query(
+      `SELECT m.national_id, f.shelter_id
+       FROM family_members m
+       JOIN families f ON f.id = m.family_id
+       WHERE m.national_id = ANY($1::text[])
+       ORDER BY m.national_id`,
+      [expectedMembers.map(([nationalId]) => nationalId)],
+    );
+    assert.equal(persistedMembers.rowCount, 8, "Both imports must persist all four families' members");
+    assert.deepEqual(
+      persistedMembers.rows.map((row) => [row.national_id, row.shelter_id]),
+      expectedMembers,
+      "Every synthetic member must belong to its requested shelter",
+    );
+
+    const familiesPerShelter = await database.pool.query(
+      `SELECT shelter_id, count(*)::int AS count
+       FROM families
+       WHERE shelter_id = ANY($1::uuid[]) AND archived_at IS NULL
+       GROUP BY shelter_id
+       ORDER BY shelter_id`,
+      [[firstShelterId, secondShelterId]],
+    );
+    assert.deepEqual(
+      familiesPerShelter.rows.map((row) => [row.shelter_id, row.count]),
+      [[firstShelterId, 2], [secondShelterId, 2]],
+    );
+
+    const membersPerFamily = await database.pool.query(
+      `SELECT family_id, count(*)::int AS count
+       FROM family_members
+       WHERE national_id = ANY($1::text[])
+       GROUP BY family_id
+       ORDER BY family_id`,
+      [expectedMembers.map(([nationalId]) => nationalId)],
+    );
+    assert.equal(membersPerFamily.rowCount, 4, "All four imported families must persist");
+    assert(membersPerFamily.rows.every((row) => row.count === 2), "Each imported family must have both members");
   });
 });

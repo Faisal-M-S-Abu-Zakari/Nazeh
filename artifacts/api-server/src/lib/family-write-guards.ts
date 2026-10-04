@@ -16,6 +16,7 @@ export function sortedUniqueShelterIds(values: Array<string | null | undefined>)
 }
 
 export async function lockShelterRows(tx: any, shelterIds: Array<string | null | undefined>) {
+  // Keep lock acquisition independent of file order when imports overlap.
   const ids = sortedUniqueShelterIds(shelterIds);
   if (!ids.length) return [];
   return tx
