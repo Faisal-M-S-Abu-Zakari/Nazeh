@@ -690,6 +690,97 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     assert.equal(after.rows[0].families, before.rows[0].families + Number(importSucceeded));
   });
 
+  test("direct family and shelter PATCH requests cannot race past reduced capacity", async () => {
+    const { db, shelterUnitsTable, familiesTable } = database;
+    const targetShelterId = randomUUID();
+    const sourceShelterId = randomUUID();
+    await db.insert(shelterUnitsTable).values([
+      { id: targetShelterId, sectorId, code: "SYNTHETIC-PATCH-RACE-TARGET", capacity: 3 },
+      { id: sourceShelterId, sectorId, code: "SYNTHETIC-PATCH-RACE-SOURCE", capacity: 2 },
+    ]);
+    const occupantIds = [randomUUID(), randomUUID()];
+    const movingFamilyId = randomUUID();
+    await db.insert(familiesTable).values([
+      ...occupantIds.map((id, index) => ({
+        id, campId, sectorId, shelterId: targetShelterId,
+        headName: `Synthetic PATCH race occupant ${index + 1}`,
+        createdById: actorId, status: "ACTIVE" as const,
+      })),
+      {
+        id: movingFamilyId, campId, sectorId, shelterId: sourceShelterId,
+        headName: "Synthetic PATCH race moving family",
+        createdById: actorId, status: "ACTIVE",
+      },
+    ]);
+
+    const responses = await race(
+      `SELECT id FROM shelter_units WHERE id = '${targetShelterId}' FOR UPDATE`,
+      'from "shelter_units"',
+      [
+        () => request(`/shelters/${targetShelterId}`, {
+          capacity: 2,
+          expectedVersion: 1,
+        }, "PATCH"),
+        () => request(`/families/${movingFamilyId}`, {
+          shelterId: targetShelterId,
+          expectedVersion: 1,
+        }, "PATCH"),
+      ],
+    );
+    const capacityReductionSucceeded = responses[0].status === 200;
+    const moveSucceeded = responses[1].status === 200;
+    assert.notEqual(moveSucceeded, capacityReductionSucceeded, "Exactly one competing PATCH succeeds");
+    assert.equal(responses[1].status, moveSucceeded ? 200 : 400);
+    if (!moveSucceeded) {
+      assert.deepEqual(responses[1].body, {
+        error: "Shelter has reached its capacity",
+      });
+    }
+    assert.equal(responses[0].status, capacityReductionSucceeded ? 200 : 409);
+    if (!capacityReductionSucceeded) {
+      assert.deepEqual(responses[0].body, {
+        error: "Shelter capacity cannot be lower than its current assignments",
+      });
+    }
+
+    const shelter = await database.pool.query(
+      "SELECT capacity, version FROM shelter_units WHERE id = $1",
+      [targetShelterId],
+    );
+    assert.equal(shelter.rowCount, 1);
+    assert.equal(shelter.rows[0].capacity, capacityReductionSucceeded ? 2 : 3);
+    assert.equal(shelter.rows[0].version, capacityReductionSucceeded ? 2 : 1);
+    const assignments = await database.pool.query(
+      "SELECT id FROM families WHERE shelter_id = $1 AND archived_at IS NULL ORDER BY id",
+      [targetShelterId],
+    );
+    assert.equal(assignments.rowCount, capacityReductionSucceeded ? 2 : 3);
+    assert(
+      occupantIds.every((id) => assignments.rows.some((row) => row.id === id)),
+      "Existing occupants remain assigned",
+    );
+    assert(assignments.rows.length <= shelter.rows[0].capacity, "The final assignment count must not exceed capacity");
+
+    const movingFamily = await database.pool.query(
+      "SELECT shelter_id, version FROM families WHERE id = $1",
+      [movingFamilyId],
+    );
+    assert.equal(movingFamily.rowCount, 1);
+    assert.equal(movingFamily.rows[0].shelter_id, moveSucceeded ? targetShelterId : sourceShelterId);
+    assert.equal(movingFamily.rows[0].version, moveSucceeded ? 2 : 1, "A rejected move must not partially update the family");
+    const history = await database.pool.query(
+      "SELECT from_shelter_id, to_shelter_id FROM family_assignment_history WHERE family_id = $1",
+      [movingFamilyId],
+    );
+    assert.equal(history.rowCount, moveSucceeded ? 1 : 0, "A rejected move must not write assignment history");
+    if (moveSucceeded) {
+      assert.deepEqual(history.rows[0], {
+        from_shelter_id: sourceShelterId,
+        to_shelter_id: targetShelterId,
+      });
+    }
+  });
+
   test("reducing shelter capacity and importing cannot leave assignments above capacity", async () => {
     const { db, shelterUnitsTable, familiesTable } = database;
     const shelterId = randomUUID();
