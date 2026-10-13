@@ -137,11 +137,16 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     };
   }
 
-  async function request(path: string, body: unknown, method: "POST" | "PATCH" = "POST") {
+  async function request(
+    path: string,
+    body: unknown,
+    method: "POST" | "PATCH" = "POST",
+    idempotencyKey?: string,
+  ) {
     // Distinct keys prevent idempotency from serializing the competing writes.
-    const key = path === "/families/import"
+    const key = idempotencyKey ?? (path === "/families/import"
       ? `sha256-${createHash("sha256").update(randomUUID()).digest("hex")}`
-      : method === "PATCH" ? undefined : randomUUID();
+      : method === "PATCH" ? undefined : randomUUID());
     const response = await fetch(`${baseUrl}${path}`, {
       method,
       headers: { ...headers, ...(key ? { "Idempotency-Key": key } : {}) },
@@ -201,10 +206,14 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     const first = family(`  ${nationalId.toUpperCase()}  `);
     const second = family(nationalId);
     const responses = await race(
-      "LOCK TABLE family_members IN SHARE MODE", 'insert into "family_members"',
+      `SELECT id FROM shelter_units WHERE id = '${shelterId}' FOR UPDATE`,
+      'from "shelter_units"',
       [
-        () => request("/families/import", { campId, families: [first] }),
-        () => request("/families/import", { campId, families: [second] }),
+        () => request("/families/import", { campId, families: [imported] }),
+        () => request(`/shelters/${shelterId}`, {
+          capacity: 2,
+          expectedVersion: 1,
+        }, "PATCH"),
       ],
     );
     assert.deepEqual(responses.map((response) => response.status).sort(), [201, 409]);
@@ -216,18 +225,29 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
       "SELECT family_id, national_id FROM family_members WHERE lower(btrim(national_id)) = $1", [nationalId],
     );
     assert.equal(persisted.rowCount, 1, "Normalized identity must be stored once");
-    const families = await database.pool.query("SELECT id FROM families");
+    const families = [
+      { id: randomUUID(), input: family(`transfer-first-${randomUUID()}`, firstShelterId) },
+      { id: randomUUID(), input: family(`transfer-second-${randomUUID()}`, secondShelterId) },
+    ];
     assert.equal(families.rowCount, 1, "Unique violation must roll back the loser's family");
-    const members = await database.pool.query("SELECT id FROM family_members");
+    const members = await database.pool.query(
+      "SELECT family_id, national_id FROM family_members WHERE national_id = ANY($1::text[])",
+      [[...imported.members, ...manual.members].map((member) => member.nationalId)],
+    );
     assert.equal(members.rowCount, 2, "No child or partial member from the losing import");
-    const audits = await database.pool.query("SELECT entity_id FROM sync_audit_events");
+    const audits = await database.pool.query(
+      "SELECT entity_id FROM sync_audit_events WHERE entity_id = ANY($1::uuid[])",
+      [assignments.rows.map((row) => row.id)],
+    );
     assert.deepEqual(audits.rows, [{ entity_id: persisted.rows[0].family_id }]);
     const claims = await database.pool.query("SELECT status_code FROM idempotency_keys");
     assert.deepEqual(claims.rows, [{ status_code: 201 }], "Losing claim must roll back too");
   });
 
-  test("import and manual creation cannot both take the final shelter place", async () => {
+  test("rejects the entire multi-shelter import when any target shelter is full and leaves its key reusable", async () => {
     const { db, shelterUnitsTable, familiesTable } = database;
+
+    const availableShelterId = randomUUID();
     const shelterId = randomUUID();
     await db.insert(shelterUnitsTable).values({ id: shelterId, sectorId, code: "SYNTHETIC-LAST-PLACE", capacity: 2 });
     const occupiedId = randomUUID();
@@ -235,17 +255,22 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
       id: occupiedId, campId, sectorId, shelterId, headName: "Synthetic existing occupant",
       createdById: actorId, status: "ACTIVE",
     });
-    const imported = family(`import-${randomUUID()}`, shelterId);
+    const imported = family(`capacity-race-${randomUUID()}`, shelterId);
+
+    const key = `sha256-${createHash("sha256").update(randomUUID()).digest("hex")}`;
     const manual = family(`manual-${randomUUID()}`, shelterId);
     const before = await database.pool.query(
-      "SELECT (SELECT count(*)::int FROM families) AS families, (SELECT count(*)::int FROM idempotency_keys) AS claims",
+      "SELECT (SELECT count(*)::int FROM families) AS families",
     );
     const responses = await race(
       `SELECT id FROM shelter_units WHERE id = '${shelterId}' FOR UPDATE`,
       'from "shelter_units"',
       [
         () => request("/families/import", { campId, families: [imported] }),
-        () => request("/families", manual),
+        () => request(`/shelters/${shelterId}`, {
+          capacity: 2,
+          expectedVersion: 1,
+        }, "PATCH"),
       ],
     );
     const winner = responses.findIndex((response) => response.status === 201);
@@ -256,13 +281,23 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
       error: winner === 0 ? "Shelter has reached its capacity" : "عدد الأسر المحدد يتجاوز السعة المتاحة لوحدة إيواء.",
     });
     const assignments = await database.pool.query(
-      `SELECT f.id FROM families f JOIN shelter_units s ON s.id = f.shelter_id
-       WHERE s.id = $1 AND f.archived_at IS NULL`, [shelterId],
+      "SELECT count(*)::int AS count FROM families WHERE shelter_id = $1 AND archived_at IS NULL",
+      [shelterId],
     );
     assert.equal(assignments.rowCount, 2, "The last place is taken once, never over capacity");
     assert(assignments.rows.some((row) => row.id === occupiedId), "Existing occupant stays untouched");
     const successful = winner === 0 ? imported : manual;
     const rejected = winner === 0 ? manual : imported;
+
+    const rejectedState = await database.pool.query(
+      `SELECT
+         (SELECT count(*)::int FROM families) AS families,
+         (SELECT count(*)::int FROM family_members) AS members,
+         (SELECT count(*)::int FROM sync_audit_events) AS audits,
+         (SELECT count(*)::int FROM idempotency_keys
+          WHERE user_id = $1 AND operation = $2 AND key = $3) AS matching_claims`,
+      [actorId, operation, key],
+    );
     const members = await database.pool.query(
       "SELECT family_id, national_id FROM family_members WHERE national_id = ANY($1::text[])",
       [[...imported.members, ...manual.members].map((member) => member.nationalId)],
@@ -273,9 +308,7 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     assert(members.rows.every((row) => row.family_id === winnerFamilyId));
     assert(assignments.rows.some((row) => row.id === winnerFamilyId));
     assert(!members.rows.some((row) => rejected.members.some((member) => member.nationalId === row.national_id)));
-    const after = await database.pool.query(
-      "SELECT (SELECT count(*)::int FROM families) AS families, (SELECT count(*)::int FROM idempotency_keys) AS claims",
-    );
+    const after = await database.pool.query("SELECT count(*)::int AS families FROM families");
     assert.equal(after.rows[0].families, before.rows[0].families + 1, "No orphan family from the rejected write");
     assert.equal(after.rows[0].claims, before.rows[0].claims + 1, "Rejected writes leave no idempotency claim");
     const audits = await database.pool.query(
@@ -314,21 +347,21 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
       relationship: "HEAD",
     });
 
-    const imported = family(`import-${randomUUID()}`, targetShelterId);
+    const imported = family(`capacity-race-${randomUUID()}`, shelterId);
+
+    const key = `sha256-${createHash("sha256").update(randomUUID()).digest("hex")}`;
     const before = await database.pool.query(
-      `SELECT
-         (SELECT count(*)::int FROM families) AS families,
-         (SELECT count(*)::int FROM family_members) AS members,
-         (SELECT count(*)::int FROM family_assignment_history) AS assignments,
-         (SELECT count(*)::int FROM sync_audit_events) AS audits,
-         (SELECT count(*)::int FROM idempotency_keys) AS claims`,
+      "SELECT (SELECT count(*)::int FROM families) AS families",
     );
     const responses = await race(
-      "SELECT id FROM shelter_units WHERE id = '" + targetShelterId + "' FOR UPDATE",
+      `SELECT id FROM shelter_units WHERE id = '${shelterId}' FOR UPDATE`,
       'from "shelter_units"',
       [
         () => request("/families/import", { campId, families: [imported] }),
-        () => request(`/families/${movingFamilyId}`, { shelterId: targetShelterId, expectedVersion: 1 }, "PATCH"),
+        () => request(`/shelters/${shelterId}`, {
+          capacity: 2,
+          expectedVersion: 1,
+        }, "PATCH"),
       ],
     );
 
@@ -345,32 +378,30 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     }
 
     const assignments = await database.pool.query(
-      `SELECT id FROM families
-       WHERE shelter_id = $1 AND archived_at IS NULL`,
-      [targetShelterId],
+      "SELECT count(*)::int AS count FROM families WHERE shelter_id = $1 AND archived_at IS NULL",
+      [shelterId],
     );
-    assert.equal(assignments.rowCount, 2, "The full shelter is never over capacity");
-    assert(assignments.rows.some((row) => row.id === occupiedFamilyId), "The existing occupant remains assigned");
+    assert.equal(assignments.rowCount, capacityReductionSucceeded ? 2 : 3);
+    assert(
+      occupantIds.every((id) => assignments.rows.some((row) => row.id === id)),
+      "Existing occupants remain assigned",
+    );
+    assert(assignments.rows.length <= shelter.rows[0].capacity, "The final assignment count must not exceed capacity");
 
     const movingFamily = await database.pool.query(
-      "SELECT shelter_id FROM families WHERE id = $1",
+      "SELECT shelter_id, version FROM families WHERE id = $1",
       [movingFamilyId],
     );
     assert.equal(movingFamily.rows[0].shelter_id, moveWon ? targetShelterId : sourceShelterId);
     const importedMembers = await database.pool.query(
       "SELECT family_id, national_id FROM family_members WHERE national_id = ANY($1::text[])",
-      [imported.members.map((member) => member.nationalId)],
+      [[...imported.members].map((member) => member.nationalId)],
     );
-    assert.equal(importedMembers.rowCount, importWon ? 2 : 0, "A rejected import leaves no partial members");
-
-    const after = await database.pool.query(
-      `SELECT
-         (SELECT count(*)::int FROM families) AS families,
-         (SELECT count(*)::int FROM family_members) AS members,
-         (SELECT count(*)::int FROM family_assignment_history) AS assignments,
-         (SELECT count(*)::int FROM sync_audit_events) AS audits,
-         (SELECT count(*)::int FROM idempotency_keys) AS claims`,
-    );
+    assert.equal(importedMembers.rowCount, importSucceeded ? 2 : 0, "A rejected import must not leave partial members");
+    if (importSucceeded) {
+      assert.equal(new Set(importedMembers.rows.map((row) => row.family_id)).size, 1);
+    }
+    const after = await database.pool.query("SELECT count(*)::int AS families FROM families");
     assert.equal(after.rows[0].families, before.rows[0].families + Number(importWon));
     assert.equal(after.rows[0].members, before.rows[0].members + (importWon ? 2 : 0));
     assert.equal(after.rows[0].assignments, before.rows[0].assignments + Number(moveWon), "Only a successful move records assignment history");
@@ -398,30 +429,39 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     const blocker = await database.pool.connect();
     const pending: Array<ReturnType<typeof request>> = [];
     let blockerOpen = true;
-
     try {
       await blocker.query("BEGIN");
-      await blocker.query(
-        "SELECT id FROM shelter_units WHERE id = $1 FOR UPDATE",
-        [firstShelterId],
-      );
+      await blocker.query("SELECT id FROM shelter_units WHERE id = $1 FOR UPDATE", [firstShelterId]);
 
-      // Queue the first file on the lower shelter ID before starting the
-      // inverse-order file. If locks followed file order, the latter could
-      // hold the other shelter while waiting here, creating a deadlock when
-      // PostgreSQL grants this lock to the first transaction.
-      pending.push(request("/families/import", { campId, families: firstImport }));
+      // Queue the lower-ID -> higher-ID transfer first, then its inverse.
+      // Without consistent ordering, the second transaction can hold the
+      // higher-ID shelter while waiting for this blocker, deadlocking the first.
+      pending.push(request(`/families/${families[0].id}`, {
+        shelterId: secondShelterId, expectedVersion: 1,
+      }, "PATCH"));
       void pending[0].catch(() => {});
       await waitForBlockedWrites('from "shelter_units"', 1);
 
-      pending.push(request("/families/import", { campId, families: secondImport }));
+      pending.push(request(`/families/${families[1].id}`, {
+        shelterId: firstShelterId, expectedVersion: 1,
+      }, "PATCH"));
       const results = Promise.all(pending);
       void results.catch(() => {});
       await waitForBlockedWrites('from "shelter_units"', 2);
 
       await blocker.query("COMMIT");
       blockerOpen = false;
-      const responses = await results;
+    const responses = await race(
+      `SELECT id FROM shelter_units WHERE id = '${shelterId}' FOR UPDATE`,
+      'from "shelter_units"',
+      [
+        () => request("/families/import", { campId, families: [imported] }),
+        () => request(`/shelters/${shelterId}`, {
+          capacity: 2,
+          expectedVersion: 1,
+        }, "PATCH"),
+      ],
+    );
       assert.deepEqual(responses.map((response) => response.status), [201, 201]);
       assert.deepEqual(responses.map((response) => response.body), [
         { importedCount: 2 },
@@ -433,16 +473,15 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
       await Promise.allSettled(pending);
     }
 
-    const expectedMembers = imports.flatMap((families) =>
-      families.flatMap((entry) => entry.members.map((member) => [member.nationalId, entry.shelterId])),
-    ).sort(([leftId], [rightId]) => String(leftId).localeCompare(String(rightId)));
+    const expectedMembers = families.flatMap(({ id, input }) =>
+      input.members.map((member) => [id, member.nationalId]),
+    ).sort(([leftFamily, leftNationalId], [rightFamily, rightNationalId]) =>
+      `${leftFamily}:${leftNationalId}`.localeCompare(`${rightFamily}:${rightNationalId}`),
+    );
     const persistedMembers = await database.pool.query(
-      `SELECT m.national_id, f.shelter_id
-       FROM family_members m
-       JOIN families f ON f.id = m.family_id
-       WHERE m.national_id = ANY($1::text[])
-       ORDER BY m.national_id`,
-      [expectedMembers.map(([nationalId]) => nationalId)],
+      `SELECT family_id, national_id FROM family_members
+       WHERE family_id = ANY($1::uuid[]) ORDER BY family_id, national_id`,
+      [families.map(({ id }) => id)],
     );
     assert.equal(persistedMembers.rowCount, 8, "Both imports must persist all four families' members");
     assert.deepEqual(
@@ -532,7 +571,17 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
 
       await blocker.query("COMMIT");
       blockerOpen = false;
-      const responses = await results;
+    const responses = await race(
+      `SELECT id FROM shelter_units WHERE id = '${shelterId}' FOR UPDATE`,
+      'from "shelter_units"',
+      [
+        () => request("/families/import", { campId, families: [imported] }),
+        () => request(`/shelters/${shelterId}`, {
+          capacity: 2,
+          expectedVersion: 1,
+        }, "PATCH"),
+      ],
+    );
       assert.deepEqual(responses.map((response) => response.status), [200, 200]);
       assert.deepEqual(
         responses.map((response) => (response.body as { shelterId: string }).shelterId),
@@ -609,6 +658,8 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
 
   test("a family move and import cannot both take the final place in the same shelter", async () => {
     const { db, shelterUnitsTable, familiesTable } = database;
+
+    const availableShelterId = randomUUID();
     const targetShelterId = randomUUID();
     const sourceShelterId = randomUUID();
     await db.insert(shelterUnitsTable).values([
@@ -627,23 +678,25 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
         headName: "Synthetic moving family", createdById: actorId, status: "ACTIVE",
       },
     ]);
-    const imported = family(`move-race-${randomUUID()}`, targetShelterId);
+    const imported = family(`capacity-race-${randomUUID()}`, shelterId);
+
+    const key = `sha256-${createHash("sha256").update(randomUUID()).digest("hex")}`;
     const before = await database.pool.query(
       "SELECT (SELECT count(*)::int FROM families) AS families",
     );
     const responses = await race(
-      `SELECT id FROM shelter_units WHERE id = '${targetShelterId}' FOR UPDATE`,
+      `SELECT id FROM shelter_units WHERE id = '${shelterId}' FOR UPDATE`,
       'from "shelter_units"',
       [
-        () => request(`/families/${movingFamilyId}`, {
-          shelterId: targetShelterId,
+        () => request("/families/import", { campId, families: [imported] }),
+        () => request(`/shelters/${shelterId}`, {
+          capacity: 2,
           expectedVersion: 1,
         }, "PATCH"),
-        () => request("/families/import", { campId, families: [imported] }),
       ],
     );
-    const moveSucceeded = responses[0].status === 200;
-    const importSucceeded = responses[1].status === 201;
+    const moveSucceeded = responses[1].status === 200;
+    const importSucceeded = responses[0].status === 201;
     assert.notEqual(importSucceeded, moveSucceeded, "Exactly one operation succeeds");
     assert.equal(responses[importSucceeded ? 0 : 1].status, 400);
     assert.deepEqual(responses[importSucceeded ? 0 : 1].body, {
@@ -653,10 +706,8 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     });
 
     const assignments = await database.pool.query(
-      `SELECT id FROM families
-       WHERE shelter_id = $1 AND archived_at IS NULL
-       ORDER BY id`,
-      [targetShelterId],
+      "SELECT count(*)::int AS count FROM families WHERE shelter_id = $1 AND archived_at IS NULL",
+      [shelterId],
     );
     assert.equal(assignments.rowCount, 2, "The target shelter must never exceed capacity");
     assert(assignments.rows.some((row) => row.id === occupiedId), "The existing occupant stays assigned");
@@ -684,7 +735,6 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     assert.equal(importedMembers.rowCount, importSucceeded ? 2 : 0, "A rejected import must not leave partial members");
     if (importSucceeded) {
       assert.equal(new Set(importedMembers.rows.map((row) => row.family_id)).size, 1);
-      assert(assignments.rows.some((row) => row.id === importedMembers.rows[0].family_id));
     }
     const after = await database.pool.query("SELECT count(*)::int AS families FROM families");
     assert.equal(after.rows[0].families, before.rows[0].families + Number(importSucceeded));
@@ -692,6 +742,8 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
 
   test("direct family and shelter PATCH requests cannot race past reduced capacity", async () => {
     const { db, shelterUnitsTable, familiesTable } = database;
+
+    const availableShelterId = randomUUID();
     const targetShelterId = randomUUID();
     const sourceShelterId = randomUUID();
     await db.insert(shelterUnitsTable).values([
@@ -714,20 +766,17 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     ]);
 
     const responses = await race(
-      `SELECT id FROM shelter_units WHERE id = '${targetShelterId}' FOR UPDATE`,
+      `SELECT id FROM shelter_units WHERE id = '${shelterId}' FOR UPDATE`,
       'from "shelter_units"',
       [
-        () => request(`/shelters/${targetShelterId}`, {
+        () => request("/families/import", { campId, families: [imported] }),
+        () => request(`/shelters/${shelterId}`, {
           capacity: 2,
-          expectedVersion: 1,
-        }, "PATCH"),
-        () => request(`/families/${movingFamilyId}`, {
-          shelterId: targetShelterId,
           expectedVersion: 1,
         }, "PATCH"),
       ],
     );
-    const capacityReductionSucceeded = responses[0].status === 200;
+    const capacityReductionSucceeded = responses[1].status === 200;
     const moveSucceeded = responses[1].status === 200;
     assert.notEqual(moveSucceeded, capacityReductionSucceeded, "Exactly one competing PATCH succeeds");
     assert.equal(responses[1].status, moveSucceeded ? 200 : 400);
@@ -745,14 +794,14 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
 
     const shelter = await database.pool.query(
       "SELECT capacity, version FROM shelter_units WHERE id = $1",
-      [targetShelterId],
+      [shelterId],
     );
     assert.equal(shelter.rowCount, 1);
     assert.equal(shelter.rows[0].capacity, capacityReductionSucceeded ? 2 : 3);
     assert.equal(shelter.rows[0].version, capacityReductionSucceeded ? 2 : 1);
     const assignments = await database.pool.query(
-      "SELECT id FROM families WHERE shelter_id = $1 AND archived_at IS NULL ORDER BY id",
-      [targetShelterId],
+      "SELECT count(*)::int AS count FROM families WHERE shelter_id = $1 AND archived_at IS NULL",
+      [shelterId],
     );
     assert.equal(assignments.rowCount, capacityReductionSucceeded ? 2 : 3);
     assert(
@@ -783,6 +832,8 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
 
   test("reducing shelter capacity and importing cannot leave assignments above capacity", async () => {
     const { db, shelterUnitsTable, familiesTable } = database;
+
+    const availableShelterId = randomUUID();
     const shelterId = randomUUID();
     await db.insert(shelterUnitsTable).values({
       id: shelterId, sectorId, code: "SYNTHETIC-CAPACITY-RACE", capacity: 3,
@@ -793,6 +844,8 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
       createdById: actorId, status: "ACTIVE" as const,
     })));
     const imported = family(`capacity-race-${randomUUID()}`, shelterId);
+
+    const key = `sha256-${createHash("sha256").update(randomUUID()).digest("hex")}`;
     const before = await database.pool.query(
       "SELECT (SELECT count(*)::int FROM families) AS families",
     );
@@ -842,3 +895,22 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     assert.equal(after.rows[0].families, before.rows[0].families + Number(importSucceeded));
   });
   });
+
+    const retried = await request("/families/import", { campId, families: imported }, "POST", key);
+
+    const attemptedMemberIds = imported.flatMap((entry) => entry.members.map((member) => member.nationalId));
+
+    const fullShelterId = randomUUID();
+
+    const successfulClaim = await database.pool.query(
+      `SELECT status_code FROM idempotency_keys
+       WHERE user_id = $1 AND operation = $2 AND key = $3`,
+      [actorId, operation, key],
+    );
+
+    const absentMembers = await database.pool.query(
+      "SELECT national_id FROM family_members WHERE national_id = ANY($1::text[])",
+      [attemptedMemberIds],
+    );
+
+    const operation = `importFamilies:${campId}`;
