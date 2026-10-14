@@ -216,6 +216,8 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
         }, "PATCH"),
       ],
     );
+
+      const archiveResponse = responses[lockWinner === "archive" ? 0 : 1];
     assert.deepEqual(responses.map((response) => response.status).sort(), [201, 409]);
     assert.deepEqual(responses.find((response) => response.status === 201)!.body, { importedCount: 1 });
     assert.deepEqual(responses.find((response) => response.status === 409)!.body, {
@@ -249,6 +251,8 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
 
     const availableShelterId = randomUUID();
     const shelterId = randomUUID();
+
+      const familyIds = [randomUUID(), randomUUID(), randomUUID()];
     await db.insert(shelterUnitsTable).values({ id: shelterId, sectorId, code: "SYNTHETIC-LAST-PLACE", capacity: 2 });
     const occupiedId = randomUUID();
     await db.insert(familiesTable).values({
@@ -273,6 +277,8 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
         }, "PATCH"),
       ],
     );
+
+      const archiveResponse = responses[lockWinner === "archive" ? 0 : 1];
     const winner = responses.findIndex((response) => response.status === 201);
     assert.notEqual(winner, -1, "Exactly one operation succeeds");
     const loser = responses[1 - winner];
@@ -364,6 +370,8 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
         }, "PATCH"),
       ],
     );
+
+      const archiveResponse = responses[lockWinner === "archive" ? 0 : 1];
 
     const importWon = responses[0].status === 201;
     const moveWon = responses[1].status === 200;
@@ -462,6 +470,8 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
         }, "PATCH"),
       ],
     );
+
+      const archiveResponse = responses[lockWinner === "archive" ? 0 : 1];
       assert.deepEqual(responses.map((response) => response.status), [201, 201]);
       assert.deepEqual(responses.map((response) => response.body), [
         { importedCount: 2 },
@@ -582,6 +592,8 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
         }, "PATCH"),
       ],
     );
+
+      const archiveResponse = responses[lockWinner === "archive" ? 0 : 1];
       assert.deepEqual(responses.map((response) => response.status), [200, 200]);
       assert.deepEqual(
         responses.map((response) => (response.body as { shelterId: string }).shelterId),
@@ -695,6 +707,8 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
         }, "PATCH"),
       ],
     );
+
+      const archiveResponse = responses[lockWinner === "archive" ? 0 : 1];
     const moveSucceeded = responses[1].status === 200;
     const importSucceeded = responses[0].status === 201;
     assert.notEqual(importSucceeded, moveSucceeded, "Exactly one operation succeeds");
@@ -776,6 +790,8 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
         }, "PATCH"),
       ],
     );
+
+      const archiveResponse = responses[lockWinner === "archive" ? 0 : 1];
     const capacityReductionSucceeded = responses[1].status === 200;
     const moveSucceeded = responses[1].status === 200;
     assert.notEqual(moveSucceeded, capacityReductionSucceeded, "Exactly one competing PATCH succeeds");
@@ -830,11 +846,13 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     }
   });
 
-  test("reducing shelter capacity and importing cannot leave assignments above capacity", async () => {
+  test("family archive and shelter capacity PATCH requests serialize without partial writes", async () => {
     const { db, shelterUnitsTable, familiesTable } = database;
 
     const availableShelterId = randomUUID();
     const shelterId = randomUUID();
+
+      const familyIds = [randomUUID(), randomUUID(), randomUUID()];
     await db.insert(shelterUnitsTable).values({
       id: shelterId, sectorId, code: "SYNTHETIC-CAPACITY-RACE", capacity: 3,
     });
@@ -860,6 +878,8 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
         }, "PATCH"),
       ],
     );
+
+      const archiveResponse = responses[lockWinner === "archive" ? 0 : 1];
     const importSucceeded = responses[0].status === 201;
     const capacityReductionSucceeded = responses[1].status === 200;
     assert.notEqual(importSucceeded, capacityReductionSucceeded, "Exactly one operation succeeds");
@@ -914,3 +934,47 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     );
 
     const operation = `importFamilies:${campId}`;
+
+      const capacityResponse = responses[lockWinner === "capacity" ? 0 : 1];
+
+      const archivedFamilyId = familyIds[0];
+
+      const reduceCapacity = () => request(`/shelters/${shelterId}`, {
+        capacity: 2,
+        expectedVersion: 1,
+      }, "PATCH");
+
+      const reductionSucceeded = lockWinner === "archive";
+
+      const operations = lockWinner === "archive"
+        ? [archive, reduceCapacity]
+        : [reduceCapacity, archive];
+
+      const audit = await database.pool.query(
+        `SELECT action, entity_type, entity_id, actor_staff_id, metadata
+         FROM sync_audit_events
+         WHERE entity_id = ANY($1::uuid[])
+         ORDER BY entity_type, action`,
+        [[shelterId, archivedFamilyId]],
+      );
+
+      const [shelter, archivedFamily, activeFamilies] = await Promise.all([
+        database.pool.query(
+          "SELECT capacity, version FROM shelter_units WHERE id = $1",
+          [shelterId],
+        ),
+        database.pool.query(
+          "SELECT status, archived_at, version FROM families WHERE id = $1",
+          [archivedFamilyId],
+        ),
+        database.pool.query(
+          `SELECT id FROM families
+           WHERE shelter_id = $1 AND archived_at IS NULL
+           ORDER BY id`,
+          [shelterId],
+        ),
+      ]);
+
+      const archive = () => request(`/families/${archivedFamilyId}/archive`, {
+        expectedVersion: 1,
+      }, "PATCH");
