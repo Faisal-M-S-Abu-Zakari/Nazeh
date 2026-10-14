@@ -1105,6 +1105,94 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     }
   });
 
+  test("concurrent archive and reassignment of the same family obey the winning lock order", async () => {
+    const { db, shelterUnitsTable, familiesTable } = database;
+
+    for (const archiveFirst of [true, false]) {
+      const sourceShelterId = randomUUID();
+      const targetShelterId = randomUUID();
+      const familyId = randomUUID();
+      await db.insert(shelterUnitsTable).values([
+        {
+          id: sourceShelterId, sectorId,
+          code: `SYNTHETIC-SAME-FAMILY-SOURCE-${randomUUID().slice(0, 8)}`, capacity: 2,
+        },
+        {
+          id: targetShelterId, sectorId,
+          code: `SYNTHETIC-SAME-FAMILY-TARGET-${randomUUID().slice(0, 8)}`, capacity: 2,
+        },
+      ]);
+      await db.insert(familiesTable).values({
+        id: familyId, campId, sectorId, shelterId: sourceShelterId,
+        headName: "Synthetic family to archive or reassign",
+        createdById: actorId, status: "ACTIVE",
+      });
+
+      const archive = () => request(`/families/${familyId}/archive`, {
+        expectedVersion: 1,
+      }, "PATCH");
+      const reassign = () => request(`/families/${familyId}`, {
+        shelterId: targetShelterId, expectedVersion: 1,
+      }, "PATCH");
+      const responses = await race(
+        `SELECT id FROM shelter_units WHERE id = '${sourceShelterId}' FOR UPDATE`,
+        'from "shelter_units"',
+        archiveFirst ? [archive, reassign] : [reassign, archive],
+      );
+
+      const archiveResponse = responses[archiveFirst ? 0 : 1];
+      const reassignmentResponse = responses[archiveFirst ? 1 : 0];
+      assert.equal(archiveResponse.status, archiveFirst ? 200 : 409);
+      assert.equal(reassignmentResponse.status, archiveFirst ? 409 : 200);
+      if (archiveFirst) {
+        assert.deepEqual(reassignmentResponse.body, {
+          error: "Family has been updated; refresh and retry with the current version",
+          code: "VERSION_CONFLICT",
+          currentVersion: 2,
+        });
+      } else {
+        assert.deepEqual(archiveResponse.body, {
+          error: "Family has been updated; refresh and retry with the current version",
+          code: "VERSION_CONFLICT",
+          currentVersion: 2,
+        });
+      }
+
+      const [persistedFamily, history, audit] = await Promise.all([
+        database.pool.query(
+          "SELECT shelter_id, status, archived_at, version FROM families WHERE id = $1",
+          [familyId],
+        ),
+        database.pool.query(
+          "SELECT from_shelter_id, to_shelter_id FROM family_assignment_history WHERE family_id = $1",
+          [familyId],
+        ),
+        database.pool.query(
+          `SELECT action, entity_id, actor_staff_id FROM sync_audit_events
+           WHERE entity_id = $1 ORDER BY action`,
+          [familyId],
+        ),
+      ]);
+      assert.equal(persistedFamily.rowCount, 1);
+      assert.equal(persistedFamily.rows[0].shelter_id, archiveFirst ? sourceShelterId : targetShelterId);
+      assert.equal(persistedFamily.rows[0].status, archiveFirst ? "ARCHIVED" : "ACTIVE");
+      assert.equal(Boolean(persistedFamily.rows[0].archived_at), archiveFirst);
+      assert.equal(persistedFamily.rows[0].version, 2);
+      assert.equal(history.rowCount, archiveFirst ? 0 : 1, "A reassignment rejected after archive must not leave history");
+      if (!archiveFirst) {
+        assert.deepEqual(history.rows[0], {
+          from_shelter_id: sourceShelterId,
+          to_shelter_id: targetShelterId,
+        });
+      }
+      assert.deepEqual(
+        audit.rows.map((row) => [row.action, row.entity_id, row.actor_staff_id]),
+        [[archiveFirst ? "ARCHIVE" : "UPDATE", familyId, actorId]],
+        "Only the operation that wins the versioned write may be audited",
+      );
+    }
+  });
+
   test("reducing shelter capacity and importing cannot leave assignments above capacity", async () => {
     const { db, shelterUnitsTable, familiesTable } = database;
     const shelterId = randomUUID();
