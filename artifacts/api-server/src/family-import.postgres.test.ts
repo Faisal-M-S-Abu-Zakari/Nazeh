@@ -1010,6 +1010,101 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     }
   });
 
+  test("a stale family archive cannot free a full shelter for a concurrent move", async () => {
+    const { db, shelterUnitsTable, familiesTable } = database;
+
+    for (const archiveFirst of [true, false]) {
+      const targetShelterId = randomUUID();
+      const sourceShelterId = randomUUID();
+      const residentFamilyId = randomUUID();
+      const movingFamilyId = randomUUID();
+      await db.insert(shelterUnitsTable).values([
+        {
+          id: targetShelterId, sectorId,
+          code: `SYNTHETIC-STALE-ARCHIVE-${randomUUID().slice(0, 8)}`, capacity: 1,
+        },
+        {
+          id: sourceShelterId, sectorId,
+          code: `SYNTHETIC-STALE-SOURCE-${randomUUID().slice(0, 8)}`, capacity: 2,
+        },
+      ]);
+      await db.insert(familiesTable).values([
+        {
+          id: residentFamilyId, campId, sectorId, shelterId: targetShelterId,
+          headName: "Synthetic resident with a newer version", createdById: actorId,
+          status: "ACTIVE", version: 2,
+        },
+        {
+          id: movingFamilyId, campId, sectorId, shelterId: sourceShelterId,
+          headName: "Synthetic family waiting to move", createdById: actorId, status: "ACTIVE",
+        },
+      ]);
+
+      const archive = () => request(`/families/${residentFamilyId}/archive`, {
+        expectedVersion: 1,
+      }, "PATCH");
+      const move = () => request(`/families/${movingFamilyId}`, {
+        shelterId: targetShelterId, expectedVersion: 1,
+      }, "PATCH");
+      const responses = await race(
+        `SELECT id FROM shelter_units WHERE id = '${targetShelterId}' FOR UPDATE`,
+        'from "shelter_units"',
+        archiveFirst ? [archive, move] : [move, archive],
+      );
+      const archiveResponse = responses[archiveFirst ? 0 : 1];
+      const moveResponse = responses[archiveFirst ? 1 : 0];
+
+      assert.equal(archiveResponse.status, 409);
+      assert.deepEqual(archiveResponse.body, {
+        error: "Family has been updated; refresh and retry with the current version",
+        code: "VERSION_CONFLICT",
+        currentVersion: 2,
+      });
+      assert.equal(moveResponse.status, 400);
+      assert.deepEqual(moveResponse.body, { error: "Shelter has reached its capacity" });
+
+      const [targetAssignments, resident, movingFamily, history, auditRows] = await Promise.all([
+        database.pool.query(
+          "SELECT count(*)::int AS count FROM families WHERE shelter_id = $1 AND archived_at IS NULL",
+          [targetShelterId],
+        ),
+        database.pool.query(
+          "SELECT status, archived_at, version FROM families WHERE id = $1",
+          [residentFamilyId],
+        ),
+        database.pool.query(
+          "SELECT shelter_id, status, archived_at, version FROM families WHERE id = $1",
+          [movingFamilyId],
+        ),
+        database.pool.query(
+          `SELECT family_id, from_shelter_id, to_shelter_id
+           FROM family_assignment_history WHERE family_id = ANY($1::uuid[])`,
+          [[residentFamilyId, movingFamilyId]],
+        ),
+        database.pool.query(
+          `SELECT action, entity_type, entity_id, actor_staff_id
+           FROM sync_audit_events WHERE entity_id = ANY($1::uuid[])`,
+          [[residentFamilyId, movingFamilyId]],
+        ),
+      ]);
+
+      assert.equal(targetAssignments.rows[0].count, 1, "The full shelter must remain full");
+      assert.deepEqual(resident.rows[0], {
+        status: "ACTIVE",
+        archived_at: null,
+        version: 2,
+      }, "A stale archive must leave the resident unchanged");
+      assert.deepEqual(movingFamily.rows[0], {
+        shelter_id: sourceShelterId,
+        status: "ACTIVE",
+        archived_at: null,
+        version: 1,
+      }, "A rejected move must leave the incoming family unchanged");
+      assert.equal(history.rowCount, 0, "Rejected operations must not create assignment history");
+      assert.equal(auditRows.rowCount, 0, "Rejected operations must not create audit records");
+    }
+  });
+
   test("reducing shelter capacity and importing cannot leave assignments above capacity", async () => {
     const { db, shelterUnitsTable, familiesTable } = database;
     const shelterId = randomUUID();
