@@ -217,23 +217,6 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
       ],
     );
 
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-      const archiveResponse = responses[lockWinner === "archive" ? 0 : 1];
     assert.deepEqual(responses.map((response) => response.status).sort(), [201, 409]);
     assert.deepEqual(responses.find((response) => response.status === 201)!.body, { importedCount: 1 });
     assert.deepEqual(responses.find((response) => response.status === 409)!.body, {
@@ -268,7 +251,6 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     const availableShelterId = randomUUID();
     const shelterId = randomUUID();
 
-      const familyIds = [randomUUID(), randomUUID(), randomUUID()];
     await db.insert(shelterUnitsTable).values({ id: shelterId, sectorId, code: "SYNTHETIC-LAST-PLACE", capacity: 2 });
     const occupiedId = randomUUID();
     await db.insert(familiesTable).values({
@@ -294,23 +276,6 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
       ],
     );
 
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-      const archiveResponse = responses[lockWinner === "archive" ? 0 : 1];
     const winner = responses.findIndex((response) => response.status === 201);
     assert.notEqual(winner, -1, "Exactly one operation succeeds");
     const loser = responses[1 - winner];
@@ -323,30 +288,8 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
       [shelterId],
     );
 
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
+    assert.equal(assignments.rowCount, 2, "The last place is taken once, never over capacity");
+    assert(assignments.rows.some((row) => row.id === occupiedId), "Existing occupant stays untouched");
     const successful = winner === 0 ? imported : manual;
     const rejected = winner === 0 ? manual : imported;
 
@@ -383,11 +326,6 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     const { db, shelterUnitsTable, familiesTable, familyMembersTable } = database;
     const targetShelterId = randomUUID();
 
-    const sourceShelterIds = [randomUUID(), randomUUID()];
-
-    const sourceShelterIds = [randomUUID(), randomUUID()];
-
-    const sourceShelterIds = [randomUUID(), randomUUID()];
     const sourceShelterId = randomUUID();
     const occupiedFamilyId = randomUUID();
     const movingFamilyId = randomUUID();
@@ -432,24 +370,6 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
       ],
     );
 
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-      const archiveResponse = responses[lockWinner === "archive" ? 0 : 1];
-
     const importWon = responses[0].status === 201;
     const moveWon = responses[1].status === 200;
     assert.equal(Number(importWon) + Number(moveWon), 1, "Exactly one write takes the final shelter place");
@@ -467,30 +387,12 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
       [shelterId],
     );
 
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
+    assert.equal(assignments.rowCount, capacityReductionSucceeded ? 2 : 3);
+    assert(
+      occupantIds.every((id) => assignments.rows.some((row) => row.id === id)),
+      "Existing occupants remain assigned",
     );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
+    assert(assignments.rows.length <= shelter.rows[0].capacity, "The final assignment count must not exceed capacity");
     const movingFamily = await database.pool.query(
       "SELECT shelter_id, version FROM families WHERE id = $1",
       [movingFamilyId],
@@ -554,35 +456,6 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
 
       await blocker.query("COMMIT");
       blockerOpen = false;
-    const responses = await race(
-      `SELECT id FROM shelter_units WHERE id = '${shelterId}' FOR UPDATE`,
-      'from "shelter_units"',
-      [
-        () => request("/families/import", { campId, families: [imported] }),
-        () => request(`/shelters/${shelterId}`, {
-          capacity: 2,
-          expectedVersion: 1,
-        }, "PATCH"),
-      ],
-    );
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-      const archiveResponse = responses[lockWinner === "archive" ? 0 : 1];
       assert.deepEqual(responses.map((response) => response.status), [201, 201]);
       assert.deepEqual(responses.map((response) => response.body), [
         { importedCount: 2 },
@@ -692,35 +565,6 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
 
       await blocker.query("COMMIT");
       blockerOpen = false;
-    const responses = await race(
-      `SELECT id FROM shelter_units WHERE id = '${shelterId}' FOR UPDATE`,
-      'from "shelter_units"',
-      [
-        () => request("/families/import", { campId, families: [imported] }),
-        () => request(`/shelters/${shelterId}`, {
-          capacity: 2,
-          expectedVersion: 1,
-        }, "PATCH"),
-      ],
-    );
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-      const archiveResponse = responses[lockWinner === "archive" ? 0 : 1];
       assert.deepEqual(responses.map((response) => response.status), [200, 200]);
       assert.deepEqual(
         responses.map((response) => (response.body as { shelterId: string }).shelterId),
@@ -795,17 +639,10 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     );
   });
 
-  test("two concurrent family PATCH requests cannot take the same final shelter place", async () => {
+  test("a family move and import cannot both take the final place in the same shelter", async () => {
     const { db, shelterUnitsTable, familiesTable } = database;
 
-    const availableShelterId = randomUUID();
     const targetShelterId = randomUUID();
-
-    const sourceShelterIds = [randomUUID(), randomUUID()];
-
-    const sourceShelterIds = [randomUUID(), randomUUID()];
-
-    const sourceShelterIds = [randomUUID(), randomUUID()];
     const sourceShelterId = randomUUID();
     await db.insert(shelterUnitsTable).values([
       { id: targetShelterId, sectorId, code: "SYNTHETIC-MOVE-TARGET", capacity: 2 },
@@ -823,41 +660,24 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
         headName: "Synthetic moving family", createdById: actorId, status: "ACTIVE",
       },
     ]);
-    const imported = family(`capacity-race-${randomUUID()}`, shelterId);
+    const imported = family(`capacity-race-${randomUUID()}`, targetShelterId);
 
     const key = `sha256-${createHash("sha256").update(randomUUID()).digest("hex")}`;
     const before = await database.pool.query(
       "SELECT (SELECT count(*)::int FROM families) AS families",
     );
     const responses = await race(
-      `SELECT id FROM shelter_units WHERE id = '${shelterId}' FOR UPDATE`,
+      `SELECT id FROM shelter_units WHERE id = '${targetShelterId}' FOR UPDATE`,
       'from "shelter_units"',
       [
         () => request("/families/import", { campId, families: [imported] }),
-        () => request(`/shelters/${shelterId}`, {
-          capacity: 2,
+        () => request(`/families/${movingFamilyId}`, {
+          shelterId: targetShelterId,
           expectedVersion: 1,
         }, "PATCH"),
       ],
     );
 
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-      const archiveResponse = responses[lockWinner === "archive" ? 0 : 1];
     const moveSucceeded = responses[1].status === 200;
     const importSucceeded = responses[0].status === 201;
     assert.notEqual(importSucceeded, moveSucceeded, "Exactly one operation succeeds");
@@ -869,34 +689,11 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     });
 
     const assignments = await database.pool.query(
-      "SELECT count(*)::int AS count FROM families WHERE shelter_id = $1 AND archived_at IS NULL",
-      [shelterId],
+      "SELECT id FROM families WHERE shelter_id = $1 AND archived_at IS NULL",
+      [targetShelterId],
     );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
+    assert.equal(assignments.rowCount, 2, "The target shelter must never exceed capacity");
+    assert(assignments.rows.some((row) => row.id === occupiedId), "The existing occupant stays assigned");
     const movedFamily = await database.pool.query(
       "SELECT shelter_id, version FROM families WHERE id = $1",
       [movingFamilyId],
@@ -928,14 +725,7 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
   test("direct family and shelter PATCH requests cannot race past reduced capacity", async () => {
     const { db, shelterUnitsTable, familiesTable } = database;
 
-    const availableShelterId = randomUUID();
     const targetShelterId = randomUUID();
-
-    const sourceShelterIds = [randomUUID(), randomUUID()];
-
-    const sourceShelterIds = [randomUUID(), randomUUID()];
-
-    const sourceShelterIds = [randomUUID(), randomUUID()];
     const sourceShelterId = randomUUID();
     await db.insert(shelterUnitsTable).values([
       { id: targetShelterId, sectorId, code: "SYNTHETIC-PATCH-RACE-TARGET", capacity: 3 },
@@ -957,35 +747,21 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     ]);
 
     const responses = await race(
-      `SELECT id FROM shelter_units WHERE id = '${shelterId}' FOR UPDATE`,
+      `SELECT id FROM shelter_units WHERE id = '${targetShelterId}' FOR UPDATE`,
       'from "shelter_units"',
       [
-        () => request("/families/import", { campId, families: [imported] }),
-        () => request(`/shelters/${shelterId}`, {
+        () => request(`/shelters/${targetShelterId}`, {
           capacity: 2,
+          expectedVersion: 1,
+        }, "PATCH"),
+        () => request(`/families/${movingFamilyId}`, {
+          shelterId: targetShelterId,
           expectedVersion: 1,
         }, "PATCH"),
       ],
     );
 
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-      const archiveResponse = responses[lockWinner === "archive" ? 0 : 1];
-    const capacityReductionSucceeded = responses[1].status === 200;
+    const capacityReductionSucceeded = responses[0].status === 200;
     const moveSucceeded = responses[1].status === 200;
     assert.notEqual(moveSucceeded, capacityReductionSucceeded, "Exactly one competing PATCH succeeds");
     assert.equal(responses[1].status, moveSucceeded ? 200 : 400);
@@ -1003,40 +779,21 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
 
     const shelter = await database.pool.query(
       "SELECT capacity, version FROM shelter_units WHERE id = $1",
-      [shelterId],
+      [targetShelterId],
     );
     assert.equal(shelter.rowCount, 1);
     assert.equal(shelter.rows[0].capacity, capacityReductionSucceeded ? 2 : 3);
     assert.equal(shelter.rows[0].version, capacityReductionSucceeded ? 2 : 1);
     const assignments = await database.pool.query(
-      "SELECT count(*)::int AS count FROM families WHERE shelter_id = $1 AND archived_at IS NULL",
-      [shelterId],
+      "SELECT id FROM families WHERE shelter_id = $1 AND archived_at IS NULL",
+      [targetShelterId],
     );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
+    assert.equal(assignments.rowCount, capacityReductionSucceeded ? 2 : 3);
+    assert(
+      occupantIds.every((id) => assignments.rows.some((row) => row.id === id)),
+      "Existing occupants remain assigned",
     );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
+    assert(assignments.rows.length <= shelter.rows[0].capacity, "The final assignment count must not exceed capacity");
     const movingFamily = await database.pool.query(
       "SELECT shelter_id, version FROM families WHERE id = $1",
       [movingFamilyId],
@@ -1057,13 +814,110 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     }
   });
 
-  test("family archive and shelter capacity PATCH requests serialize without partial writes", async () => {
+  test("a family move and the archive freeing its final place serialize on the shelter row", async () => {
     const { db, shelterUnitsTable, familiesTable } = database;
 
-    const availableShelterId = randomUUID();
-    const shelterId = randomUUID();
+    for (const archiveFirst of [true, false]) {
+      const targetShelterId = randomUUID();
+      const sourceShelterId = randomUUID();
+      const archivedFamilyId = randomUUID();
+      const movingFamilyId = randomUUID();
+      await db.insert(shelterUnitsTable).values([
+        {
+          id: targetShelterId, sectorId,
+          code: `SYNTHETIC-MOVE-ARCHIVE-${randomUUID().slice(0, 8)}`, capacity: 1,
+        },
+        {
+          id: sourceShelterId, sectorId,
+          code: `SYNTHETIC-MOVE-SOURCE-${randomUUID().slice(0, 8)}`, capacity: 2,
+        },
+      ]);
+      await db.insert(familiesTable).values([
+        {
+          id: archivedFamilyId, campId, sectorId, shelterId: targetShelterId,
+          headName: "Synthetic last-place resident", createdById: actorId, status: "ACTIVE",
+        },
+        {
+          id: movingFamilyId, campId, sectorId, shelterId: sourceShelterId,
+          headName: "Synthetic incoming family", createdById: actorId, status: "ACTIVE",
+        },
+      ]);
 
-      const familyIds = [randomUUID(), randomUUID(), randomUUID()];
+      const archive = () => request(`/families/${archivedFamilyId}/archive`, {
+        expectedVersion: 1,
+      }, "PATCH");
+      const move = () => request(`/families/${movingFamilyId}`, {
+        shelterId: targetShelterId, expectedVersion: 1,
+      }, "PATCH");
+      const responses = await race(
+        `SELECT id FROM shelter_units WHERE id = '${targetShelterId}' FOR UPDATE`,
+        'from "shelter_units"',
+        archiveFirst ? [archive, move] : [move, archive],
+      );
+
+      const archiveResponse = responses[archiveFirst ? 0 : 1];
+      const moveResponse = responses[archiveFirst ? 1 : 0];
+      const moveSucceeded = archiveFirst;
+      assert.equal(archiveResponse.status, 200, "The resident archive must commit in either lock order");
+      assert.equal(moveResponse.status, moveSucceeded ? 200 : 400);
+      if (!moveSucceeded) {
+        assert.deepEqual(moveResponse.body, { error: "Shelter has reached its capacity" });
+      }
+
+      const [targetAssignments, archivedFamily, movingFamily, history, audit] = await Promise.all([
+        database.pool.query(
+          "SELECT count(*)::int AS count FROM families WHERE shelter_id = $1 AND archived_at IS NULL",
+          [targetShelterId],
+        ),
+        database.pool.query(
+          "SELECT status, archived_at, version FROM families WHERE id = $1",
+          [archivedFamilyId],
+        ),
+        database.pool.query(
+          "SELECT shelter_id, version FROM families WHERE id = $1",
+          [movingFamilyId],
+        ),
+        database.pool.query(
+          "SELECT from_shelter_id, to_shelter_id FROM family_assignment_history WHERE family_id = $1",
+          [movingFamilyId],
+        ),
+        database.pool.query(
+          `SELECT action, entity_id, actor_staff_id FROM sync_audit_events
+           WHERE entity_id = ANY($1::uuid[]) ORDER BY entity_id, action`,
+          [[archivedFamilyId, movingFamilyId]],
+        ),
+      ]);
+      assert.equal(targetAssignments.rows[0].count, moveSucceeded ? 1 : 0);
+      assert(targetAssignments.rows[0].count <= 1, "Active assignments must not exceed shelter capacity");
+      assert.equal(archivedFamily.rows[0].status, "ARCHIVED");
+      assert(archivedFamily.rows[0].archived_at, "A successful archive must record its timestamp");
+      assert.equal(archivedFamily.rows[0].version, 2);
+      assert.equal(movingFamily.rows[0].shelter_id, moveSucceeded ? targetShelterId : sourceShelterId);
+      assert.equal(movingFamily.rows[0].version, moveSucceeded ? 2 : 1, "A rejected move must not partially update the family");
+      assert.equal(history.rowCount, moveSucceeded ? 1 : 0, "Rejected moves must not write assignment history");
+      if (moveSucceeded) {
+        assert.deepEqual(history.rows[0], {
+          from_shelter_id: sourceShelterId,
+          to_shelter_id: targetShelterId,
+        });
+      }
+
+      const expectedAudit = [
+        ["ARCHIVE", archivedFamilyId, actorId],
+        ...(moveSucceeded ? [["UPDATE", movingFamilyId, actorId]] : []),
+      ].sort((left, right) => `${left[1]}:${left[0]}`.localeCompare(`${right[1]}:${right[0]}`));
+      assert.deepEqual(
+        audit.rows.map((row) => [row.action, row.entity_id, row.actor_staff_id]),
+        expectedAudit,
+        "Audit rows must exist only for the operations that committed",
+      );
+    }
+  });
+
+  test("reducing shelter capacity and importing cannot leave assignments above capacity", async () => {
+    const { db, shelterUnitsTable, familiesTable } = database;
+
+    const shelterId = randomUUID();
     await db.insert(shelterUnitsTable).values({
       id: shelterId, sectorId, code: "SYNTHETIC-CAPACITY-RACE", capacity: 3,
     });
@@ -1090,23 +944,6 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
       ],
     );
 
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-    const successfulIndex = responses.findIndex((response) => response.status === 200);
-
-      const archiveResponse = responses[lockWinner === "archive" ? 0 : 1];
     const importSucceeded = responses[0].status === 201;
     const capacityReductionSucceeded = responses[1].status === 200;
     assert.notEqual(importSucceeded, capacityReductionSucceeded, "Exactly one operation succeeds");
@@ -1128,31 +965,7 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
       "SELECT count(*)::int AS count FROM families WHERE shelter_id = $1 AND archived_at IS NULL",
       [shelterId],
     );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
-
-    const familyStates = await database.pool.query(
-      "SELECT id, shelter_id, version FROM families WHERE id = ANY($1::uuid[]) ORDER BY id",
-      [movingFamilyIds],
-    );
+    assert(assignments.rows[0].count <= shelter.rows[0].capacity, "Assigned families must stay within the committed capacity");
     const importedMembers = await database.pool.query(
       "SELECT family_id, national_id FROM family_members WHERE national_id = ANY($1::text[])",
       [[...imported.members].map((member) => member.nationalId)],
@@ -1165,79 +978,3 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     assert.equal(after.rows[0].families, before.rows[0].families + Number(importSucceeded));
   });
   });
-
-    const retried = await request("/families/import", { campId, families: imported }, "POST", key);
-
-    const attemptedMemberIds = imported.flatMap((entry) => entry.members.map((member) => member.nationalId));
-
-    const fullShelterId = randomUUID();
-
-    const successfulClaim = await database.pool.query(
-      `SELECT status_code FROM idempotency_keys
-       WHERE user_id = $1 AND operation = $2 AND key = $3`,
-      [actorId, operation, key],
-    );
-
-    const absentMembers = await database.pool.query(
-      "SELECT national_id FROM family_members WHERE national_id = ANY($1::text[])",
-      [attemptedMemberIds],
-    );
-
-    const operation = `importFamilies:${campId}`;
-
-      const succeeded = index === successfulIndex;
-
-      const capacityResponse = responses[lockWinner === "capacity" ? 0 : 1];
-
-      const archivedFamilyId = familyIds[0];
-
-      const reduceCapacity = () => request(`/shelters/${shelterId}`, {
-        capacity: 2,
-        expectedVersion: 1,
-      }, "PATCH");
-
-      const reductionSucceeded = lockWinner === "archive";
-
-      const operations = lockWinner === "archive"
-        ? [archive, reduceCapacity]
-        : [reduceCapacity, archive];
-
-      const audit = await database.pool.query(
-        `SELECT action, entity_type, entity_id, actor_staff_id, metadata
-         FROM sync_audit_events
-         WHERE entity_id = ANY($1::uuid[])
-         ORDER BY entity_type, action`,
-        [[shelterId, archivedFamilyId]],
-      );
-
-      const [shelter, archivedFamily, activeFamilies] = await Promise.all([
-        database.pool.query(
-          "SELECT capacity, version FROM shelter_units WHERE id = $1",
-          [shelterId],
-        ),
-        database.pool.query(
-          "SELECT status, archived_at, version FROM families WHERE id = $1",
-          [archivedFamilyId],
-        ),
-        database.pool.query(
-          `SELECT id FROM families
-           WHERE shelter_id = $1 AND archived_at IS NULL
-           ORDER BY id`,
-          [shelterId],
-        ),
-      ]);
-
-      const archive = () => request(`/families/${archivedFamilyId}/archive`, {
-        expectedVersion: 1,
-      }, "PATCH");
-
-    const rejectedIndex = responses.findIndex((response) => response.status === 400);
-
-      const index = movingFamilyIds.indexOf(state.id);
-
-    const movingFamilyIds = [randomUUID(), randomUUID()];
-
-    const histories = await database.pool.query(
-      "SELECT family_id, from_shelter_id, to_shelter_id FROM family_assignment_history WHERE family_id = ANY($1::uuid[])",
-      [movingFamilyIds],
-    );
