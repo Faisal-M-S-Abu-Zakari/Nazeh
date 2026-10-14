@@ -768,11 +768,18 @@ router.patch("/shelters/:shelterId/archive", allowRoles(...familyApprovers), asy
   const actorId = res.locals["staff"].id as string;
   const result = await withIdempotency<unknown>(req, res, `archiveShelter:${params.shelterId}`, async (tx) => {
     await lockShelterRows(tx, [params.shelterId]);
+    const [assignedFamilies] = await tx
+      .select({ value: count() })
+      .from(familiesTable)
+      .where(and(eq(familiesTable.shelterId, params.shelterId), isNull(familiesTable.archivedAt)));
     const [updated] = await tx.update(shelterUnitsTable).set({
       archivedAt: new Date(), version: sql`${shelterUnitsTable.version} + 1`, updatedAt: new Date(),
     }).where(and(eq(shelterUnitsTable.id, params.shelterId), eq(shelterUnitsTable.version, body.expectedVersion), isNull(shelterUnitsTable.archivedAt))).returning();
     if (!updated) return { statusCode: 404, responseBody: { error: "Shelter not found" } };
-    await audit(tx, actorId, "ARCHIVE", "SHELTER", updated.id, { expectedVersion: body.expectedVersion });
+    await audit(tx, actorId, "ARCHIVE", "SHELTER", updated.id, {
+      expectedVersion: body.expectedVersion,
+      retainedActiveFamilyAssignmentCount: Number(assignedFamilies?.value ?? 0),
+    });
     return { statusCode: 200, responseBody: ArchiveShelterResponse.parse(updated) };
   }, { required: false });
   if (result) res.status(result.statusCode).json(result.responseBody);
@@ -1003,8 +1010,13 @@ router.patch("/families/:familyId", allowRoles(...familyManagers), async (req, r
     const sectorId = body.sectorId ?? current.sectorId;
     const targetShelterId = body.shelterId === undefined ? current.shelterId : body.shelterId;
     await lockShelterRows(tx, [current.shelterId, targetShelterId]);
-    const placementError = await validatePlacement(tx, current.campId, sectorId, targetShelterId, current.id);
-    if (placementError) return { statusCode: 400, responseBody: { error: placementError } };
+    // An archived shelter assignment remains part of the family record. Editing
+    // unrelated family details must not require that retained placement to be active.
+    const placementChanged = sectorId !== current.sectorId || targetShelterId !== current.shelterId;
+    if (placementChanged) {
+      const placementError = await validatePlacement(tx, current.campId, sectorId, targetShelterId, current.id);
+      if (placementError) return { statusCode: 400, responseBody: { error: placementError } };
+    }
     const changes = {
       ...(body.sectorId !== undefined ? { sectorId: body.sectorId } : {}),
       ...(body.shelterId !== undefined ? { shelterId: body.shelterId } : {}),

@@ -131,6 +131,14 @@ describe("family transfer and shelter archive serialization on isolated PostgreS
     return { status: response.status, body: await response.json() };
   }
 
+  async function get(path: string) {
+    const response = await fetch(`${baseUrl}${path}`, {
+      headers: { authorization: headers.authorization },
+      signal: AbortSignal.timeout(20_000),
+    });
+    return { status: response.status, body: await response.json() };
+  }
+
   async function waitForBlockedWrites(fragment: string, expectedWaiters: number) {
     const deadline = Date.now() + 10_000;
     while (Date.now() < deadline) {
@@ -260,5 +268,92 @@ describe("family transfer and shelter archive serialization on isolated PostgreS
         assert(auditRows.rows[0].created_at < auditRows.rows[1].created_at);
       }
     }
+  });
+
+  test("archiving after a completed transfer retains and keeps the active family manageable", async () => {
+    const { db, shelterUnitsTable, familiesTable } = database;
+    const targetShelterId = randomUUID();
+    const sourceShelterId = randomUUID();
+    const movingFamilyId = randomUUID();
+    await db.insert(shelterUnitsTable).values([
+      { id: targetShelterId, sectorId, code: "SYNTHETIC-ARCHIVE-RETAINED", capacity: 2 },
+      { id: sourceShelterId, sectorId, code: "SYNTHETIC-ARCHIVE-SOURCE", capacity: 2 },
+    ]);
+    await db.insert(familiesTable).values({
+      id: movingFamilyId,
+      campId,
+      sectorId,
+      shelterId: sourceShelterId,
+      headName: "Synthetic retained family",
+      createdById: actorId,
+      status: "ACTIVE",
+    });
+
+    const transfer = await request(`/families/${movingFamilyId}`, {
+      shelterId: targetShelterId,
+      expectedVersion: 1,
+    });
+    assert.equal(transfer.status, 200);
+    assert.equal((transfer.body as { shelterId: string }).shelterId, targetShelterId);
+
+    const archive = await request(`/shelters/${targetShelterId}/archive`, { expectedVersion: 1 });
+    assert.equal(archive.status, 200);
+    assert.notEqual((archive.body as { archivedAt: string | null }).archivedAt, null);
+
+    const [familyList, familyDetail, shelterList] = await Promise.all([
+      get("/families"),
+      get(`/families/${movingFamilyId}`),
+      get("/shelters"),
+    ]);
+    assert.equal(familyList.status, 200);
+    assert.equal(familyDetail.status, 200);
+    assert.equal(shelterList.status, 200);
+    assert.equal(
+      (familyList.body as Array<{ id: string; shelterId: string | null }>).find((family) => family.id === movingFamilyId)?.shelterId,
+      targetShelterId,
+    );
+    assert.equal((familyDetail.body as { shelterId: string | null }).shelterId, targetShelterId);
+    assert.equal(
+      (shelterList.body as Array<{ id: string }>).some((shelter) => shelter.id === targetShelterId),
+      false,
+    );
+
+    const edit = await request(`/families/${movingFamilyId}`, {
+      headName: "Synthetic family remains manageable",
+      expectedVersion: 2,
+    });
+    assert.equal(edit.status, 200);
+    assert.equal((edit.body as { headName: string }).headName, "Synthetic family remains manageable");
+    assert.equal((edit.body as { shelterId: string | null }).shelterId, targetShelterId);
+
+    const [familyRow, archiveAudit, assignmentHistory] = await Promise.all([
+      database.pool.query(
+        "SELECT shelter_id, archived_at, version, head_name FROM families WHERE id = $1",
+        [movingFamilyId],
+      ),
+      database.pool.query(
+        `SELECT metadata FROM sync_audit_events
+         WHERE action = 'ARCHIVE' AND entity_type = 'SHELTER' AND entity_id = $1`,
+        [targetShelterId],
+      ),
+      database.pool.query(
+        "SELECT from_shelter_id, to_shelter_id FROM family_assignment_history WHERE family_id = $1",
+        [movingFamilyId],
+      ),
+    ]);
+    assert.equal(familyRow.rowCount, 1);
+    assert.equal(familyRow.rows[0].shelter_id, targetShelterId);
+    assert.equal(familyRow.rows[0].archived_at, null);
+    assert.equal(familyRow.rows[0].version, 3);
+    assert.equal(familyRow.rows[0].head_name, "Synthetic family remains manageable");
+    assert.equal(archiveAudit.rowCount, 1);
+    assert.deepEqual(archiveAudit.rows[0].metadata, {
+      expectedVersion: 1,
+      retainedActiveFamilyAssignmentCount: 1,
+    });
+    assert.deepEqual(assignmentHistory.rows, [{
+      from_shelter_id: sourceShelterId,
+      to_shelter_id: targetShelterId,
+    }]);
   });
 });

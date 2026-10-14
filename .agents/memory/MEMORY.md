@@ -22,6 +22,7 @@
 - [React Native Web disabled selectors](react-native-web-disabled-selectors.md) — assert `aria-disabled` for Pressable buttons; Playwright's disabled matcher targets native controls.
 - [Need lifecycle transitions](need-lifecycle-transitions.md) — keep status transitions enforced by the server, not just hidden in mobile controls.
 - [Family aid offline retention](family-aid-offline-retention.md) — retain only owner-scoped read-only family history across logout so offline return works without exposing it to another account.
+- [Archived shelter assignments](archived-shelter-assignments.md) — archiving a shelter retains active family assignments; non-placement family edits should still work and audit events should show the retained count.
 - [Expo browser route visibility](expo-browser-route-visibility.md) — hidden prior screens can remain mounted; scope browser locators to visible nodes and navigate through the app stack for back actions.
 - [Expo peers in a pnpm workspace](expo-pnpm-peer-resolution.md) — align optional Expo peers across sibling packages to avoid duplicate native-module snapshots in Expo Doctor.
 - [React Native Web tab labels](react-native-web-tab-label-scaling.md) — large text can clip inside single-line tab labels without causing page overflow; measure label bounds directly.

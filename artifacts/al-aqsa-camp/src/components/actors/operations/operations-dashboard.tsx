@@ -270,7 +270,14 @@ export default function OperationsDashboard() {
   const filteredFamilies = useMemo(() => (families.data ?? []).filter((family) =>
     `${family.headName} ${family.id}`.toLowerCase().includes(search.toLowerCase())), [families.data, search]);
   const sectorName = (id: string) => sectors.data?.find((item) => item.id === id)?.name ?? 'غير محدد';
-  const shelterName = (id?: string | null) => shelters.data?.find((item) => item.id === id)?.code ?? 'بدون خيمة';
+  const shelterName = (id?: string | null) => {
+    if (!id) return 'بدون مأوى';
+    const shelter = shelters.data?.find((item) => item.id === id);
+    if (shelter) return shelter.code;
+    if (shelters.isLoading) return 'جارٍ تحميل بيانات المأوى';
+    if (shelters.isError) return 'تعذر تحميل بيانات المأوى';
+    return 'مأوى مؤرشف';
+  };
   const selectedAid = aids.data?.find((aid) => aid.id === distributionAidId);
   const submitTaskNow = (task: { id: string; version: number }) => {
     const data = { result: 'تم التنفيذ ميدانياً', expectedVersion: task.version };
@@ -390,7 +397,7 @@ export default function OperationsDashboard() {
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{filteredFamilies.map((family) => (
                   <div key={family.id} className="rounded-xl border bg-white p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-2"><div><h3 className="font-semibold">{family.headName}</h3><p className="mt-1 text-xs text-muted-foreground">#{family.id.slice(0, 8)}</p></div><Badge variant={statusVariant(family.status) as 'default' | 'secondary' | 'outline'}>{labels[family.status]}</Badge></div>
-                    <div className="mt-4 space-y-2 text-sm text-slate-600"><p>القطاع: {sectorName(family.sectorId)}</p><p>الإيواء: {shelterName(family.shelterId)}</p><p>الإصدار: {family.version}</p></div>
+                    <div className="mt-4 space-y-2 text-sm text-slate-600"><p>القطاع: {sectorName(family.sectorId)}</p><p data-testid={`text-family-shelter-${family.id}`}>الإيواء: {shelterName(family.shelterId)}</p><p>الإصدار: {family.version}</p></div>
                     {canReview && <div className="mt-4 space-y-2">
                       {family.status === 'PENDING_APPROVAL' && <Button className="w-full" size="sm" onClick={() => approveMutation.mutate(family.id)} disabled={approveMutation.isPending}><CheckCircle2 className="size-4" />اعتماد وتفعيل</Button>}
                       <select className="h-9 w-full rounded-md border bg-transparent px-2 text-xs" value={family.shelterId ?? ''} disabled={updateFamilyMutation.isPending} onChange={(event) => updateFamilyMutation.mutate({ familyId: family.id, data: { shelterId: event.target.value || null, expectedVersion: family.version } })} aria-label={`تعديل إيواء ${family.headName}`}>
