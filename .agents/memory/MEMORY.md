@@ -27,4 +27,5 @@
 - [Native large-text validation](native-large-text-validation.md) — CSS-scaled Expo web checks catch layout issues but do not verify iOS/Android font settings or screen readers.
 - [Publish diff and expression indexes](publish-diff-expression-indexes.md) — inspect generated Publish SQL; comma-bearing index expressions can produce malformed diffs.
 - [Deployment environment guards](deployment-environment-guards.md) — the platform environment label is not an app deployment marker; use REPLIT_DEPLOYMENT for published-process safeguards.
+- [PostgreSQL lock-race tests](postgres-lock-race-tests.md) — hold a real row lock and wait for each API backend in pg_stat_activity before release; Promise.all alone does not prove overlap.
 - [Family archive and transfer races](family-archive-transfer-race.md) — when archive wins, a competing move can use the freed place; when move wins, it must be rejected before archive leaves the shelter empty.

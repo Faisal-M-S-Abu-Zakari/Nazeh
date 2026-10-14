@@ -1079,7 +1079,13 @@ router.patch("/families/:familyId/archive", allowRoles(...familyApprovers), asyn
       updatedAt: new Date(),
       version: sql`${familiesTable.version} + 1`,
     }).where(and(eq(familiesTable.id, params.familyId), eq(familiesTable.version, body.expectedVersion), isNull(familiesTable.archivedAt))).returning();
-    if (!updated) return { statusCode: 404, responseBody: { error: "Family not found" } };
+    if (!updated) {
+      const [latest] = await tx.select({ version: familiesTable.version }).from(familiesTable)
+        .where(eq(familiesTable.id, params.familyId)).limit(1);
+      return latest && latest.version !== body.expectedVersion
+        ? conflict("Family", latest)
+        : { statusCode: 404, responseBody: { error: "Family not found" } };
+    }
     await audit(tx, actorId, "ARCHIVE", "FAMILY", updated.id, { expectedVersion: body.expectedVersion });
     return { statusCode: 200, responseBody: ArchiveFamilyResponse.parse(await getFamilyDetail(tx, updated.id)) };
   }, { required: false });
