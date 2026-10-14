@@ -137,16 +137,11 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     };
   }
 
-  async function request(
-    path: string,
-    body: unknown,
-    method: "POST" | "PATCH" = "POST",
-    idempotencyKey?: string,
-  ) {
+  async function request(path: string, body: unknown, method: "POST" | "PATCH" = "POST") {
     // Distinct keys prevent idempotency from serializing the competing writes.
-    const key = idempotencyKey ?? (path === "/families/import"
+    const key = path === "/families/import"
       ? `sha256-${createHash("sha256").update(randomUUID()).digest("hex")}`
-      : method === "PATCH" ? undefined : randomUUID());
+      : method === "PATCH" ? undefined : randomUUID();
     const response = await fetch(`${baseUrl}${path}`, {
       method,
       headers: { ...headers, ...(key ? { "Idempotency-Key": key } : {}) },
@@ -223,9 +218,7 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     assert.equal(persisted.rowCount, 1, "Normalized identity must be stored once");
     const families = await database.pool.query("SELECT id FROM families");
     assert.equal(families.rowCount, 1, "Unique violation must roll back the loser's family");
-    const members = await database.pool.query(
-      "SELECT id FROM family_members",
-    );
+    const members = await database.pool.query("SELECT id FROM family_members");
     assert.equal(members.rowCount, 2, "No child or partial member from the losing import");
     const audits = await database.pool.query("SELECT entity_id FROM sync_audit_events");
     assert.deepEqual(audits.rows, [{ entity_id: persisted.rows[0].family_id }]);
@@ -361,7 +354,7 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     assert(assignments.rows.some((row) => row.id === occupiedFamilyId), "The existing occupant remains assigned");
 
     const movingFamily = await database.pool.query(
-      "SELECT shelter_id, version FROM families WHERE id = $1",
+      "SELECT shelter_id FROM families WHERE id = $1",
       [movingFamilyId],
     );
     assert.equal(movingFamily.rows[0].shelter_id, moveWon ? targetShelterId : sourceShelterId);
@@ -694,94 +687,136 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     assert.equal(after.rows[0].families, before.rows[0].families + Number(importSucceeded));
   });
 
-  test("direct family and shelter PATCH requests cannot race past reduced capacity", async () => {
+  test("family import uses a place freed by a prior archive and rolls back when import locks first", async () => {
     const { db, shelterUnitsTable, familiesTable } = database;
-    const targetShelterId = randomUUID();
-    const sourceShelterId = randomUUID();
-    await db.insert(shelterUnitsTable).values([
-      { id: targetShelterId, sectorId, code: "SYNTHETIC-PATCH-RACE-TARGET", capacity: 3 },
-      { id: sourceShelterId, sectorId, code: "SYNTHETIC-PATCH-RACE-SOURCE", capacity: 2 },
-    ]);
-    const occupantIds = [randomUUID(), randomUUID()];
-    const movingFamilyId = randomUUID();
-    await db.insert(familiesTable).values([
-      ...occupantIds.map((id, index) => ({
-        id, campId, sectorId, shelterId: targetShelterId,
-        headName: `Synthetic PATCH race occupant ${index + 1}`,
-        createdById: actorId, status: "ACTIVE" as const,
-      })),
-      {
-        id: movingFamilyId, campId, sectorId, shelterId: sourceShelterId,
-        headName: "Synthetic PATCH race moving family",
-        createdById: actorId, status: "ACTIVE",
-      },
-    ]);
 
-    const responses = await race(
-      `SELECT id FROM shelter_units WHERE id = '${targetShelterId}' FOR UPDATE`,
-      'from "shelter_units"',
-      [
-        () => request(`/shelters/${targetShelterId}`, {
-          capacity: 2,
-          expectedVersion: 1,
-        }, "PATCH"),
-        () => request(`/families/${movingFamilyId}`, {
-          shelterId: targetShelterId,
-          expectedVersion: 1,
-        }, "PATCH"),
-      ],
-    );
-    const capacityReductionSucceeded = responses[0].status === 200;
-    const moveSucceeded = responses[1].status === 200;
-    assert.notEqual(moveSucceeded, capacityReductionSucceeded, "Exactly one competing PATCH succeeds");
-    assert.equal(responses[1].status, moveSucceeded ? 200 : 400);
-    if (!moveSucceeded) {
-      assert.deepEqual(responses[1].body, {
-        error: "Shelter has reached its capacity",
+    for (const importLocksFirst of [false, true]) {
+      const shelterId = randomUUID();
+      const archivedFamilyId = randomUUID();
+      const remainingFamilyId = randomUUID();
+      const imported = {
+        ...family(`archive-import-race-${randomUUID()}`, shelterId),
+        headName: `Synthetic archive race ${randomUUID()}`,
+      };
+      await db.insert(shelterUnitsTable).values({
+        id: shelterId,
+        sectorId,
+        code: `SYNTHETIC-ARCHIVE-IMPORT-${randomUUID()}`,
+        capacity: 2,
       });
-    }
-    assert.equal(responses[0].status, capacityReductionSucceeded ? 200 : 409);
-    if (!capacityReductionSucceeded) {
-      assert.deepEqual(responses[0].body, {
-        error: "Shelter capacity cannot be lower than its current assignments",
-      });
-    }
+      await db.insert(familiesTable).values([
+        {
+          id: archivedFamilyId, campId, sectorId, shelterId,
+          headName: "Synthetic family to archive", createdById: actorId, status: "ACTIVE",
+        },
+        {
+          id: remainingFamilyId, campId, sectorId, shelterId,
+          headName: "Synthetic family staying active", createdById: actorId, status: "ACTIVE",
+        },
+      ]);
 
-    const shelter = await database.pool.query(
-      "SELECT capacity, version FROM shelter_units WHERE id = $1",
-      [targetShelterId],
-    );
-    assert.equal(shelter.rowCount, 1);
-    assert.equal(shelter.rows[0].capacity, capacityReductionSucceeded ? 2 : 3);
-    assert.equal(shelter.rows[0].version, capacityReductionSucceeded ? 2 : 1);
-    const assignments = await database.pool.query(
-      "SELECT id FROM families WHERE shelter_id = $1 AND archived_at IS NULL ORDER BY id",
-      [targetShelterId],
-    );
-    assert.equal(assignments.rowCount, capacityReductionSucceeded ? 2 : 3);
-    assert(
-      occupantIds.every((id) => assignments.rows.some((row) => row.id === id)),
-      "Existing occupants remain assigned",
-    );
-    assert(assignments.rows.length <= shelter.rows[0].capacity, "The final assignment count must not exceed capacity");
+      const before = await database.pool.query(
+        `SELECT
+           (SELECT count(*)::int FROM families) AS families,
+           (SELECT count(*)::int FROM family_members) AS members,
+           (SELECT count(*)::int FROM sync_audit_events) AS audits,
+           (SELECT count(*)::int FROM idempotency_keys) AS claims`,
+      );
+      const archive = () => request(`/families/${archivedFamilyId}/archive`, { expectedVersion: 1 }, "PATCH");
+      const importFamily = () => request("/families/import", { campId, families: [imported] });
 
-    const movingFamily = await database.pool.query(
-      "SELECT shelter_id, version FROM families WHERE id = $1",
-      [movingFamilyId],
-    );
-    assert.equal(movingFamily.rowCount, 1);
-    assert.equal(movingFamily.rows[0].shelter_id, moveSucceeded ? targetShelterId : sourceShelterId);
-    assert.equal(movingFamily.rows[0].version, moveSucceeded ? 2 : 1, "A rejected move must not partially update the family");
-    const history = await database.pool.query(
-      "SELECT from_shelter_id, to_shelter_id FROM family_assignment_history WHERE family_id = $1",
-      [movingFamilyId],
-    );
-    assert.equal(history.rowCount, moveSucceeded ? 1 : 0, "A rejected move must not write assignment history");
-    if (moveSucceeded) {
-      assert.deepEqual(history.rows[0], {
-        from_shelter_id: sourceShelterId,
-        to_shelter_id: targetShelterId,
+      // Hold the target shelter row, queue both real API requests, and verify
+      // through pg_stat_activity that both wait on that same row lock.
+      const responses = await race(
+        `SELECT id FROM shelter_units WHERE id = '${shelterId}' FOR UPDATE`,
+        'from "shelter_units"',
+        importLocksFirst ? [importFamily, archive] : [archive, importFamily],
+      );
+      const archiveResponse = responses[importLocksFirst ? 1 : 0];
+      const importResponse = responses[importLocksFirst ? 0 : 1];
+      const importSucceeded = !importLocksFirst;
+
+      assert.equal(archiveResponse.status, 200, "The archive request must commit in either queue order");
+      const archivedResponseBody = archiveResponse.body as { id: string; status: string };
+      assert.equal(archivedResponseBody.id, archivedFamilyId);
+      assert.equal(archivedResponseBody.status, "ARCHIVED");
+      assert.equal(importResponse.status, importSucceeded ? 201 : 400);
+      if (importSucceeded) {
+        assert.deepEqual(importResponse.body, { importedCount: 1 });
+      } else {
+        assert.deepEqual(importResponse.body, {
+          error: "عدد الأسر المحدد يتجاوز السعة المتاحة لوحدة إيواء.",
+        });
+      }
+
+      const [shelter, archivedFamily, activeFamilies, importedMembers, importRows] = await Promise.all([
+        database.pool.query("SELECT capacity FROM shelter_units WHERE id = $1", [shelterId]),
+        database.pool.query(
+          "SELECT status, archived_at, version FROM families WHERE id = $1",
+          [archivedFamilyId],
+        ),
+        database.pool.query(
+          `SELECT id FROM families
+           WHERE shelter_id = $1 AND archived_at IS NULL
+           ORDER BY id`,
+          [shelterId],
+        ),
+        database.pool.query(
+          "SELECT family_id, national_id FROM family_members WHERE national_id = ANY($1::text[])",
+          [imported.members.map((member) => member.nationalId)],
+        ),
+        database.pool.query("SELECT id FROM families WHERE head_name = $1", [imported.headName]),
+      ]);
+      assert.equal(shelter.rows[0].capacity, 2);
+      assert.equal(archivedFamily.rows[0].status, "ARCHIVED");
+      assert(archivedFamily.rows[0].archived_at);
+      assert.equal(archivedFamily.rows[0].version, 2);
+      assert(activeFamilies.rows.some((row) => row.id === remainingFamilyId));
+      assert.equal(activeFamilies.rowCount, importSucceeded ? 2 : 1);
+      assert(activeFamilies.rowCount! <= shelter.rows[0].capacity, "Active families must never exceed capacity");
+      assert.equal(importRows.rowCount, importSucceeded ? 1 : 0, "A rejected import must leave no family row");
+      assert.equal(importedMembers.rowCount, importSucceeded ? 2 : 0, "A rejected import must leave no members");
+      if (importSucceeded) {
+        assert.equal(new Set(importedMembers.rows.map((row) => row.family_id)).size, 1);
+        assert.equal(importedMembers.rows[0].family_id, importRows.rows[0].id);
+      }
+
+      const importAudit = await database.pool.query(
+        `SELECT action, entity_type, entity_id, actor_staff_id
+         FROM sync_audit_events
+         WHERE entity_id = ANY($1::uuid[])
+         ORDER BY entity_id`,
+        [[archivedFamilyId, ...importRows.rows.map((row) => row.id)]],
+      );
+      assert.equal(importAudit.rowCount, importSucceeded ? 2 : 1);
+      assert.deepEqual(importAudit.rows.find((row) => row.action === "ARCHIVE"), {
+        action: "ARCHIVE",
+        entity_type: "FAMILY",
+        entity_id: archivedFamilyId,
+        actor_staff_id: actorId,
       });
+      if (importSucceeded) {
+        assert.deepEqual(importAudit.rows.find((row) => row.action === "CREATE"), {
+          action: "CREATE",
+          entity_type: "FAMILY",
+          entity_id: importRows.rows[0].id,
+          actor_staff_id: actorId,
+        });
+      } else {
+        assert.equal(importAudit.rows.some((row) => row.action === "CREATE"), false);
+      }
+
+      const after = await database.pool.query(
+        `SELECT
+           (SELECT count(*)::int FROM families) AS families,
+           (SELECT count(*)::int FROM family_members) AS members,
+           (SELECT count(*)::int FROM sync_audit_events) AS audits,
+           (SELECT count(*)::int FROM idempotency_keys) AS claims`,
+      );
+      assert.equal(after.rows[0].families, before.rows[0].families + Number(importSucceeded));
+      assert.equal(after.rows[0].members, before.rows[0].members + (importSucceeded ? 2 : 0));
+      assert.equal(after.rows[0].audits, before.rows[0].audits + 1 + Number(importSucceeded));
+      assert.equal(after.rows[0].claims, before.rows[0].claims + Number(importSucceeded));
     }
   });
 
@@ -885,9 +920,100 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     }
   });
 
+  test("direct family and shelter PATCH requests cannot race past reduced capacity", async () => {
+    const { db, shelterUnitsTable, familiesTable } = database;
+    const targetShelterId = randomUUID();
+    const sourceShelterId = randomUUID();
+    await db.insert(shelterUnitsTable).values([
+      { id: targetShelterId, sectorId, code: "SYNTHETIC-PATCH-RACE-TARGET", capacity: 3 },
+      { id: sourceShelterId, sectorId, code: "SYNTHETIC-PATCH-RACE-SOURCE", capacity: 2 },
+    ]);
+    const occupantIds = [randomUUID(), randomUUID()];
+    const movingFamilyId = randomUUID();
+    await db.insert(familiesTable).values([
+      ...occupantIds.map((id, index) => ({
+        id, campId, sectorId, shelterId: targetShelterId,
+        headName: `Synthetic PATCH race occupant ${index + 1}`,
+        createdById: actorId, status: "ACTIVE" as const,
+      })),
+      {
+        id: movingFamilyId, campId, sectorId, shelterId: sourceShelterId,
+        headName: "Synthetic PATCH race moving family",
+        createdById: actorId, status: "ACTIVE",
+      },
+    ]);
+
+    const responses = await race(
+      `SELECT id FROM shelter_units WHERE id = '${targetShelterId}' FOR UPDATE`,
+      'from "shelter_units"',
+      [
+        () => request(`/shelters/${targetShelterId}`, {
+          capacity: 2,
+          expectedVersion: 1,
+        }, "PATCH"),
+        () => request(`/families/${movingFamilyId}`, {
+          shelterId: targetShelterId,
+          expectedVersion: 1,
+        }, "PATCH"),
+      ],
+    );
+    const capacityReductionSucceeded = responses[0].status === 200;
+    const moveSucceeded = responses[1].status === 200;
+    assert.notEqual(moveSucceeded, capacityReductionSucceeded, "Exactly one competing PATCH succeeds");
+    assert.equal(responses[1].status, moveSucceeded ? 200 : 400);
+    if (!moveSucceeded) {
+      assert.deepEqual(responses[1].body, {
+        error: "Shelter has reached its capacity",
+      });
+    }
+    assert.equal(responses[0].status, capacityReductionSucceeded ? 200 : 409);
+    if (!capacityReductionSucceeded) {
+      assert.deepEqual(responses[0].body, {
+        error: "Shelter capacity cannot be lower than its current assignments",
+      });
+    }
+
+    const shelter = await database.pool.query(
+      "SELECT capacity, version FROM shelter_units WHERE id = $1",
+      [targetShelterId],
+    );
+    assert.equal(shelter.rowCount, 1);
+    assert.equal(shelter.rows[0].capacity, capacityReductionSucceeded ? 2 : 3);
+    assert.equal(shelter.rows[0].version, capacityReductionSucceeded ? 2 : 1);
+    const assignments = await database.pool.query(
+      "SELECT id FROM families WHERE shelter_id = $1 AND archived_at IS NULL ORDER BY id",
+      [targetShelterId],
+    );
+    assert.equal(assignments.rowCount, capacityReductionSucceeded ? 2 : 3);
+    assert(
+      occupantIds.every((id) => assignments.rows.some((row) => row.id === id)),
+      "Existing occupants remain assigned",
+    );
+    assert(assignments.rowCount! <= shelter.rows[0].capacity, "The final assignment count must not exceed capacity");
+    const movingFamily = await database.pool.query(
+      "SELECT shelter_id, version FROM families WHERE id = $1",
+      [movingFamilyId],
+    );
+    assert.equal(movingFamily.rowCount, 1);
+    assert.equal(movingFamily.rows[0].shelter_id, moveSucceeded ? targetShelterId : sourceShelterId);
+    assert.equal(movingFamily.rows[0].version, moveSucceeded ? 2 : 1, "A rejected move must not partially update the family");
+    const history = await database.pool.query(
+      "SELECT from_shelter_id, to_shelter_id FROM family_assignment_history WHERE family_id = $1",
+      [movingFamilyId],
+    );
+    assert.equal(history.rowCount, moveSucceeded ? 1 : 0, "A rejected move must not write assignment history");
+    if (moveSucceeded) {
+      assert.deepEqual(history.rows[0], {
+        from_shelter_id: sourceShelterId,
+        to_shelter_id: targetShelterId,
+      });
+    }
+  });
+
   test("reducing shelter capacity and importing cannot leave assignments above capacity", async () => {
     const { db, shelterUnitsTable, familiesTable } = database;
     const shelterId = randomUUID();
+
     await db.insert(shelterUnitsTable).values({
       id: shelterId, sectorId, code: "SYNTHETIC-CAPACITY-RACE", capacity: 3,
     });
@@ -947,7 +1073,6 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     const after = await database.pool.query("SELECT count(*)::int AS families FROM families");
     assert.equal(after.rows[0].families, before.rows[0].families + Number(importSucceeded));
   });
-
   test("a stale family archive cannot overwrite a concurrent family edit or add an archive audit", async () => {
     const { db, shelterUnitsTable, familiesTable } = database;
     const shelterId = randomUUID();
@@ -1004,4 +1129,4 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
       actor_staff_id: actorId,
     }], "Only the committed family edit is audited; rejected archive is not");
   });
-  });
+});
