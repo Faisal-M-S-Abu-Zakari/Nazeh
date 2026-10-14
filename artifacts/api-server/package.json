@@ -9,7 +9,8 @@
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test src/*.test.ts src/**/*.test.ts",
-    "test:family-import-postgres": "FAMILY_IMPORT_POSTGRES_TEST=1 tsx --test src/family-import.postgres.test.ts"
+    "test:family-import-postgres": "FAMILY_IMPORT_POSTGRES_TEST=1 tsx --test src/family-import.postgres.test.ts",
+    "test:family-shelter-archive-postgres": "FAMILY_SHELTER_ARCHIVE_POSTGRES_TEST=1 tsx --test src/family-shelter-archive.postgres.test.ts"
   },
   "dependencies": {
     "@replit/connectors-sdk": "^0.4.1",

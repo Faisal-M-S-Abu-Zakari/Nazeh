@@ -16,8 +16,8 @@ export function sortedUniqueShelterIds(values: Array<string | null | undefined>)
 }
 
 export async function lockShelterRows(tx: any, shelterIds: Array<string | null | undefined>) {
-  // Capacity-changing writes must lock every affected shelter before counting
-  // assignments. Keep acquisition order stable when imports and reassignments overlap.
+  // Assignment, capacity, and archive writes share the same shelter-row lock.
+  // Keep acquisition order stable when multiple shelters are affected.
   const ids = sortedUniqueShelterIds(shelterIds);
   if (!ids.length) return [];
   return tx
