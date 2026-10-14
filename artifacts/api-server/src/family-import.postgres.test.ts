@@ -1146,4 +1146,59 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
       actor_staff_id: actorId,
     }], "The rejected repeated archive must not create a second audit event");
   });
+
+  test("simultaneous family archives with the same version create one archive record", async () => {
+    const { db, shelterUnitsTable, familiesTable } = database;
+    const shelterId = randomUUID();
+    const familyId = randomUUID();
+    await db.insert(shelterUnitsTable).values({
+      id: shelterId, sectorId, code: "SYNTHETIC-SIMULTANEOUS-FAMILY-ARCHIVE", capacity: 3,
+    });
+    await db.insert(familiesTable).values({
+      id: familyId, campId, sectorId, shelterId,
+      headName: "Synthetic family for simultaneous archive",
+      createdById: actorId, status: "ACTIVE",
+    });
+
+    const responses = await race(
+      `SELECT id FROM shelter_units WHERE id = '${shelterId}' FOR UPDATE`,
+      'from "shelter_units"',
+      [
+        () => request(`/families/${familyId}/archive`, { expectedVersion: 1 }, "PATCH"),
+        () => request(`/families/${familyId}/archive`, { expectedVersion: 1 }, "PATCH"),
+      ],
+    );
+
+    const successes = responses.filter((response) => response.status === 200);
+    const conflicts = responses.filter((response) => response.status === 409);
+    assert.equal(successes.length, 1, "Exactly one archive request must succeed");
+    assert.equal(conflicts.length, 1, "The competing archive must return a conflict");
+    assert.deepEqual(conflicts[0].body, {
+      error: "Family is already archived",
+      code: "FAMILY_ALREADY_ARCHIVED",
+      currentVersion: 2,
+    });
+
+    const [persistedFamily, audits] = await Promise.all([
+      database.pool.query(
+        "SELECT status, archived_at, version FROM families WHERE id = $1",
+        [familyId],
+      ),
+      database.pool.query(
+        `SELECT action, entity_type, entity_id, actor_staff_id
+         FROM sync_audit_events WHERE entity_id = $1 ORDER BY action`,
+        [familyId],
+      ),
+    ]);
+    assert.equal(persistedFamily.rowCount, 1);
+    assert.equal(persistedFamily.rows[0].status, "ARCHIVED");
+    assert(persistedFamily.rows[0].archived_at, "The winning archive must set archived_at");
+    assert.equal(persistedFamily.rows[0].version, 2, "The family version must advance exactly once");
+    assert.deepEqual(audits.rows, [{
+      action: "ARCHIVE",
+      entity_type: "FAMILY",
+      entity_id: familyId,
+      actor_staff_id: actorId,
+    }], "Only the winning archive may write an audit event");
+  });
 });
