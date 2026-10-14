@@ -1096,7 +1096,20 @@ router.patch("/families/:familyId/archive", allowRoles(...familyApprovers), asyn
         version: familiesTable.version,
         archivedAt: familiesTable.archivedAt,
       }).from(familiesTable).where(eq(familiesTable.id, params.familyId)).limit(1);
-      if (latest && !latest.archivedAt && latest.version !== body.expectedVersion) {
+      if (!latest) {
+        return { statusCode: 404, responseBody: { error: "Family not found" } };
+      }
+      if (latest.archivedAt) {
+        return {
+          statusCode: 409,
+          responseBody: {
+            error: "Family is already archived",
+            code: "FAMILY_ALREADY_ARCHIVED",
+            currentVersion: latest.version,
+          },
+        };
+      }
+      if (latest.version !== body.expectedVersion) {
         return conflict("Family", latest);
       }
       return { statusCode: 404, responseBody: { error: "Family not found" } };

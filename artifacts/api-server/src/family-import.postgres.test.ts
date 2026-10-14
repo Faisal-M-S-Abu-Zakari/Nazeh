@@ -1312,4 +1312,42 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
       actor_staff_id: actorId,
     }], "Only the committed family edit is audited; rejected archive is not");
   });
+
+  test("repeated family archive returns an explicit already-archived conflict without another audit", async () => {
+    const { db, shelterUnitsTable, familiesTable } = database;
+    const shelterId = randomUUID();
+    const familyId = randomUUID();
+    await db.insert(shelterUnitsTable).values({
+      id: shelterId, sectorId, code: "SYNTHETIC-REPEATED-FAMILY-ARCHIVE", capacity: 3,
+    });
+    await db.insert(familiesTable).values({
+      id: familyId, campId, sectorId, shelterId,
+      headName: "Synthetic family to archive twice",
+      createdById: actorId, status: "ACTIVE",
+    });
+
+    const archiveBody = { expectedVersion: 1 };
+    const firstResponse = await request(`/families/${familyId}/archive`, archiveBody, "PATCH");
+    const retryResponse = await request(`/families/${familyId}/archive`, archiveBody, "PATCH");
+
+    assert.equal(firstResponse.status, 200, "The first archive request must commit");
+    assert.equal(retryResponse.status, 409, "A repeated archive must identify the already-archived state");
+    assert.deepEqual(retryResponse.body, {
+      error: "Family is already archived",
+      code: "FAMILY_ALREADY_ARCHIVED",
+      currentVersion: 2,
+    });
+
+    const audits = await database.pool.query(
+      `SELECT action, entity_type, entity_id, actor_staff_id
+       FROM sync_audit_events WHERE entity_id = $1 ORDER BY action`,
+      [familyId],
+    );
+    assert.deepEqual(audits.rows, [{
+      action: "ARCHIVE",
+      entity_type: "FAMILY",
+      entity_id: familyId,
+      actor_staff_id: actorId,
+    }], "The rejected repeated archive must not create a second audit event");
+  });
 });
