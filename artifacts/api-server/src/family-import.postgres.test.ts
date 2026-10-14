@@ -628,8 +628,13 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
   test("reducing shelter capacity and importing cannot leave assignments above capacity", async () => {
     const shelterId = randomUUID();
     await createShelter(shelterId, 3, "SYNTHETIC-CAPACITY-RACE");
-    await Promise.all([0, 1].map((index) => createExistingFamily(shelterId, `capacity-occupant-${index}`)));
-    const imported = family(`capacity-import-${randomUUID()}`, shelterId);
+    const occupants = await Promise.all([0, 1].map((index) =>
+      createExistingFamily(shelterId, `capacity-occupant-${index}`),
+    ));
+    const imported = {
+      ...family(`capacity-import-${randomUUID()}`, shelterId),
+      headName: `Synthetic capacity import ${randomUUID()}`,
+    };
     const responses = await race(
       `SELECT id FROM shelter_units WHERE id = '${shelterId}' FOR UPDATE`,
       'from "shelter_units"',
@@ -653,19 +658,35 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
         error: "Shelter capacity cannot be lower than its current assignments",
       });
     }
-    const [shelter, assignments, members] = await Promise.all([
-      database.pool.query("SELECT capacity FROM shelter_units WHERE id = $1", [shelterId]),
+    const [shelter, assignments, members, importedFamily] = await Promise.all([
+      database.pool.query("SELECT capacity, version FROM shelter_units WHERE id = $1", [shelterId]),
       database.pool.query(
-        "SELECT count(*)::int AS count FROM families WHERE shelter_id = $1 AND archived_at IS NULL",
+        "SELECT id FROM families WHERE shelter_id = $1 AND archived_at IS NULL ORDER BY id",
         [shelterId],
       ),
       database.pool.query(
         "SELECT national_id FROM family_members WHERE national_id = ANY($1::text[])",
         [imported.members.map((member) => member.nationalId)],
       ),
+      database.pool.query("SELECT id FROM families WHERE head_name = $1", [imported.headName]),
     ]);
-    assert(assignments.rows[0].count <= shelter.rows[0].capacity);
+    assert.equal(shelter.rows[0].capacity, capacityReductionSucceeded ? 2 : 3);
+    assert.equal(shelter.rows[0].version, capacityReductionSucceeded ? 2 : 1);
+    assert.equal(assignments.rowCount, importSucceeded ? 3 : 2);
+    assert(
+      occupants.every(({ id }) => assignments.rows.some((row) => row.id === id)),
+      "Both original shelter occupants must remain assigned",
+    );
+    assert(assignments.rowCount! <= shelter.rows[0].capacity);
     assert.equal(members.rowCount, importSucceeded ? 2 : 0);
+    assert.equal(importedFamily.rowCount, importSucceeded ? 1 : 0);
+    if (importSucceeded) {
+      assert.equal(
+        new Set(members.rows.map((row) => row.national_id)).size,
+        2,
+        "Both intended imported members must persist",
+      );
+    }
   });
 
   test("family archive and shelter capacity PATCH requests serialize without partial writes", async () => {
