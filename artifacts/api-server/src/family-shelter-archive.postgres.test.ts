@@ -270,6 +270,50 @@ describe("family transfer and shelter archive serialization on isolated PostgreS
     }
   });
 
+  test("simultaneous shelter archives with the same version create one archive record", async () => {
+    const { db, shelterUnitsTable } = database;
+    const shelterId = randomUUID();
+    await db.insert(shelterUnitsTable).values({
+      id: shelterId,
+      sectorId,
+      code: "SYNTHETIC-SIMULTANEOUS-SHELTER-ARCHIVE",
+      capacity: 3,
+    });
+
+    const responses = await raceShelterPatchRequests(shelterId, [
+      () => request(`/shelters/${shelterId}/archive`, { expectedVersion: 1 }),
+      () => request(`/shelters/${shelterId}/archive`, { expectedVersion: 1 }),
+    ]);
+
+    const successes = responses.filter((response) => response.status === 200);
+    const conflicts = responses.filter((response) => response.status === 409);
+    assert.equal(successes.length, 1, "Exactly one archive request must succeed");
+    assert.equal(conflicts.length, 1, "The competing archive must report the committed archived state");
+    assert.deepEqual(conflicts[0].body, {
+      error: "Shelter is already archived",
+      code: "SHELTER_ALREADY_ARCHIVED",
+      currentVersion: 2,
+    });
+
+    const [persistedShelter, audits] = await Promise.all([
+      database.pool.query("SELECT archived_at, version FROM shelter_units WHERE id = $1", [shelterId]),
+      database.pool.query(
+        `SELECT action, entity_type, entity_id, actor_staff_id
+         FROM sync_audit_events WHERE entity_id = $1`,
+        [shelterId],
+      ),
+    ]);
+    assert.equal(persistedShelter.rowCount, 1);
+    assert(persistedShelter.rows[0].archived_at, "The winning archive must set archived_at");
+    assert.equal(persistedShelter.rows[0].version, 2, "The shelter version must advance exactly once");
+    assert.deepEqual(audits.rows, [{
+      action: "ARCHIVE",
+      entity_type: "SHELTER",
+      entity_id: shelterId,
+      actor_staff_id: actorId,
+    }], "Only the winning archive may write an audit event");
+  });
+
   test("archiving after a completed transfer retains and keeps the active family manageable", async () => {
     const { db, shelterUnitsTable, familiesTable } = database;
     const targetShelterId = randomUUID();

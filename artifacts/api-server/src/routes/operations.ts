@@ -785,7 +785,25 @@ router.patch("/shelters/:shelterId/archive", allowRoles(...familyApprovers), asy
     const [updated] = await tx.update(shelterUnitsTable).set({
       archivedAt: new Date(), version: sql`${shelterUnitsTable.version} + 1`, updatedAt: new Date(),
     }).where(and(eq(shelterUnitsTable.id, params.shelterId), eq(shelterUnitsTable.version, body.expectedVersion), isNull(shelterUnitsTable.archivedAt))).returning();
-    if (!updated) return { statusCode: 404, responseBody: { error: "Shelter not found" } };
+    if (!updated) {
+      const [current] = await tx.select({
+        version: shelterUnitsTable.version,
+        archivedAt: shelterUnitsTable.archivedAt,
+      }).from(shelterUnitsTable).where(eq(shelterUnitsTable.id, params.shelterId)).limit(1);
+      if (!current) return { statusCode: 404, responseBody: { error: "Shelter not found" } };
+      if (current.archivedAt) {
+        return {
+          statusCode: 409,
+          responseBody: {
+            error: "Shelter is already archived",
+            code: "SHELTER_ALREADY_ARCHIVED",
+            currentVersion: current.version,
+          },
+        };
+      }
+      if (current.version !== body.expectedVersion) return conflict("Shelter", current);
+      return { statusCode: 404, responseBody: { error: "Shelter not found" } };
+    }
     await audit(tx, actorId, "ARCHIVE", "SHELTER", updated.id, {
       expectedVersion: body.expectedVersion,
       retainedActiveFamilyAssignmentCount: Number(assignedFamilies?.value ?? 0),
