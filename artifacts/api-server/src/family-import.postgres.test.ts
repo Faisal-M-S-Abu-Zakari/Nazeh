@@ -422,6 +422,45 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     assert.deepEqual(successfulClaim.rows, [{ status_code: 201 }]);
   });
 
+  test("replaying a successful import returns its saved result without creating duplicates", async () => {
+    const imported = family(`successful-replay-${randomUUID()}`);
+    const key = `sha256-${createHash("sha256").update(randomUUID()).digest("hex")}`;
+    const operation = `importFamilies:${campId}`;
+    const counts = async () => {
+      const result = await database.pool.query(
+        `SELECT (SELECT count(*)::int FROM families) AS families,
+                (SELECT count(*)::int FROM family_members) AS members,
+                (SELECT count(*)::int FROM sync_audit_events) AS audits,
+                (SELECT count(*)::int FROM idempotency_keys) AS claims`,
+      );
+      return result.rows[0];
+    };
+
+    const before = await counts();
+    const original = await request("/families/import", { campId, families: [imported] }, "POST", key);
+    assert.equal(original.status, 201);
+    assert.deepEqual(original.body, { importedCount: 1 });
+    const afterOriginal = await counts();
+    assert.equal(afterOriginal.families, before.families + 1);
+    assert.equal(afterOriginal.members, before.members + 2);
+    assert.equal(afterOriginal.audits, before.audits + 1);
+    assert.equal(afterOriginal.claims, before.claims + 1);
+
+    const replay = await request("/families/import", { campId, families: [imported] }, "POST", key);
+    assert.deepEqual(replay, original, "A successful retry must return the original status and response");
+    assert.deepEqual(
+      await counts(),
+      afterOriginal,
+      "A successful retry must not add families, members, audit events, or idempotency rows",
+    );
+    const savedClaim = await database.pool.query(
+      `SELECT status_code FROM idempotency_keys
+       WHERE user_id = $1 AND operation = $2 AND key = $3`,
+      [actorId, operation, key],
+    );
+    assert.deepEqual(savedClaim.rows, [{ status_code: 201 }]);
+  });
+
   test("concurrent import and family reassignment cannot exceed shelter capacity", async () => {
     const targetShelterId = randomUUID();
     const sourceShelterId = randomUUID();
