@@ -336,6 +336,87 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
     }]);
   });
 
+  test("an import rejects duplicate normalized identities before saving any family and leaves its key reusable", async () => {
+    const repeatedNationalId = `synthetic ${randomUUID()}`;
+    const spacedNationalId = `SYNTHETIC\t ${repeatedNationalId.slice("synthetic ".length).toUpperCase()}`;
+    const familyNames = [0, 1, 2].map((index) => `Duplicate batch family ${index} ${randomUUID()}`);
+    const attemptedFamilies = [
+      { ...family(`batch-unique-${randomUUID()}`), headName: familyNames[0] },
+      { ...family(spacedNationalId), headName: familyNames[1] },
+      { ...family(repeatedNationalId), headName: familyNames[2] },
+    ];
+    const correctedFamilies = [
+      attemptedFamilies[0],
+      attemptedFamilies[1],
+      { ...family(`batch-corrected-${randomUUID()}`), headName: familyNames[2] },
+    ];
+    const key = `sha256-${createHash("sha256").update(randomUUID()).digest("hex")}`;
+    const operation = `importFamilies:${campId}`;
+    const before = await database.pool.query(
+      `SELECT (SELECT count(*)::int FROM families) AS families,
+              (SELECT count(*)::int FROM family_members) AS members,
+              (SELECT count(*)::int FROM sync_audit_events) AS audits,
+              (SELECT count(*)::int FROM idempotency_keys) AS claims`,
+    );
+
+    const rejected = await request("/families/import", { campId, families: attemptedFamilies }, "POST", key);
+    assert.equal(rejected.status, 400);
+    assert.deepEqual(rejected.body, { error: "يوجد رقم هوية مكرر بين أفراد الملف." });
+    assert.equal(
+      (await database.pool.query(
+        "SELECT id FROM families WHERE head_name = ANY($1::text[])",
+        [familyNames],
+      )).rowCount,
+      0,
+      "The rejected batch must not leave any families",
+    );
+    const afterRejection = await database.pool.query(
+      `SELECT (SELECT count(*)::int FROM families) AS families,
+              (SELECT count(*)::int FROM family_members) AS members,
+              (SELECT count(*)::int FROM sync_audit_events) AS audits,
+              (SELECT count(*)::int FROM idempotency_keys) AS claims`,
+    );
+    assert.deepEqual(afterRejection.rows, before.rows, "A rejected duplicate batch must have no persisted side effects");
+    const rejectedClaim = await database.pool.query(
+      `SELECT status_code FROM idempotency_keys
+       WHERE user_id = $1 AND operation = $2 AND key = $3`,
+      [actorId, operation, key],
+    );
+    assert.equal(rejectedClaim.rowCount, 0, "The rejected request must not consume its idempotency key");
+
+    const retried = await request("/families/import", { campId, families: correctedFamilies }, "POST", key);
+    assert.equal(retried.status, 201);
+    assert.deepEqual(retried.body, { importedCount: correctedFamilies.length });
+    const savedBatch = await database.pool.query(
+      `SELECT f.head_name, count(fm.id)::int AS members
+       FROM families f
+       LEFT JOIN family_members fm ON fm.family_id = f.id
+       WHERE f.head_name = ANY($1::text[])
+       GROUP BY f.head_name ORDER BY f.head_name`,
+      [familyNames],
+    );
+    assert.equal(savedBatch.rowCount, correctedFamilies.length);
+    assert(savedBatch.rows.every((row) => row.members === 2), "The corrected retry must save every family and member");
+    const afterRetry = await database.pool.query(
+      `SELECT (SELECT count(*)::int FROM families) AS families,
+              (SELECT count(*)::int FROM family_members) AS members,
+              (SELECT count(*)::int FROM sync_audit_events) AS audits,
+              (SELECT count(*)::int FROM idempotency_keys) AS claims`,
+    );
+    assert.equal(afterRetry.rows[0].families, before.rows[0].families + correctedFamilies.length);
+    assert.equal(afterRetry.rows[0].members, before.rows[0].members + correctedFamilies.length * 2);
+    assert.equal(afterRetry.rows[0].audits, before.rows[0].audits + correctedFamilies.length);
+    assert.equal(afterRetry.rows[0].claims, before.rows[0].claims + 1);
+    assert.deepEqual(
+      (await database.pool.query(
+        `SELECT status_code FROM idempotency_keys
+         WHERE user_id = $1 AND operation = $2 AND key = $3`,
+        [actorId, operation, key],
+      )).rows,
+      [{ status_code: 201 }],
+    );
+  });
+
   test("import and manual creation cannot both take the final shelter place", async () => {
     const shelterId = randomUUID();
     await createShelter(shelterId, 2, "SYNTHETIC-LAST-PLACE");
