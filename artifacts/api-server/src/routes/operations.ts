@@ -602,12 +602,23 @@ const changedByLegacy = alias(usersTable, "assignment_changed_by_legacy");
 async function getFamilyDetail(tx: any, familyId: string) {
   const [family] = await tx.select().from(familiesTable).where(eq(familiesTable.id, familyId)).limit(1);
   if (!family) return undefined;
+  const [shelter] = family.shelterId
+    ? await tx
+        .select({
+          id: shelterUnitsTable.id,
+          code: shelterUnitsTable.code,
+          archivedAt: shelterUnitsTable.archivedAt,
+        })
+        .from(shelterUnitsTable)
+        .where(eq(shelterUnitsTable.id, family.shelterId))
+        .limit(1)
+    : [];
   const members = await tx
     .select()
     .from(familyMembersTable)
     .where(eq(familyMembersTable.familyId, familyId))
     .orderBy(familyMembersTable.createdAt);
-  return { ...family, members };
+  return { ...family, shelter: shelter ?? null, members };
 }
 
 async function validatePlacement(
@@ -820,7 +831,22 @@ router.get("/families", allowRoles(...familyManagers), async (req, res): Promise
     .from(familiesTable)
     .where(and(isNull(familiesTable.archivedAt), familyScope(staff)))
     .orderBy(desc(familiesTable.createdAt));
-  res.json(ListFamiliesResponse.parse(rows));
+  const shelterIds = rows.flatMap((family) => family.shelterId ? [family.shelterId] : []);
+  const shelters = shelterIds.length > 0
+    ? await db
+        .select({
+          id: shelterUnitsTable.id,
+          code: shelterUnitsTable.code,
+          archivedAt: shelterUnitsTable.archivedAt,
+        })
+        .from(shelterUnitsTable)
+        .where(inArray(shelterUnitsTable.id, shelterIds))
+    : [];
+  const shelterById = new Map(shelters.map((shelter) => [shelter.id, shelter]));
+  res.json(ListFamiliesResponse.parse(rows.map((family) => ({
+    ...family,
+    shelter: family.shelterId ? shelterById.get(family.shelterId) ?? null : null,
+  }))));
 });
 
 router.post("/families/import", allowRoles("ADMIN", "MANAGER"), async (req, res): Promise<void> => {

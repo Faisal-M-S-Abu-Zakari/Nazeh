@@ -5,6 +5,7 @@
  * AL-AQSA Camp persistent staff operations API
  * OpenAPI spec version: 0.2.0
  */
+import type { FamilyShelterAssignment } from './familyShelterAssignment';
 import type { FamilyStatus } from './familyStatus';
 
 export interface Family {
@@ -13,6 +14,7 @@ export interface Family {
   sectorId: string;
   /** @nullable */
   shelterId?: string | null;
+  shelter: FamilyShelterAssignment | null;
   headName: string;
   /** @nullable */
   headPhone?: string | null;

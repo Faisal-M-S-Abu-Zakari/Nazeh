@@ -2395,6 +2395,11 @@ export const ListFamiliesResponseItem = zod.object({
   "campId": zod.uuid(),
   "sectorId": zod.uuid(),
   "shelterId": zod.uuid().nullish(),
+  "shelter": zod.union([zod.object({
+  "id": zod.uuid(),
+  "code": zod.string(),
+  "archivedAt": zod.coerce.date().nullable()
+}),zod.null()]),
   "headName": zod.string(),
   "headPhone": zod.string().nullish(),
   "delegateId": zod.uuid().nullish(),
@@ -2466,6 +2471,11 @@ export const CreateFamilyResponse = zod.object({
   "campId": zod.uuid(),
   "sectorId": zod.uuid(),
   "shelterId": zod.uuid().nullish(),
+  "shelter": zod.union([zod.object({
+  "id": zod.uuid(),
+  "code": zod.string(),
+  "archivedAt": zod.coerce.date().nullable()
+}),zod.null()]),
   "headName": zod.string(),
   "headPhone": zod.string().nullish(),
   "delegateId": zod.uuid().nullish(),
@@ -2572,6 +2582,11 @@ export const GetFamilyResponse = zod.object({
   "campId": zod.uuid(),
   "sectorId": zod.uuid(),
   "shelterId": zod.uuid().nullish(),
+  "shelter": zod.union([zod.object({
+  "id": zod.uuid(),
+  "code": zod.string(),
+  "archivedAt": zod.coerce.date().nullable()
+}),zod.null()]),
   "headName": zod.string(),
   "headPhone": zod.string().nullish(),
   "delegateId": zod.uuid().nullish(),
@@ -2664,6 +2679,11 @@ export const UpdateFamilyResponse = zod.object({
   "campId": zod.uuid(),
   "sectorId": zod.uuid(),
   "shelterId": zod.uuid().nullish(),
+  "shelter": zod.union([zod.object({
+  "id": zod.uuid(),
+  "code": zod.string(),
+  "archivedAt": zod.coerce.date().nullable()
+}),zod.null()]),
   "headName": zod.string(),
   "headPhone": zod.string().nullish(),
   "delegateId": zod.uuid().nullish(),
@@ -2720,6 +2740,11 @@ export const ArchiveFamilyResponse = zod.object({
   "campId": zod.uuid(),
   "sectorId": zod.uuid(),
   "shelterId": zod.uuid().nullish(),
+  "shelter": zod.union([zod.object({
+  "id": zod.uuid(),
+  "code": zod.string(),
+  "archivedAt": zod.coerce.date().nullable()
+}),zod.null()]),
   "headName": zod.string(),
   "headPhone": zod.string().nullish(),
   "delegateId": zod.uuid().nullish(),
@@ -2777,6 +2802,11 @@ export const ApproveFamilyResponse = zod.object({
   "campId": zod.uuid(),
   "sectorId": zod.uuid(),
   "shelterId": zod.uuid().nullish(),
+  "shelter": zod.union([zod.object({
+  "id": zod.uuid(),
+  "code": zod.string(),
+  "archivedAt": zod.coerce.date().nullable()
+}),zod.null()]),
   "headName": zod.string(),
   "headPhone": zod.string().nullish(),
   "delegateId": zod.uuid().nullish(),

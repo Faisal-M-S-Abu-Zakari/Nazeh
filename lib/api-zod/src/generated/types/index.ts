@@ -99,6 +99,7 @@ export * from './familyMemberGender';
 export * from './familyMemberInput';
 export * from './familyMemberInputGender';
 export * from './familyReceivedAid';
+export * from './familyShelterAssignment';
 export * from './familyStatus';
 export * from './familyUpdate';
 export * from './forbiddenResponse';

@@ -357,6 +357,19 @@ describe("family transfer and shelter archive serialization on isolated PostgreS
       targetShelterId,
     );
     assert.equal((familyDetail.body as { shelterId: string | null }).shelterId, targetShelterId);
+    const listedFamily = (familyList.body as Array<{
+      id: string;
+      shelter: { id: string; code: string; archivedAt: string | null } | null;
+    }>).find((family) => family.id === movingFamilyId);
+    const detailedFamily = familyDetail.body as {
+      shelter: { id: string; code: string; archivedAt: string | null } | null;
+    };
+    assert.equal(listedFamily?.shelter?.id, targetShelterId);
+    assert.equal(listedFamily?.shelter?.code, "SYNTHETIC-ARCHIVE-RETAINED");
+    assert.match(listedFamily?.shelter?.archivedAt ?? "", /^\d{4}-\d{2}-\d{2}T/);
+    assert.equal(detailedFamily.shelter?.id, targetShelterId);
+    assert.equal(detailedFamily.shelter?.code, "SYNTHETIC-ARCHIVE-RETAINED");
+    assert.notEqual(detailedFamily.shelter?.archivedAt, null);
     assert.equal(
       (shelterList.body as Array<{ id: string }>).some((shelter) => shelter.id === targetShelterId),
       false,

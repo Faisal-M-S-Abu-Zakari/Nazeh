@@ -1125,12 +1125,20 @@ export interface FamilyMember {
   updatedAt: string;
 }
 
+export interface FamilyShelterAssignment {
+  id: string;
+  code: string;
+  /** @nullable */
+  archivedAt: string | null;
+}
+
 export interface Family {
   id: string;
   campId: string;
   sectorId: string;
   /** @nullable */
   shelterId?: string | null;
+  shelter: FamilyShelterAssignment | null;
   headName: string;
   /** @nullable */
   headPhone?: string | null;
