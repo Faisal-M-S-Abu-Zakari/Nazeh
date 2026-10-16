@@ -77,6 +77,8 @@ export * from './displacedPersonUpdate';
 export * from './errorResponse';
 export * from './family';
 export * from './familyApproval';
+export * from './familyAssignmentChange';
+export * from './familyAssignmentHistory';
 export * from './familyDetail';
 export * from './familyHeadNeed';
 export * from './familyHeadNeedInput';

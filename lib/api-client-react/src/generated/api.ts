@@ -69,6 +69,7 @@ import type {
   DisplacedPersonPage,
   DisplacedPersonUpdate,
   FamilyApproval,
+  FamilyAssignmentHistory,
   FamilyDetail,
   FamilyHeadNeed,
   FamilyHeadNeedInput,
@@ -6029,12 +6030,83 @@ export function useGetFamily<TData = Awaited<ReturnType<typeof getFamily>>, TErr
 
 
 
+export const getGetFamilyAssignmentHistoryUrl = (familyId: string,) => {
+
+
+
+
+  return `/api/sync/families/${familyId}/assignment-history`
+}
+
+export const getFamilyAssignmentHistory = async (familyId: string, options?: Parameters<typeof customFetch>[1]): Promise<FamilyAssignmentHistory> => {
+
+  return customFetch<FamilyAssignmentHistory>(getGetFamilyAssignmentHistoryUrl(familyId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFamilyAssignmentHistoryQueryKey = (familyId: string,) => {
+    return [
+    `/api/sync/families/${familyId}/assignment-history`
+    ] as const;
+    }
+
+
+export const getGetFamilyAssignmentHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getFamilyAssignmentHistory>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(familyId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFamilyAssignmentHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFamilyAssignmentHistoryQueryKey(familyId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFamilyAssignmentHistory>>> = ({ signal }) => getFamilyAssignmentHistory(familyId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: familyId !== null && familyId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFamilyAssignmentHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFamilyAssignmentHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getFamilyAssignmentHistory>>>
+export type GetFamilyAssignmentHistoryQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
+
+
+
+export function useGetFamilyAssignmentHistory<TData = Awaited<ReturnType<typeof getFamilyAssignmentHistory>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(
+ familyId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFamilyAssignmentHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFamilyAssignmentHistoryQueryOptions(familyId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getUpdateFamilyUrl = (familyId: string,) => {
 
 
 
 
-  return `/api/sync/families/${familyId}`
+  return `/api/sync/families/${familyId}/assignment-history`
 }
 
 export const updateFamily = async (familyId: string,

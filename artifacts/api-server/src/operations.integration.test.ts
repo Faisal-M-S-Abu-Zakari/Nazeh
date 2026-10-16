@@ -241,11 +241,50 @@ test("family workflow stays isolated and security completion requires approval",
       body: JSON.stringify({ capacity: 3, expectedVersion: shelter.version }),
     });
     assert.equal(updatedShelter.status, 200);
+    const assignedFamily = await fetch(`${baseUrl}/sync/families/${family.id}`, {
+      method: "PATCH", headers: headers("manager"),
+      body: JSON.stringify({ shelterId: shelter.id, expectedVersion: 2 }),
+    });
+    assert.equal(assignedFamily.status, 200);
     const archivedShelter = await fetch(`${baseUrl}/sync/shelters/${shelter.id}/archive`, {
       method: "PATCH", headers: headers("manager"),
       body: JSON.stringify({ expectedVersion: shelter.version + 1 }),
     });
     assert.equal(archivedShelter.status, 200);
+    const historyResponse = await fetch(`${baseUrl}/sync/families/${family.id}/assignment-history`, {
+      headers: headers("manager"),
+    });
+    assert.equal(historyResponse.status, 200);
+    const history = await historyResponse.json() as Array<{
+      fromShelterCode: string | null;
+      toShelterCode: string | null;
+      toShelterArchived: boolean;
+      changedByName: string | null;
+      reason: string | null;
+    }>;
+    assert.equal(history.length, 1);
+    assert.equal(history[0]?.fromShelterCode, null);
+    assert.equal(history[0]?.toShelterCode, shelterCode);
+    assert.equal(history[0]?.toShelterArchived, true, "archived shelter names remain visible in assignment history");
+    assert.equal(history[0]?.changedByName, canonicalManager.name);
+    assert.equal(history[0]?.reason, "Operational reassignment");
+    const delegateHistory = await fetch(`${baseUrl}/sync/families/${family.id}/assignment-history`, {
+      headers: headers("delegateOne"),
+    });
+    assert.equal(delegateHistory.status, 200, "the assigned delegate can read the family's assignment history");
+    const hiddenDelegateHistory = await fetch(`${baseUrl}/sync/families/${family.id}/assignment-history`, {
+      headers: headers("delegateTwo"),
+    });
+    assert.equal(hiddenDelegateHistory.status, 404, "other delegates cannot read the family's history");
+    const deniedHistory = await fetch(`${baseUrl}/sync/families/${family.id}/assignment-history`, {
+      headers: headers("securityMember"),
+    });
+    assert.equal(deniedHistory.status, 403, "unauthorized roles cannot read assignment history");
+    const unchangedFamily = await fetch(`${baseUrl}/sync/families/${family.id}`, {
+      headers: headers("manager"),
+    });
+    const unchangedFamilyBody = await unchangedFamily.json() as { shelterId: string | null };
+    assert.equal(unchangedFamilyBody.shelterId, shelter.id, "reading assignment history does not change the current shelter");
     await db.insert(tasks).values({
       id: ids.task, title: "مهمة اختبار", description: "نتيجة اختبار", location: "القطاع الشمالي",
       assignedToId: ids.securityMember, createdById: ids.manager,

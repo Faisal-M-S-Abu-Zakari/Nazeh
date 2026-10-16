@@ -1203,6 +1203,17 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+  /sync/families/{familyId}/assignment-history:
+    get:
+      operationId: getFamilyAssignmentHistory
+      tags: [camp-operations]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/FamilyId" }]
+      responses:
+        "200": { description: Family assignment history, content: { application/json: { schema: { $ref: "#/components/schemas/FamilyAssignmentHistory" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
     patch:
       operationId: updateFamily
       tags: [camp-operations]
@@ -2385,6 +2396,26 @@ components:
           required: [members]
           properties:
             members: { type: array, items: { $ref: "#/components/schemas/FamilyMember" } }
+    FamilyAssignmentChange:
+      type: object
+      additionalProperties: false
+      required: [id, fromShelterId, fromShelterCode, fromShelterArchived, toShelterId, toShelterCode, toShelterArchived, fromDelegateId, fromDelegateName, toDelegateId, toDelegateName, changedByName, reason, changedAt]
+      properties:
+        id: { type: string, format: uuid }
+        fromShelterId: { type: ["string", "null"], format: uuid }
+        fromShelterCode: { type: ["string", "null"] }
+        fromShelterArchived: { type: boolean }
+        toShelterId: { type: ["string", "null"], format: uuid }
+        toShelterCode: { type: ["string", "null"] }
+        toShelterArchived: { type: boolean }
+        fromDelegateId: { type: ["string", "null"], format: uuid }
+        fromDelegateName: { type: ["string", "null"] }
+        toDelegateId: { type: ["string", "null"], format: uuid }
+        toDelegateName: { type: ["string", "null"] }
+        changedByName: { type: ["string", "null"] }
+        reason: { type: ["string", "null"] }
+        changedAt: { type: string, format: date-time }
+    FamilyAssignmentHistory: { type: array, items: { $ref: "#/components/schemas/FamilyAssignmentChange" } }
     FamilyInput:
       type: object
       additionalProperties: false

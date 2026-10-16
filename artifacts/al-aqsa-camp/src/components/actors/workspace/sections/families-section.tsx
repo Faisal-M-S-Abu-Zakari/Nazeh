@@ -1,8 +1,8 @@
 import React, { useRef, useState } from 'react';
-import { useListFamilies, useGetFamily, getListFamiliesQueryKey, getListCampsQueryKey, getListSectorsQueryKey, useListCamps, useListSectors, useListShelters, useListDelegates, useCreateFamily, useCreateCamp, useCreateSector, useImportFamilies, useListNeeds, useListAidDistributions } from '@workspace/api-client-react';
+import { useListFamilies, useGetFamily, useGetFamilyAssignmentHistory, getGetFamilyAssignmentHistoryQueryKey, getListFamiliesQueryKey, getListCampsQueryKey, getListSectorsQueryKey, useListCamps, useListSectors, useListShelters, useListDelegates, useCreateFamily, useCreateCamp, useCreateSector, useImportFamilies, useListNeeds, useListAidDistributions } from '@workspace/api-client-react';
 import { Link, useLocation } from 'wouter';
 import { Alert, Button, Card, Table, Text, Badge, ActionIcon, Group, TextInput, Select, Title, Tabs, FileInput, Checkbox } from '@mantine/core';
-import { Search, Plus, ArrowRight, Eye, User, Home, Users, ClipboardList, Package, AlertCircle } from 'lucide-react';
+import { Search, Plus, ArrowRight, Eye, User, Home, Users, ClipboardList, Package, AlertCircle, History } from 'lucide-react';
 import { LoadingState, ErrorState } from '../shared/ui-states';
 import { cn } from '@/utils/cn';
 import useAuth from '@/hooks/useAuth';
@@ -523,6 +523,14 @@ function FamilyDetail({ id }: { id: string }) {
   const { data: family, isLoading, error } = useGetFamily(id, {
     query: { enabled: !!id, queryKey: ['getFamily', id] }
   });
+  const {
+    data: assignmentHistory,
+    isLoading: isLoadingAssignmentHistory,
+    error: assignmentHistoryError,
+    refetch: refetchAssignmentHistory,
+  } = useGetFamilyAssignmentHistory(id, {
+    query: { enabled: !!id, queryKey: getGetFamilyAssignmentHistoryQueryKey(id) },
+  });
   
   const { data: needsPage } = useListNeeds();
   const { data: aidsPage } = useListAidDistributions(id);
@@ -555,6 +563,7 @@ function FamilyDetail({ id }: { id: string }) {
                <Tabs.Tab value="members" leftSection={<Users size={16} />}>أفراد الأسرة</Tabs.Tab>
                <Tabs.Tab value="needs" leftSection={<ClipboardList size={16} />}>سجل الطلبات</Tabs.Tab>
                <Tabs.Tab value="aids" leftSection={<Package size={16} />}>الاستلامات</Tabs.Tab>
+                <Tabs.Tab value="assignment-history" leftSection={<History size={16} />}>سجل الإسناد</Tabs.Tab>
              </Tabs.List>
              
              <Tabs.Panel value="members" pt="md">
@@ -620,6 +629,62 @@ function FamilyDetail({ id }: { id: string }) {
                     </div>
                   ) : (
                     <Text c="dimmed" size="sm" className="text-center py-8">لم تستلم الأسرة مساعدات بعد.</Text>
+                  )}
+                </Card>
+             </Tabs.Panel>
+
+             <Tabs.Panel value="assignment-history" pt="md">
+                <Card withBorder shadow="sm" radius="lg">
+                  {isLoadingAssignmentHistory ? (
+                    <Text c="dimmed" size="sm" className="text-center py-8">جاري تحميل سجل الإسناد...</Text>
+                  ) : assignmentHistoryError ? (
+                    <div className="space-y-3 text-center">
+                      <Text c="red" size="sm">تعذر تحميل سجل الإسناد.</Text>
+                      <Button variant="light" onClick={() => void refetchAssignmentHistory()}>إعادة المحاولة</Button>
+                    </div>
+                  ) : assignmentHistory?.length ? (
+                    <div className="space-y-4">
+                      {assignmentHistory.map((change) => {
+                        const fromShelter = change.fromShelterCode
+                          ? `${change.fromShelterCode}${change.fromShelterArchived ? ' (مؤرشف)' : ''}`
+                          : 'غير مسند';
+                        const toShelter = change.toShelterCode
+                          ? `${change.toShelterCode}${change.toShelterArchived ? ' (مؤرشف)' : ''}`
+                          : 'غير مسند';
+                        return (
+                          <div key={change.id} className="rounded-lg border border-border bg-slate-50/60 p-4">
+                            <Group justify="space-between" align="start" gap="xs">
+                              <Text fw={600} size="sm">تغيير الإسناد</Text>
+                              <Text size="xs" c="dimmed" dir="auto">
+                                {dayjs(change.changedAt).format('DD MMMM YYYY - HH:mm')}
+                              </Text>
+                            </Group>
+                            <div className="mt-3 space-y-2 text-sm">
+                              <Text>
+                                <span className="text-muted-foreground">الإيواء: </span>
+                                {fromShelter} ← {toShelter}
+                              </Text>
+                              <Text>
+                                <span className="text-muted-foreground">المندوب: </span>
+                                {change.fromDelegateName || 'غير مسند'} ← {change.toDelegateName || 'غير مسند'}
+                              </Text>
+                              <Text>
+                                <span className="text-muted-foreground">المنفذ: </span>
+                                {change.changedByName || 'غير معروف'}
+                              </Text>
+                              <Text>
+                                <span className="text-muted-foreground">السبب: </span>
+                                {change.reason === 'Operational reassignment'
+                                  ? 'تغيير تشغيلي'
+                                  : change.reason || 'لم يُحدد سبب'}
+                              </Text>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <Text c="dimmed" size="sm" className="text-center py-8">لا توجد تغييرات إسناد مسجلة لهذه الأسرة.</Text>
                   )}
                 </Card>
              </Tabs.Panel>

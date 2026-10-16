@@ -1156,6 +1156,35 @@ export type FamilyDetail = Family & {
   members: FamilyMember[];
 };
 
+export interface FamilyAssignmentChange {
+  id: string;
+  /** @nullable */
+  fromShelterId: string | null;
+  /** @nullable */
+  fromShelterCode: string | null;
+  fromShelterArchived: boolean;
+  /** @nullable */
+  toShelterId: string | null;
+  /** @nullable */
+  toShelterCode: string | null;
+  toShelterArchived: boolean;
+  /** @nullable */
+  fromDelegateId: string | null;
+  /** @nullable */
+  fromDelegateName: string | null;
+  /** @nullable */
+  toDelegateId: string | null;
+  /** @nullable */
+  toDelegateName: string | null;
+  /** @nullable */
+  changedByName: string | null;
+  /** @nullable */
+  reason: string | null;
+  changedAt: string;
+}
+
+export type FamilyAssignmentHistory = FamilyAssignmentChange[];
+
 export type FamilyMemberInputGender = typeof FamilyMemberInputGender[keyof typeof FamilyMemberInputGender];
 
 

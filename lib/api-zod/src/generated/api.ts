@@ -2601,6 +2601,29 @@ export const GetFamilyResponse = zod.object({
 }))
 
 
+export const GetFamilyAssignmentHistoryParams = zod.object({
+  "familyId": zod.uuid()
+})
+
+export const GetFamilyAssignmentHistoryResponseItem = zod.object({
+  "id": zod.uuid(),
+  "fromShelterId": zod.uuid().nullable(),
+  "fromShelterCode": zod.string().nullable(),
+  "fromShelterArchived": zod.boolean(),
+  "toShelterId": zod.uuid().nullable(),
+  "toShelterCode": zod.string().nullable(),
+  "toShelterArchived": zod.boolean(),
+  "fromDelegateId": zod.uuid().nullable(),
+  "fromDelegateName": zod.string().nullable(),
+  "toDelegateId": zod.uuid().nullable(),
+  "toDelegateName": zod.string().nullable(),
+  "changedByName": zod.string().nullable(),
+  "reason": zod.string().nullable(),
+  "changedAt": zod.coerce.date()
+})
+export const GetFamilyAssignmentHistoryResponse = zod.array(GetFamilyAssignmentHistoryResponseItem)
+
+
 export const UpdateFamilyParams = zod.object({
   "familyId": zod.uuid()
 })

@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
-import { and, count, desc, eq, inArray, isNull, sql, sum } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, sql, sum } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import {
   ArchiveAidBody,
   ArchiveAidParams,
@@ -64,6 +65,7 @@ import {
   CreateSectorResponse,
   GetFamilyParams,
   GetFamilyResponse,
+  GetFamilyAssignmentHistoryResponse,
   ListCampsResponse,
   ListFamiliesResponse,
   ListNeedsResponse,
@@ -114,6 +116,7 @@ import {
   familiesTable,
   needStatusHistoryTable,
   shelterUnitsTable,
+  usersTable,
 } from "@workspace/db";
 import { allowRoles, requireAuth } from "../middlewares/auth";
 import { withIdempotency } from "../lib/idempotency";
@@ -589,6 +592,13 @@ const securityLeads: StaffRole[] = ["ADMIN", "MANAGER", "SECURITY_OFFICER"];
 const familyScope = (staff: { id: string; role: StaffRole }) =>
   staff.role === "DELEGATE" ? eq(familiesTable.delegateId, staff.id) : undefined;
 
+const fromShelter = alias(shelterUnitsTable, "assignment_from_shelter");
+const toShelter = alias(shelterUnitsTable, "assignment_to_shelter");
+const fromDelegate = alias(staffUsers, "assignment_from_delegate");
+const toDelegate = alias(staffUsers, "assignment_to_delegate");
+const changedByStaff = alias(staffUsers, "assignment_changed_by_staff");
+const changedByLegacy = alias(usersTable, "assignment_changed_by_legacy");
+
 async function getFamilyDetail(tx: any, familyId: string) {
   const [family] = await tx.select().from(familiesTable).where(eq(familiesTable.id, familyId)).limit(1);
   if (!family) return undefined;
@@ -991,6 +1001,48 @@ router.get("/families/:familyId", allowRoles(...familyManagers), async (req, res
     return;
   }
   res.json(GetFamilyResponse.parse(detail));
+});
+
+router.get("/families/:familyId/assignment-history", allowRoles(...familyManagers), async (req, res): Promise<void> => {
+  const params = parseRequest(GetFamilyParams, req.params, res);
+  if (!params) return;
+  const staff = res.locals["staff"] as { id: string; role: StaffRole };
+  const [family] = await db
+    .select({ id: familiesTable.id, delegateId: familiesTable.delegateId })
+    .from(familiesTable)
+    .where(eq(familiesTable.id, params.familyId))
+    .limit(1);
+  if (!family || (staff.role === "DELEGATE" && family.delegateId !== staff.id)) {
+    res.status(404).json({ error: "Family not found" });
+    return;
+  }
+  const rows = await db
+    .select({
+      id: familyAssignmentHistoryTable.id,
+      fromShelterId: familyAssignmentHistoryTable.fromShelterId,
+      fromShelterCode: fromShelter.code,
+      fromShelterArchived: sql<boolean>`${fromShelter.archivedAt} IS NOT NULL`,
+      toShelterId: familyAssignmentHistoryTable.toShelterId,
+      toShelterCode: toShelter.code,
+      toShelterArchived: sql<boolean>`${toShelter.archivedAt} IS NOT NULL`,
+      fromDelegateId: familyAssignmentHistoryTable.fromDelegateId,
+      fromDelegateName: fromDelegate.name,
+      toDelegateId: familyAssignmentHistoryTable.toDelegateId,
+      toDelegateName: toDelegate.name,
+      changedByName: sql<string | null>`COALESCE(${changedByStaff.name}, ${changedByLegacy.name})`,
+      reason: familyAssignmentHistoryTable.reason,
+      changedAt: familyAssignmentHistoryTable.changedAt,
+    })
+    .from(familyAssignmentHistoryTable)
+    .leftJoin(fromShelter, eq(familyAssignmentHistoryTable.fromShelterId, fromShelter.id))
+    .leftJoin(toShelter, eq(familyAssignmentHistoryTable.toShelterId, toShelter.id))
+    .leftJoin(fromDelegate, eq(familyAssignmentHistoryTable.fromDelegateId, fromDelegate.id))
+    .leftJoin(toDelegate, eq(familyAssignmentHistoryTable.toDelegateId, toDelegate.id))
+    .leftJoin(changedByStaff, eq(familyAssignmentHistoryTable.changedById, changedByStaff.id))
+    .leftJoin(changedByLegacy, eq(familyAssignmentHistoryTable.changedByLegacyUserId, changedByLegacy.id))
+    .where(eq(familyAssignmentHistoryTable.familyId, params.familyId))
+    .orderBy(asc(familyAssignmentHistoryTable.changedAt), asc(familyAssignmentHistoryTable.id));
+  res.json(GetFamilyAssignmentHistoryResponse.parse(rows));
 });
 
 router.patch("/families/:familyId", allowRoles(...familyManagers), async (req, res): Promise<void> => {
