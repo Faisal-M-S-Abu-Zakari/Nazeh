@@ -64,6 +64,18 @@ test('mutation error messages never expose a raw server response', () => {
   assert.doesNotMatch(mutationErrors, /JSON\.stringify/);
 });
 
+test('family archive explains an already archived response and refreshes family state', () => {
+  const familyScreen = source('app/family/[id].tsx');
+
+  assert.match(familyScreen, /payload\.code === 'FAMILY_ALREADY_ARCHIVED'/);
+  assert.match(familyScreen, /هذه الأسرة مؤرشفة بالفعل، ولا حاجة إلى أرشفتها مرة أخرى/);
+  assert.match(familyScreen, /const alreadyArchived = isFamilyAlreadyArchived\(error\)/);
+  assert.match(familyScreen, /if \(alreadyArchived \|\| getErrorStatus\(error\) === 409\)/);
+  assert.match(familyScreen, /await refreshFamilyData\(\)/);
+  assert.match(familyScreen, /alreadyArchived\s*\?\s*'الأسرة مؤرشفة بالفعل'/);
+  assert.match(familyScreen, /: getErrorStatus\(error\) === 409\s*\?\s*'تعارض في تحديث العائلة'/);
+});
+
 test('offline task conflicts require a latest-state review instead of a stale retry', () => {
   const appContext = source('context/AppContext.tsx');
   const accountScreen = source('app/(tabs)/account.tsx');

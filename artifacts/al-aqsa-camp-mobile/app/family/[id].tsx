@@ -11,7 +11,19 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { getErrorStatus } from '@/lib/mutationErrors';
 
+function isFamilyAlreadyArchived(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null || !('data' in error)) return false;
+  const payload = (error as { data?: unknown }).data;
+  return typeof payload === 'object'
+    && payload !== null
+    && 'code' in payload
+    && payload.code === 'FAMILY_ALREADY_ARCHIVED';
+}
+
 function getFamilyErrorMessage(error: unknown): string {
+  if (isFamilyAlreadyArchived(error)) {
+    return 'هذه الأسرة مؤرشفة بالفعل، ولا حاجة إلى أرشفتها مرة أخرى.';
+  }
   const status = getErrorStatus(error);
   if (status === 401 || status === 403) return 'لا تملك الصلاحية لتنفيذ هذا الإجراء.';
   if (status === 404) return 'لم تعد العائلة متاحة. حدّث البيانات ثم حاول مرة أخرى.';
@@ -39,10 +51,18 @@ export default function FamilyScreen() {
     await refetch();
   };
   const handleMutationError = async (error: unknown) => {
-    if (getErrorStatus(error) === 409) {
+    const alreadyArchived = isFamilyAlreadyArchived(error);
+    if (alreadyArchived || getErrorStatus(error) === 409) {
       try { await refreshFamilyData(); } catch { /* Keep the conflict message primary. */ }
     }
-    Alert.alert(getErrorStatus(error) === 409 ? 'تعارض في تحديث العائلة' : 'تعذر تحديث العائلة', getFamilyErrorMessage(error));
+    Alert.alert(
+      alreadyArchived
+        ? 'الأسرة مؤرشفة بالفعل'
+        : getErrorStatus(error) === 409
+          ? 'تعارض في تحديث العائلة'
+          : 'تعذر تحديث العائلة',
+      getFamilyErrorMessage(error),
+    );
   };
   const approveMutation = useApproveFamily({
     mutation: {
