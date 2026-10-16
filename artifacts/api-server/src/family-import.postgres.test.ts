@@ -12,7 +12,8 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
   const schema = `family_import_test_${randomUUID().replaceAll("-", "")}`;
   const tables = [
     "staff_users", "staff_sessions", "camps", "camp_sectors", "shelter_units",
-    "families", "family_members", "family_assignment_history", "idempotency_keys", "sync_audit_events",
+    "families", "family_members", "family_assignment_history", "sync_aids",
+    "idempotency_keys", "sync_audit_events",
   ];
   const previousOptions = process.env.PGOPTIONS;
   const previousNodeEnv = process.env.NODE_ENV;
@@ -282,6 +283,57 @@ describe("family-write concurrency on isolated PostgreSQL tables", {
       [{ status_code: 201 }],
       "Losing claim must roll back too",
     );
+  });
+
+  test("concurrent aid archive requests with the same version create one archive and one conflict", async () => {
+    const aidId = randomUUID();
+    await database.db.insert(database.aids).values({
+      id: aidId,
+      title: "Synthetic archive race aid",
+      type: "FOOD",
+      quantity: 10,
+      unit: "packages",
+      location: "Synthetic camp",
+      distributionDate: "2026-10-14",
+      createdById: actorId,
+    });
+
+    const responses = await race(
+      `SELECT id FROM sync_aids WHERE id = '${aidId}' FOR UPDATE`,
+      "sync_aids",
+      [
+        () => request(`/aids/${aidId}/archive`, { expectedVersion: 1 }, "PATCH"),
+        () => request(`/aids/${aidId}/archive`, { expectedVersion: 1 }, "PATCH"),
+      ],
+    );
+
+    assert.deepEqual(responses.map((response) => response.status).sort(), [200, 409]);
+    assert.deepEqual(responses.find((response) => response.status === 409)!.body, {
+      error: "Aid has been updated; refresh and retry with the current version",
+      code: "VERSION_CONFLICT",
+      currentVersion: 2,
+    });
+
+    const [aid, archiveEvents] = await Promise.all([
+      database.pool.query(
+        "SELECT archived_at, version FROM sync_aids WHERE id = $1",
+        [aidId],
+      ),
+      database.pool.query(
+        `SELECT action, entity_type, entity_id, metadata FROM sync_audit_events
+         WHERE entity_id = $1`,
+        [aidId],
+      ),
+    ]);
+    assert.equal(aid.rowCount, 1);
+    assert.notEqual(aid.rows[0].archived_at, null);
+    assert.equal(aid.rows[0].version, 2, "The aid version must advance exactly once");
+    assert.deepEqual(archiveEvents.rows, [{
+      action: "ARCHIVE",
+      entity_type: "AID",
+      entity_id: aidId,
+      metadata: { expectedVersion: 1 },
+    }]);
   });
 
   test("import and manual creation cannot both take the final shelter place", async () => {
