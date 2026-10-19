@@ -156,6 +156,82 @@ test("updating a task rejects invalid dueAt without changing the task or version
   }
 });
 
+test("clearing a task dueAt persists null and increments its version once", async () => {
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise<void>((resolve, reject) => {
+    server.once("listening", resolve);
+    server.once("error", reject);
+  });
+  const address = server.address();
+  assert(address && typeof address === "object");
+  const baseUrl = `http://127.0.0.1:${address.port}/api`;
+  const [manager] = await db.select().from(staffUsers)
+    .where(eq(staffUsers.email, "manager@alaqsa.local")).limit(1);
+  assert(manager?.active);
+  const token = `clear-task-date-${randomUUID()}`;
+  const tokenHash = hashToken(token);
+  const title = `clear-due-date-${randomUUID()}`;
+  let taskId: string | undefined;
+  const headers = {
+    authorization: `Bearer ${token}`,
+    "content-type": "application/json",
+  };
+
+  try {
+    await db.insert(sessions).values({
+      userId: manager.id,
+      tokenHash,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const [task] = await db.insert(tasks).values({
+      title,
+      description: "Integration test task",
+      location: "integration-test",
+      dueAt: new Date("2030-02-28T12:00:00.000Z"),
+      createdById: manager.id,
+    }).returning();
+    taskId = task.id;
+
+    const updateResponse = await fetch(`${baseUrl}/sync/tasks/${task.id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        dueAt: null,
+        expectedVersion: task.version,
+      }),
+    });
+    assert.equal(updateResponse.status, 200);
+    const updated = await updateResponse.json() as { dueAt: string | null; version: number };
+    assert.equal(updated.dueAt, null, "successful update response should reflect the cleared date");
+    assert.equal(updated.version, task.version + 1, "one edit should increment the task version once");
+
+    const [storedTask] = await db.select().from(tasks).where(eq(tasks.id, task.id));
+    assert.equal(storedTask.dueAt, null, "clearing the date should persist in the database");
+    assert.equal(storedTask.version, task.version + 1);
+
+    const reloadResponse = await fetch(`${baseUrl}/sync/tasks`, { headers });
+    assert.equal(reloadResponse.status, 200);
+    const reloadedTasks = await reloadResponse.json() as Array<{
+      id: string;
+      dueAt: string | null;
+      version: number;
+    }>;
+    const reloadedTask = reloadedTasks.find((item) => item.id === task.id);
+    assert(reloadedTask, "the updated task should remain available after reloading the task list");
+    assert.equal(reloadedTask.dueAt, null, "reloading should preserve the empty due-date display value");
+    assert.equal(reloadedTask.version, task.version + 1);
+  } finally {
+    if (taskId) {
+      await db.delete(syncAuditEvents).where(eq(syncAuditEvents.entityId, taskId));
+      await db.delete(tasks).where(eq(tasks.id, taskId));
+    }
+    await db.delete(sessions).where(eq(sessions.tokenHash, tokenHash));
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => error ? reject(error) : resolve()),
+    );
+  }
+});
+
 test("creating, updating, and syncing a task preserve the instant in an offset dueAt", async () => {
   const server = app.listen(0, "127.0.0.1");
   await new Promise<void>((resolve, reject) => {

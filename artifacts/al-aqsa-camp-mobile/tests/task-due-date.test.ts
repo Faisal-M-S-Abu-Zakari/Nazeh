@@ -10,6 +10,12 @@ test('an empty optional task due date is sent as null', () => {
   assert.deepEqual(parseTaskDueDate('   '), { valid: true, value: null });
 });
 
+test('editing a task sends a cleared due date and displays it as empty after reload', () => {
+  assert.match(taskFormSource, /dueAt: due/);
+  assert.match(taskFormSource, /useState\(task\?\.dueAt\?\.slice\(0, 10\) \?\? ''\)/);
+  assert.match(taskFormSource, /testID="task-due-date"[^>]*value=\{dueAt\}/);
+});
+
 test('a valid date-only task due date is normalized to ISO UTC', () => {
   assert.deepEqual(parseTaskDueDate('2026-08-28'), {
     valid: true,
