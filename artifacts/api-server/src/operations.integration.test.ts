@@ -224,6 +224,75 @@ test("task sync list preserves the instant in an offset dueAt", async () => {
   }
 });
 
+test("task sync list preserves milliseconds in an offset dueAt", async () => {
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise<void>((resolve, reject) => {
+    server.once("listening", resolve);
+    server.once("error", reject);
+  });
+  const address = server.address();
+  assert(address && typeof address === "object");
+  const baseUrl = `http://127.0.0.1:${address.port}/api`;
+  const [manager] = await db.select().from(staffUsers)
+    .where(eq(staffUsers.email, "manager@alaqsa.local")).limit(1);
+  assert(manager?.active);
+  const token = `fractional-task-date-${randomUUID()}`;
+  const tokenHash = hashToken(token);
+  const idempotencyKey = randomUUID();
+  const title = `fractional-due-date-${randomUUID()}`;
+  const dueAt = "2030-02-28T17:45:12.345+05:30";
+  const headers = {
+    authorization: `Bearer ${token}`,
+    "content-type": "application/json",
+    "Idempotency-Key": idempotencyKey,
+  };
+
+  try {
+    await db.insert(sessions).values({
+      userId: manager.id,
+      tokenHash,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const response = await fetch(`${baseUrl}/sync/tasks`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        title,
+        description: "Integration test task with fractional offset dueAt",
+        location: "integration-test",
+        priority: "MEDIUM",
+        dueAt,
+      }),
+    });
+    assert.equal(response.status, 201);
+
+    const listResponse = await fetch(`${baseUrl}/sync/tasks`, { headers });
+    assert.equal(listResponse.status, 200);
+    const listedTasks = await listResponse.json() as Array<{ title: string; dueAt: string | null }>;
+    const listedTask = listedTasks.find((task) => task.title === title);
+    assert(listedTask, "created task should appear in the sync task list");
+    assert(listedTask.dueAt, "listed task should include its dueAt");
+    assert.equal(
+      new Date(listedTask.dueAt).getTime(),
+      new Date(dueAt).getTime(),
+      "listed dueAt must preserve the submitted instant to the millisecond",
+    );
+    assert.equal(new Date(listedTask.dueAt).getUTCMilliseconds(), 345);
+  } finally {
+    const createdTasks = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.title, title));
+    if (createdTasks.length) {
+      const taskIds = createdTasks.map((task) => task.id);
+      await db.delete(syncAuditEvents).where(inArray(syncAuditEvents.entityId, taskIds));
+      await db.delete(tasks).where(inArray(tasks.id, taskIds));
+    }
+    await db.delete(idempotencyKeys).where(eq(idempotencyKeys.key, idempotencyKey));
+    await db.delete(sessions).where(eq(sessions.tokenHash, tokenHash));
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => error ? reject(error) : resolve()),
+    );
+  }
+});
+
 test("idempotent response-loss retries and optimistic status conflicts", async () => {
   const server = app.listen(0, "127.0.0.1");
   await new Promise<void>((resolve, reject) => {
