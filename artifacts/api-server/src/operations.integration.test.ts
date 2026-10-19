@@ -360,6 +360,12 @@ test("task sync list preserves milliseconds in an offset dueAt", async () => {
       }),
     });
     assert.equal(response.status, 201);
+    const createdResponse = await response.json() as { dueAt: string };
+    assert.equal(
+      new Date(createdResponse.dueAt).toISOString(),
+      new Date(dueAt).toISOString(),
+      "create API response must return the submitted deadline instant",
+    );
 
     const listResponse = await fetch(`${baseUrl}/sync/tasks`, { headers });
     assert.equal(listResponse.status, 200);

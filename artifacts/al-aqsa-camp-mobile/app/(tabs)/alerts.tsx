@@ -10,6 +10,7 @@ import { Card, fonts, ScreenHeader, StatusPill, SyncBanner } from '@/components/
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { getErrorStatus, getMutationErrorMessage } from '@/lib/mutationErrors';
+import { formatTaskDueAt } from '@/lib/formatTaskDueAt';
 
 const taskStatus = { PENDING: 'معلّقة', IN_PROGRESS: 'قيد التنفيذ', COMPLETED: 'مكتملة', CANCELLED: 'ملغاة' } as const;
 const complaintStatus = { OPEN: 'مفتوحة', IN_REVIEW: 'قيد المراجعة', RESOLVED: 'محلولة', REJECTED: 'مرفوضة' } as const;
@@ -71,7 +72,11 @@ export default function AlertsScreen() {
           <Card key={task.id}>
             <View style={styles.row}>
               <StatusPill text={`${priority[task.priority]} · ${taskStatus[task.status]}`} tone={task.priority === 'URGENT' ? 'red' : 'gold'} />
-              <View style={styles.text}><Text style={[styles.title, { color: colors.foreground }]}>{task.title}</Text><Text style={[styles.body, { color: colors.mutedForeground }]}>{task.description} · {task.location}</Text></View>
+              <View style={styles.text}>
+                <Text style={[styles.title, { color: colors.foreground }]}>{task.title}</Text>
+                <Text style={[styles.body, { color: colors.mutedForeground }]}>{task.description} · {task.location}</Text>
+                <Text testID={`task-due-at-${task.id}`} style={[styles.body, { color: colors.mutedForeground }]}>موعد الاستحقاق: {formatTaskDueAt(task.dueAt)}</Text>
+              </View>
               <Ionicons name="shield-checkmark-outline" size={25} color={colors.primary} />
             </View>
             {taskManagers ? <View style={styles.manageRow}>

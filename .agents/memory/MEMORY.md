@@ -33,3 +33,4 @@
 - [PostgreSQL lock-race tests](postgres-lock-race-tests.md) — hold a real row lock and wait for each API backend in pg_stat_activity before release; Promise.all alone does not prove overlap.
 - [Family archive and transfer races](family-archive-transfer-race.md) — when archive wins, a competing move can use the freed place; when move wins, it must be rejected before archive leaves the shelter empty.
 - [Family import test formatting](family-import-test-formatting.md) — keep focused edits in the PostgreSQL import suite's established style; autoformatting without its own config creates broad unrelated diffs.
+- [Task deadline timezone semantics](task-deadline-timezone.md) — mobile date-only deadlines mean local midnight; preserve unchanged API instants and format them in the device timezone.

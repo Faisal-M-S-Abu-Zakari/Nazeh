@@ -12,7 +12,12 @@ import { Field, fonts, PrimaryButton } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { getMutationErrorMessage, isVersionConflict, showMutationError } from '@/lib/mutationErrors';
-import { parseTaskDueDate } from '@/lib/taskDueDate';
+import {
+  getTaskDueAtForUpdate,
+  getTaskDueDateInputValue,
+  parseTaskDueDate,
+} from '@/lib/taskDueDate';
+import { formatTaskDueAt } from '@/lib/formatTaskDueAt';
 
 const priorities = [[TaskPriority.LOW, 'منخفضة'], [TaskPriority.MEDIUM, 'متوسطة'], [TaskPriority.HIGH, 'عالية'], [TaskPriority.URGENT, 'عاجلة']] as const;
 const statuses = [[TaskStatus.PENDING, 'معلّقة'], [TaskStatus.IN_PROGRESS, 'قيد التنفيذ'], [TaskStatus.COMPLETED, 'مكتملة'], [TaskStatus.CANCELLED, 'ملغاة']] as const;
@@ -89,7 +94,7 @@ function TaskFormEditor({ task }: { task?: Task }) {
   const [location, setLocation] = useState(task?.location ?? '');
   const [priority, setPriority] = useState(task?.priority ?? TaskPriority.MEDIUM);
   const [status, setStatus] = useState(task?.status ?? TaskStatus.PENDING);
-  const [dueAt, setDueAt] = useState(task?.dueAt?.slice(0, 10) ?? '');
+  const [dueAt, setDueAt] = useState(getTaskDueDateInputValue(task?.dueAt));
   const [assignedToId, setAssignedToId] = useState<string | null>(task?.assignedToId ?? null);
   const currentInactiveAssignee = (officersQuery.data ?? []).find(
     (officer) => officer.id === task?.assignedToId && !officer.active,
@@ -125,7 +130,7 @@ function TaskFormEditor({ task }: { task?: Task }) {
       setLocation(latest.location);
       setPriority(latest.priority);
       setStatus(latest.status);
-      setDueAt(latest.dueAt?.slice(0, 10) ?? '');
+      setDueAt(getTaskDueDateInputValue(latest.dueAt));
       setAssignedToId(latest.assignedToId ?? null);
       originalTask.current = latest;
       return;
@@ -136,7 +141,7 @@ function TaskFormEditor({ task }: { task?: Task }) {
     if (location === baseline.location) setLocation(latest.location);
     if (priority === baseline.priority) setPriority(latest.priority);
     if (status === baseline.status) setStatus(latest.status);
-    if (dueAt === (baseline.dueAt?.slice(0, 10) ?? '')) setDueAt(latest.dueAt?.slice(0, 10) ?? '');
+    if (dueAt === getTaskDueDateInputValue(baseline.dueAt)) setDueAt(getTaskDueDateInputValue(latest.dueAt));
     if (assignedToId === (baseline.assignedToId ?? null)) setAssignedToId(latest.assignedToId ?? null);
     originalTask.current = latest;
   };
@@ -239,7 +244,9 @@ function TaskFormEditor({ task }: { task?: Task }) {
   };
   const save = async () => {
     if (!canManageTaskRecords || !canManageTasks || saveInFlight.current) return;
-    const parsedDueAt = parseTaskDueDate(dueAt);
+    const parsedDueAt = task
+      ? getTaskDueAtForUpdate(dueAt, task.dueAt)
+      : parseTaskDueDate(dueAt);
     if (!parsedDueAt.valid) {
       setSaveError('أدخل تاريخ الاستحقاق بصيغة سنة-شهر-يوم صحيحة، أو اتركه فارغاً.');
       return;
@@ -383,6 +390,11 @@ function TaskFormEditor({ task }: { task?: Task }) {
         <Text allowFontScaling style={[styles.label, { color: colors.foreground }]}>{task.title}</Text>
         <Text allowFontScaling style={[styles.intro, { color: colors.mutedForeground }]}>{task.description} · {task.location}</Text>
       </> : null}
+      {task ? (
+        <Text testID="task-due-at" allowFontScaling style={[styles.intro, { color: colors.mutedForeground }]}>
+          موعد الاستحقاق: {formatTaskDueAt(task.dueAt)}
+        </Text>
+      ) : null}
       {canManageTaskRecords ? <>
       <Field testID="task-title" label="عنوان المهمة" value={title} editable={!busy && !refreshingTaskConflict} onChangeText={(value) => { setTitle(value); resetTaskEditReview(); }} />
       <Field testID="task-description" label="التفاصيل" value={description} editable={!busy && !refreshingTaskConflict} onChangeText={(value) => { setDescription(value); resetTaskEditReview(); }} multiline />

@@ -8,6 +8,7 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/ar';
 import { useQueryClient } from '@tanstack/react-query';
 import useAuth from '@/hooks/useAuth';
+import { formatTaskDueAt } from '@/utils/formatTaskDueAt';
 
 dayjs.locale('ar');
 
@@ -123,7 +124,7 @@ function TasksList() {
                       </Badge>
                     </Table.Td>
                     <Table.Td>
-                      <Text size="sm">{task.dueAt ? dayjs(task.dueAt).format('DD MMM YYYY') : 'غير محدد'}</Text>
+                      <Text size="sm">{formatTaskDueAt(task.dueAt)}</Text>
                     </Table.Td>
                     <Table.Td>
                       <Badge color={statusColors[task.status]} variant={task.status === 'COMPLETED' ? 'filled' : 'light'} size="sm">
@@ -222,7 +223,7 @@ function TaskDetail({ id }: { id: string }) {
               <Badge variant="filled" color={statusColors[task.status]} size="md">{statusLabels[task.status]}</Badge>
             </div>
           </div>
-          <Text size="sm" c="dimmed">الاستحقاق: {task.dueAt ? dayjs(task.dueAt).format('DD MMM YYYY') : 'غير محدد'}</Text>
+          <Text size="sm" c="dimmed">الاستحقاق: {formatTaskDueAt(task.dueAt)}</Text>
         </div>
 
         <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4 border border-border">

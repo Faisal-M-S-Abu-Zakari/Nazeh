@@ -55,6 +55,7 @@ test('security officer creates tasks with empty and valid due dates and sees bot
   const context = await browser.newContext({
     viewport: { width: 400, height: 720 },
     deviceScaleFactor: 1,
+    timezoneId: 'America/Los_Angeles',
   });
   const page = await context.newPage();
 
@@ -87,18 +88,25 @@ test('security officer creates tasks with empty and valid due dates and sees bot
     expect(noDatePayload.dueAt).toBeNull();
 
     const validDatePayload = await createTask(validDateTitle, validDueDate);
-    expect(validDatePayload.dueAt).toBe(`${validDueDate}T00:00:00.000Z`);
+    expect(validDatePayload.dueAt).toBe(`${validDueDate}T08:00:00.000Z`);
 
     const savedTasks = await db
-      .select({ title: tasks.title, dueAt: tasks.dueAt })
+      .select({ id: tasks.id, title: tasks.title, dueAt: tasks.dueAt })
       .from(tasks)
       .where(eq(tasks.createdById, userId));
     expect(savedTasks).toEqual(
       expect.arrayContaining([
-        { title: emptyDateTitle, dueAt: null },
-        { title: validDateTitle, dueAt: new Date(`${validDueDate}T00:00:00.000Z`) },
+        expect.objectContaining({ title: emptyDateTitle, dueAt: null }),
+        expect.objectContaining({ title: validDateTitle, dueAt: new Date(`${validDueDate}T08:00:00.000Z`) }),
       ]),
     );
+    const validSavedTask = savedTasks.find((task) => task.title === validDateTitle);
+    expect(validSavedTask?.dueAt?.toISOString()).toBe(`${validDueDate}T08:00:00.000Z`);
+    expect(validSavedTask).toBeTruthy();
+    const validDueAt = validSavedTask!.dueAt!.toISOString();
+    const formatInBrowser = (page: Page, dueAt: string) => page.evaluate((value) => new Intl.DateTimeFormat('ar-EG', {
+      day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hourCycle: 'h23',
+    }).format(new Date(value)), dueAt);
 
     const refreshedTasks = page.waitForResponse(
       (response) =>
@@ -112,6 +120,27 @@ test('security officer creates tasks with empty and valid due dates and sees bot
     await page.getByText('التنبيهات', { exact: true }).last().click();
     await expect(page.getByText(emptyDateTitle, { exact: true }).filter({ visible: true })).toBeVisible();
     await expect(page.getByText(validDateTitle, { exact: true }).filter({ visible: true })).toBeVisible();
+    const losAngelesLabel = await formatInBrowser(page, validDueAt);
+    await expect(page.getByTestId(`task-due-at-${validSavedTask!.id}`)).toContainText(losAngelesLabel);
+    await page.getByTestId(`edit-task-${validSavedTask!.id}`).click();
+    await expect(page.getByTestId('task-due-at')).toContainText(losAngelesLabel);
+
+    const tokyoContext = await browser.newContext({
+      viewport: { width: 400, height: 720 },
+      deviceScaleFactor: 1,
+      timezoneId: 'Asia/Tokyo',
+    });
+    try {
+      const tokyoPage = await tokyoContext.newPage();
+      await signIn(tokyoPage);
+      const tokyoLabel = await formatInBrowser(tokyoPage, validDueAt);
+      expect(tokyoLabel).not.toBe(losAngelesLabel);
+      await expect(tokyoPage.getByTestId(`task-due-at-${validSavedTask!.id}`)).toContainText(tokyoLabel);
+      await tokyoPage.getByTestId(`edit-task-${validSavedTask!.id}`).click();
+      await expect(tokyoPage.getByTestId('task-due-at')).toContainText(tokyoLabel);
+    } finally {
+      await tokyoContext.close();
+    }
   } finally {
     await context.close();
   }

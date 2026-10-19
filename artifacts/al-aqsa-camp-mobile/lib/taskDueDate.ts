@@ -12,12 +12,34 @@ export function parseTaskDueDate(value: string): TaskDueDateResult {
   const day = Number(match[3]);
   if (year < 1) return { valid: false };
 
-  const date = new Date(Date.UTC(year, month - 1, day));
+  const date = new Date(year, month - 1, day);
+  if (year < 100) date.setFullYear(year);
   if (
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() !== month - 1 ||
-    date.getUTCDate() !== day
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
   ) return { valid: false };
 
   return { valid: true, value: date.toISOString() };
+}
+
+export function getTaskDueDateInputValue(dueAt: string | null | undefined): string {
+  if (!dueAt) return '';
+  const date = new Date(dueAt);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const year = String(date.getFullYear()).padStart(4, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function getTaskDueAtForUpdate(
+  value: string,
+  originalDueAt: string | null | undefined,
+): TaskDueDateResult {
+  if (originalDueAt && getTaskDueDateInputValue(originalDueAt) === value.trim()) {
+    return { valid: true, value: originalDueAt };
+  }
+  return parseTaskDueDate(value);
 }
