@@ -156,7 +156,7 @@ test("updating a task rejects invalid dueAt without changing the task or version
   }
 });
 
-test("creating a task preserves the instant in an offset dueAt", async () => {
+test("task sync list preserves the instant in an offset dueAt", async () => {
   const server = app.listen(0, "127.0.0.1");
   await new Promise<void>((resolve, reject) => {
     server.once("listening", resolve);
@@ -198,12 +198,16 @@ test("creating a task preserves the instant in an offset dueAt", async () => {
     });
     assert.equal(response.status, 201);
 
-    const [storedTask] = await db.select().from(tasks).where(eq(tasks.title, title));
-    assert(storedTask, "task should be persisted");
+    const listResponse = await fetch(`${baseUrl}/sync/tasks`, { headers });
+    assert.equal(listResponse.status, 200);
+    const listedTasks = await listResponse.json() as Array<{ title: string; dueAt: string | null }>;
+    const listedTask = listedTasks.find((task) => task.title === title);
+    assert(listedTask, "created task should appear in the sync task list");
+    assert(listedTask.dueAt, "listed task should include its dueAt");
     assert.equal(
-      storedTask.dueAt?.toISOString(),
+      new Date(listedTask.dueAt).toISOString(),
       new Date(dueAt).toISOString(),
-      "stored dueAt must represent the same instant as the submitted offset timestamp",
+      "listed dueAt must represent the same instant as the submitted offset timestamp",
     );
   } finally {
     const createdTasks = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.title, title));
