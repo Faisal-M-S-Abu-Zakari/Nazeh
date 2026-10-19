@@ -156,7 +156,7 @@ test("updating a task rejects invalid dueAt without changing the task or version
   }
 });
 
-test("task sync list preserves the instant in an offset dueAt", async () => {
+test("creating, updating, and syncing a task preserve the instant in an offset dueAt", async () => {
   const server = app.listen(0, "127.0.0.1");
   await new Promise<void>((resolve, reject) => {
     server.once("listening", resolve);
@@ -173,10 +173,10 @@ test("task sync list preserves the instant in an offset dueAt", async () => {
   const idempotencyKey = randomUUID();
   const title = `offset-due-date-${randomUUID()}`;
   const dueAt = "2030-02-28T17:45:00+05:30";
+  const expectedInstant = "2030-02-28T12:15:00.000Z";
   const headers = {
     authorization: `Bearer ${token}`,
     "content-type": "application/json",
-    "Idempotency-Key": idempotencyKey,
   };
 
   try {
@@ -185,9 +185,9 @@ test("task sync list preserves the instant in an offset dueAt", async () => {
       tokenHash,
       expiresAt: new Date(Date.now() + 60_000),
     });
-    const response = await fetch(`${baseUrl}/sync/tasks`, {
+    const createResponse = await fetch(`${baseUrl}/sync/tasks`, {
       method: "POST",
-      headers,
+      headers: { ...headers, "Idempotency-Key": idempotencyKey },
       body: JSON.stringify({
         title,
         description: "Integration test task with offset dueAt",
@@ -196,7 +196,26 @@ test("task sync list preserves the instant in an offset dueAt", async () => {
         dueAt,
       }),
     });
-    assert.equal(response.status, 201);
+    assert.equal(createResponse.status, 201);
+    const createdBody = await createResponse.json() as { id: string; dueAt: string };
+    assert.equal(new Date(createdBody.dueAt).toISOString(), expectedInstant);
+
+    const [storedTask] = await db.select().from(tasks).where(eq(tasks.id, createdBody.id));
+    assert(storedTask, "task should be persisted");
+    assert.equal(storedTask.dueAt?.toISOString(), expectedInstant);
+
+    const updateResponse = await fetch(`${baseUrl}/sync/tasks/${storedTask.id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ dueAt, expectedVersion: storedTask.version }),
+    });
+    assert.equal(updateResponse.status, 200);
+    const updatedBody = await updateResponse.json() as { dueAt: string };
+    assert.equal(new Date(updatedBody.dueAt).toISOString(), expectedInstant);
+
+    const [updatedTask] = await db.select().from(tasks).where(eq(tasks.id, storedTask.id));
+    assert.equal(updatedTask.dueAt?.toISOString(), expectedInstant);
+    assert.equal(updatedTask.version, storedTask.version + 1);
 
     const listResponse = await fetch(`${baseUrl}/sync/tasks`, { headers });
     assert.equal(listResponse.status, 200);
@@ -206,8 +225,8 @@ test("task sync list preserves the instant in an offset dueAt", async () => {
     assert(listedTask.dueAt, "listed task should include its dueAt");
     assert.equal(
       new Date(listedTask.dueAt).toISOString(),
-      new Date(dueAt).toISOString(),
-      "listed dueAt must represent the same instant as the submitted offset timestamp",
+      expectedInstant,
+      "listed dueAt must preserve the same UTC instant after task creation and update",
     );
   } finally {
     const createdTasks = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.title, title));
