@@ -20,6 +20,7 @@ import { getReceivedDistributionCount, selectLatestAids } from '@/lib/aidPresent
 import { getLastSuccessfulAidsSyncAt, retryAidList } from '@/lib/aidSyncPresentation';
 import { selectLatestPeople } from '@/lib/personPresentation';
 import { getLastSuccessfulPeopleSyncAt, getPeopleSyncPresentation } from '@/lib/peopleSyncPresentation';
+import { canReadTeamTasks } from '@/lib/taskSyncAccess';
 import { getMutationErrorMessage, getErrorStatus, isVersionConflict } from '@/lib/mutationErrors';
 
 export type Aid = { id: string; title: string; type: string; apiType: AidType; families: number; receivedDistributionCount: number; unit: string; location: string; distributionDate: string; notes?: string | null; version: number; status: 'نشطة' | 'مكتملة'; date: string };
@@ -153,6 +154,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const enabled = tokenReady && !!token;
   const staffEnabled = enabled && authRole !== 'displaced';
   const familyEnabled = enabled && authRole === 'displaced';
+  const taskSyncEnabled = staffEnabled && canReadTeamTasks(authRole);
   const me = useGetCurrentUser({ query: { queryKey: getGetCurrentUserQueryKey(), enabled: staffEnabled, retry: false } });
   const familyProfileQuery = useGetFamilyMe({ query: { queryKey: getGetFamilyMeQueryKey(), enabled: familyEnabled, retry: false } });
   const familyNeedsQuery = useGetFamilyMeNeeds({ query: { queryKey: getGetFamilyMeNeedsQueryKey(), enabled: familyEnabled, retry: false } });
@@ -163,7 +165,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const peopleQuery = useListPeople({ query: { queryKey: getListPeopleQueryKey(), enabled: staffEnabled, retry: false } });
   const lastPeopleSyncAt = getLastSuccessfulPeopleSyncAt(storedLastPeopleSyncAt, peopleQuery.dataUpdatedAt);
   const complaintsQuery = useListComplaints({ query: { queryKey: getListComplaintsQueryKey(), enabled: staffEnabled, retry: false } });
-  const tasksQuery = useListTasks({ query: { queryKey: getListTasksQueryKey(), enabled: staffEnabled, retry: false } });
+  const tasksQuery = useListTasks({ query: { queryKey: getListTasksQueryKey(), enabled: taskSyncEnabled, retry: false } });
   const loginMutation = useLogin();
   const logoutMutation = useLogout();
   const user: AppUser | null = authRole === 'displaced'
@@ -232,8 +234,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [ownerUserId, saveQueueForOwner]);
   const refetchAll = useCallback(async () => {
     setManualError('');
-    await mobileAuthLifecycle.synchronizedRefresh(async () => { await Promise.all([aidsQuery.refetch(), peopleQuery.refetch(), complaintsQuery.refetch(), tasksQuery.refetch(), familyProfileQuery.refetch(), familyNeedsQuery.refetch(), ...(familyEnabled ? [receivedAidsQuery.refetch()] : [])]); });
-  }, [aidsQuery.refetch, complaintsQuery.refetch, familyEnabled, familyNeedsQuery.refetch, familyProfileQuery.refetch, peopleQuery.refetch, receivedAidsQuery.refetch, tasksQuery.refetch]);
+    await mobileAuthLifecycle.synchronizedRefresh(async () => { await Promise.all([aidsQuery.refetch(), peopleQuery.refetch(), complaintsQuery.refetch(), ...(taskSyncEnabled ? [tasksQuery.refetch()] : []), familyProfileQuery.refetch(), familyNeedsQuery.refetch(), ...(familyEnabled ? [receivedAidsQuery.refetch()] : [])]); });
+  }, [aidsQuery.refetch, complaintsQuery.refetch, familyEnabled, familyNeedsQuery.refetch, familyProfileQuery.refetch, peopleQuery.refetch, receivedAidsQuery.refetch, taskSyncEnabled, tasksQuery.refetch]);
   const retryAids = useCallback(async () => {
     await retryAidList(mobileAuthLifecycle.synchronizedRefresh, aidsQuery.refetch);
   }, [aidsQuery.refetch]);
@@ -344,7 +346,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const manager = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const delegate = user?.role === 'DELEGATE';
   const security = user?.role === 'SECURITY_OFFICER';
-  const queries = [me, aidsQuery, peopleQuery, complaintsQuery, tasksQuery, familyProfileQuery, familyNeedsQuery, receivedAidsQuery];
+  const queries = [me, aidsQuery, peopleQuery, complaintsQuery, ...(taskSyncEnabled ? [tasksQuery] : []), familyProfileQuery, familyNeedsQuery, receivedAidsQuery];
   const queryError = queries.find((query) => query.error)?.error;
   const syncState: SyncState = queries.some((query) => query.isFetching) ? 'syncing' : queryError && isNetworkFailure(queryError) ? 'offline' : queryError || manualError ? 'error' : 'synced';
   const conflictedTaskCount = queue.filter((item) => item.kind === 'task' && !!item.conflict).length;
