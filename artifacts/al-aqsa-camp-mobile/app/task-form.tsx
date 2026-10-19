@@ -12,6 +12,7 @@ import { Field, fonts, PrimaryButton } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { getMutationErrorMessage, isVersionConflict, showMutationError } from '@/lib/mutationErrors';
+import { parseTaskDueDate } from '@/lib/taskDueDate';
 
 const priorities = [[TaskPriority.LOW, 'منخفضة'], [TaskPriority.MEDIUM, 'متوسطة'], [TaskPriority.HIGH, 'عالية'], [TaskPriority.URGENT, 'عاجلة']] as const;
 const statuses = [[TaskStatus.PENDING, 'معلّقة'], [TaskStatus.IN_PROGRESS, 'قيد التنفيذ'], [TaskStatus.COMPLETED, 'مكتملة'], [TaskStatus.CANCELLED, 'ملغاة']] as const;
@@ -238,6 +239,11 @@ function TaskFormEditor({ task }: { task?: Task }) {
   };
   const save = async () => {
     if (!canManageTaskRecords || !canManageTasks || saveInFlight.current) return;
+    const parsedDueAt = parseTaskDueDate(dueAt);
+    if (!parsedDueAt.valid) {
+      setSaveError('أدخل تاريخ الاستحقاق بصيغة سنة-شهر-يوم صحيحة، أو اتركه فارغاً.');
+      return;
+    }
     if (taskEditConflict && (
       !task ||
       !taskEditConflict.acknowledged ||
@@ -248,7 +254,7 @@ function TaskFormEditor({ task }: { task?: Task }) {
     setSaving(true);
     setSaveError(null);
     try {
-      const due = dueAt.trim() ? new Date(dueAt).toISOString() : null;
+      const due = parsedDueAt.value;
       if (task) {
         await updateMutation.mutateAsync({ taskId: task.id, data: { title: title.trim(), description: description.trim(), location: location.trim(), priority, status, dueAt: due, assignedToId, expectedVersion: task.version } });
       } else {
@@ -359,7 +365,8 @@ function TaskFormEditor({ task }: { task?: Task }) {
     task.version === taskEditConflict.latestVersion &&
     task.version > taskEditConflict.expectedVersion
   );
-  const valid = title.trim().length >= 2 && description.trim().length > 0 && location.trim().length >= 2 && (!dueAt.trim() || !Number.isNaN(new Date(dueAt).getTime()));
+  const parsedDueAt = parseTaskDueDate(dueAt);
+  const valid = title.trim().length >= 2 && description.trim().length > 0 && location.trim().length >= 2 && parsedDueAt.valid;
   const showResultForm = task && canSubmitResult && (
     task.status === TaskStatus.IN_PROGRESS ||
     (taskActionError?.action === 'result' && !!taskActionError.conflict)
@@ -380,7 +387,8 @@ function TaskFormEditor({ task }: { task?: Task }) {
       <Field testID="task-title" label="عنوان المهمة" value={title} editable={!busy && !refreshingTaskConflict} onChangeText={(value) => { setTitle(value); resetTaskEditReview(); }} />
       <Field testID="task-description" label="التفاصيل" value={description} editable={!busy && !refreshingTaskConflict} onChangeText={(value) => { setDescription(value); resetTaskEditReview(); }} multiline />
       <Field testID="task-location" label="الموقع" value={location} editable={!busy && !refreshingTaskConflict} onChangeText={(value) => { setLocation(value); resetTaskEditReview(); }} />
-      <Field testID="task-due-date" label="تاريخ الاستحقاق (اختياري)" value={dueAt} editable={!busy && !refreshingTaskConflict} onChangeText={(value) => { setDueAt(value); resetTaskEditReview(); }} placeholder="2026-08-28" />
+      <Field testID="task-due-date" label="تاريخ الاستحقاق (اختياري)" value={dueAt} editable={!busy && !refreshingTaskConflict} onChangeText={(value) => { setDueAt(value); setSaveError(null); resetTaskEditReview(); }} placeholder="2026-08-28" />
+      {!parsedDueAt.valid ? <Text testID="task-due-date-error" accessibilityRole="alert" allowFontScaling style={[styles.helper, { color: colors.destructive }]}>أدخل تاريخاً صحيحاً بصيغة سنة-شهر-يوم، مثل 2026-08-28.</Text> : null}
       <Text allowFontScaling style={[styles.label, { color: colors.foreground }]}>الأولوية</Text>
       <View style={styles.options}>{priorities.map(([value, label]) => <Pressable testID={`task-priority-${value}`} key={value} disabled={busy || refreshingTaskConflict} onPress={() => { setPriority(value); resetTaskEditReview(); }} style={[styles.option, { backgroundColor: priority === value ? colors.primary : colors.muted }]}><Text allowFontScaling style={[styles.optionText, { color: priority === value ? colors.primaryForeground : colors.foreground }]}>{label}</Text></Pressable>)}</View>
       <Text allowFontScaling style={[styles.label, { color: colors.foreground }]}>المكلّف بالمهمة (اختياري)</Text>
