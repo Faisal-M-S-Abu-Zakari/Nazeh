@@ -312,6 +312,79 @@ test("task sync list preserves milliseconds in an offset dueAt", async () => {
   }
 });
 
+test("task sync list preserves the updated instant in an offset dueAt", async () => {
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise<void>((resolve, reject) => {
+    server.once("listening", resolve);
+    server.once("error", reject);
+  });
+  const address = server.address();
+  assert(address && typeof address === "object");
+  const baseUrl = `http://127.0.0.1:${address.port}/api`;
+  const [manager] = await db.select().from(staffUsers)
+    .where(eq(staffUsers.email, "manager@alaqsa.local")).limit(1);
+  assert(manager?.active);
+  const token = `offset-task-update-date-${randomUUID()}`;
+  const tokenHash = hashToken(token);
+  const idempotencyKey = randomUUID();
+  const dueAt = "2030-02-28T17:45:00+05:30";
+  let taskId: string | undefined;
+  const headers = {
+    authorization: `Bearer ${token}`,
+    "content-type": "application/json",
+    "Idempotency-Key": idempotencyKey,
+  };
+
+  try {
+    await db.insert(sessions).values({
+      userId: manager.id,
+      tokenHash,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const [task] = await db.insert(tasks).values({
+      title: `updated-offset-due-date-${randomUUID()}`,
+      description: "Integration test task with an updated offset dueAt",
+      location: "integration-test",
+      createdById: manager.id,
+      dueAt: new Date("2030-02-27T12:00:00.000Z"),
+    }).returning();
+    taskId = task.id;
+
+    const response = await fetch(`${baseUrl}/sync/tasks/${task.id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        dueAt,
+        expectedVersion: task.version,
+      }),
+    });
+    assert.equal(response.status, 200);
+
+    const listResponse = await fetch(`${baseUrl}/sync/tasks`, { headers });
+    assert.equal(listResponse.status, 200);
+    const listedTasks = await listResponse.json() as Array<{ id: string; dueAt: string | null; version: number }>;
+    const listedTask = listedTasks.find((entry) => entry.id === task.id);
+    assert(listedTask, "updated task should appear in the sync task list");
+    assert.equal(listedTask.version, task.version + 1);
+    assert(listedTask.dueAt, "listed task should include its updated dueAt");
+    assert.equal(
+      new Date(listedTask.dueAt).toISOString(),
+      new Date(dueAt).toISOString(),
+      "listed dueAt must represent the same instant as the updated offset timestamp",
+    );
+  } finally {
+    if (taskId) {
+      await db.delete(syncAuditEvents).where(eq(syncAuditEvents.entityId, taskId));
+      await db.delete(tasks).where(eq(tasks.id, taskId));
+    }
+    await db.delete(idempotencyKeys).where(eq(idempotencyKeys.key, idempotencyKey));
+    await db.delete(sessions).where(eq(sessions.tokenHash, tokenHash));
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => error ? reject(error) : resolve()),
+    );
+  }
+});
+
 test("idempotent response-loss retries and optimistic status conflicts", async () => {
   const server = app.listen(0, "127.0.0.1");
   await new Promise<void>((resolve, reject) => {
