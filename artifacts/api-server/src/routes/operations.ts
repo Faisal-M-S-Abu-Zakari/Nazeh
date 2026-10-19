@@ -468,6 +468,11 @@ router.post("/tasks", allowRoles(...taskManagers), async (req, res): Promise<voi
 });
 
 router.patch("/tasks/:taskId", allowRoles(...taskReaders), async (req, res): Promise<void> => {
+  const dueAt = (req.body as { dueAt?: unknown } | null)?.dueAt;
+  if (dueAt != null && !syncTaskDueAtInput.safeParse(dueAt).success) {
+    res.status(400).json({ error: "dueAt must be a valid ISO 8601 date-time" });
+    return;
+  }
   const params = parseRequest(UpdateTaskStatusParams, req.params, res);
   const body = parseRequest(UpdateTaskStatusBody, req.body, res);
   if (!params || !body) return;
