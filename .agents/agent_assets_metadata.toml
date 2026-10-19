@@ -36,3 +36,31 @@ mtime_ms = 1789287115840
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:f36bfd94-ea83-442c-818d-c1056b3c4cfe/fb127040-d1e1-48bb-8897-eb861335e933/3897de12-0b8d-44de-a184-d0839435d923"
 storage_version_token = "1789287151318465"
 content_type = "image/png"
+
+[[outputs]]
+id = "jk97rsCe1Q1Uw1nqZx6bv"
+uri = "file://generated-artifacts/al-aqsa-camp-roles-report-ar.pdf"
+type = "pdf"
+title = "تقرير التطبيق والأدوار والصلاحيات — PDF"
+description = "تقرير عربي من 14 صفحة يشرح التطبيق وهدفه، وصلاحيات كل دور وحدوده، ودورات العمل، والفروق بين الموقع والموبايل، وقائمة تحقق للتسليم."
+logical_id = "8fc5834c-a0b5-4e88-8f6d-ed55d915df68"
+content_hash = "sha256:f34e7ab6bda7f2dd862d7b20a684872605388cd636f963492027fa8540712e14"
+size = 109640
+mtime_ms = 1792401307992
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:f36bfd94-ea83-442c-818d-c1056b3c4cfe/8fc5834c-a0b5-4e88-8f6d-ed55d915df68/717c7b3e-0b7e-4e60-89c7-eb137d4430f2"
+storage_version_token = "1792401333890773"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "QPBbWnPyIpt5CuaHjfBVP"
+uri = "file://generated-artifacts/al-aqsa-camp-roles-report-ar.docx"
+type = "word_document"
+title = "تقرير التطبيق والأدوار والصلاحيات — Word"
+description = "نسخة عربية قابلة للتعديل من التقرير، تتضمن جدول مقارنة الصلاحيات وملاحظات المراجعة قبل التسليم."
+logical_id = "8f0a8019-b883-4f58-9db9-2b40f4ef959c"
+content_hash = "sha256:16b15f160cc76d9d5b18f59f4d9572449429201cb6469f6de3a411f6685f40a1"
+size = 13035
+mtime_ms = 1792401298896
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:f36bfd94-ea83-442c-818d-c1056b3c4cfe/8f0a8019-b883-4f58-9db9-2b40f4ef959c/fdf61514-9cab-4df4-b5a7-502c57449926"
+storage_version_token = "1792401334519631"
+content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
