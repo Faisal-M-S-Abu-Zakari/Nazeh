@@ -156,6 +156,70 @@ test("updating a task rejects invalid dueAt without changing the task or version
   }
 });
 
+test("creating a task preserves the instant in an offset dueAt", async () => {
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise<void>((resolve, reject) => {
+    server.once("listening", resolve);
+    server.once("error", reject);
+  });
+  const address = server.address();
+  assert(address && typeof address === "object");
+  const baseUrl = `http://127.0.0.1:${address.port}/api`;
+  const [manager] = await db.select().from(staffUsers)
+    .where(eq(staffUsers.email, "manager@alaqsa.local")).limit(1);
+  assert(manager?.active);
+  const token = `offset-task-date-${randomUUID()}`;
+  const tokenHash = hashToken(token);
+  const idempotencyKey = randomUUID();
+  const title = `offset-due-date-${randomUUID()}`;
+  const dueAt = "2030-02-28T17:45:00+05:30";
+  const headers = {
+    authorization: `Bearer ${token}`,
+    "content-type": "application/json",
+    "Idempotency-Key": idempotencyKey,
+  };
+
+  try {
+    await db.insert(sessions).values({
+      userId: manager.id,
+      tokenHash,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const response = await fetch(`${baseUrl}/sync/tasks`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        title,
+        description: "Integration test task with offset dueAt",
+        location: "integration-test",
+        priority: "MEDIUM",
+        dueAt,
+      }),
+    });
+    assert.equal(response.status, 201);
+
+    const [storedTask] = await db.select().from(tasks).where(eq(tasks.title, title));
+    assert(storedTask, "task should be persisted");
+    assert.equal(
+      storedTask.dueAt?.toISOString(),
+      new Date(dueAt).toISOString(),
+      "stored dueAt must represent the same instant as the submitted offset timestamp",
+    );
+  } finally {
+    const createdTasks = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.title, title));
+    if (createdTasks.length) {
+      const taskIds = createdTasks.map((task) => task.id);
+      await db.delete(syncAuditEvents).where(inArray(syncAuditEvents.entityId, taskIds));
+      await db.delete(tasks).where(inArray(tasks.id, taskIds));
+    }
+    await db.delete(idempotencyKeys).where(eq(idempotencyKeys.key, idempotencyKey));
+    await db.delete(sessions).where(eq(sessions.tokenHash, tokenHash));
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => error ? reject(error) : resolve()),
+    );
+  }
+});
+
 test("idempotent response-loss retries and optimistic status conflicts", async () => {
   const server = app.listen(0, "127.0.0.1");
   await new Promise<void>((resolve, reject) => {
