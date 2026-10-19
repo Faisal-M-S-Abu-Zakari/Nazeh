@@ -27,6 +27,70 @@ import app from "./app";
 import { hashToken } from "./middlewares/auth";
 import { hashPassword } from "./lib/security";
 
+test("creating a task rejects invalid dueAt without persisting a partial task", async () => {
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise<void>((resolve, reject) => {
+    server.once("listening", resolve);
+    server.once("error", reject);
+  });
+  const address = server.address();
+  assert(address && typeof address === "object");
+  const baseUrl = `http://127.0.0.1:${address.port}/api`;
+  const [manager] = await db.select().from(staffUsers)
+    .where(eq(staffUsers.email, "manager@alaqsa.local")).limit(1);
+  assert(manager?.active);
+  const token = `invalid-task-date-${randomUUID()}`;
+  const tokenHash = hashToken(token);
+  const idempotencyKey = randomUUID();
+  const title = `invalid-due-date-${randomUUID()}`;
+  const headers = {
+    authorization: `Bearer ${token}`,
+    "content-type": "application/json",
+    "Idempotency-Key": idempotencyKey,
+  };
+
+  try {
+    await db.insert(sessions).values({
+      userId: manager.id,
+      tokenHash,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const response = await fetch(`${baseUrl}/sync/tasks`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        title,
+        description: "Integration test task",
+        location: "integration-test",
+        priority: "MEDIUM",
+        dueAt: "2030-02-31T12:00:00.000Z",
+      }),
+    });
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), {
+      error: "dueAt must be a valid ISO 8601 date-time",
+    });
+
+    const createdTasks = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.title, title));
+    assert.equal(createdTasks.length, 0, "invalid dueAt must not create a task");
+  } finally {
+    const partialTasks = await db
+      .select({ id: tasks.id })
+      .from(tasks)
+      .where(eq(tasks.title, title));
+    if (partialTasks.length) {
+      const partialTaskIds = partialTasks.map((task) => task.id);
+      await db.delete(syncAuditEvents).where(inArray(syncAuditEvents.entityId, partialTaskIds));
+      await db.delete(tasks).where(inArray(tasks.id, partialTaskIds));
+    }
+    await db.delete(idempotencyKeys).where(eq(idempotencyKeys.key, idempotencyKey));
+    await db.delete(sessions).where(eq(sessions.tokenHash, tokenHash));
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => error ? reject(error) : resolve()),
+    );
+  }
+});
+
 test("idempotent response-loss retries and optimistic status conflicts", async () => {
   const server = app.listen(0, "127.0.0.1");
   await new Promise<void>((resolve, reject) => {

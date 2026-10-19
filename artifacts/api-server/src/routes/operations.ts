@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { and, asc, count, desc, eq, inArray, isNull, sql, sum } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { z } from "zod";
 import {
   ArchiveAidBody,
   ArchiveAidParams,
@@ -136,6 +137,7 @@ const recordManagers: StaffRole[] = ["ADMIN", "MANAGER", "DELEGATE"];
 const complaintReaders: StaffRole[] = [...recordManagers, "SECURITY_OFFICER", "SECURITY_MEMBER"];
 const taskManagers: StaffRole[] = ["ADMIN", "MANAGER", "SECURITY_OFFICER"];
 const taskReaders: StaffRole[] = [...taskManagers, "SECURITY_MEMBER"];
+const syncTaskDueAtInput = z.iso.datetime({ offset: true });
 
 router.use(requireAuth);
 
@@ -447,6 +449,11 @@ router.get("/security-officers", allowRoles(...taskManagers), async (_req, res):
 });
 
 router.post("/tasks", allowRoles(...taskManagers), async (req, res): Promise<void> => {
+  const dueAt = (req.body as { dueAt?: unknown } | null)?.dueAt;
+  if (dueAt != null && !syncTaskDueAtInput.safeParse(dueAt).success) {
+    res.status(400).json({ error: "dueAt must be a valid ISO 8601 date-time" });
+    return;
+  }
   const body = parseRequest(CreateSyncTaskBody, req.body, res);
   if (!body) return;
   const actorId = res.locals["staff"].id as string;
