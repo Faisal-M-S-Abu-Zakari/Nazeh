@@ -30,3 +30,10 @@ test('task creation uses the strict date parser and displays a clear validation 
   assert.match(taskFormSource, /task-due-date-error/);
   assert.doesNotMatch(taskFormSource, /new Date\(dueAt\)\.toISOString\(\)/);
 });
+
+test('a synchronized task creation announces success in the native app', () => {
+  assert.match(
+    taskFormSource,
+    /Alert\.alert\(result\.queued \? 'بانتظار المزامنة' : 'تم إنشاء المهمة', result\.queued \? 'حُفظت المهمة على الجهاز وستُرسل عند عودة الاتصال\.' : 'تمت مزامنة المهمة مع الفريق\.'\)/,
+  );
+});

@@ -1,0 +1,118 @@
+import { expect, test, type Page } from '@playwright/test';
+import bcrypt from 'bcrypt';
+import { randomUUID } from 'node:crypto';
+import { eq } from 'drizzle-orm';
+import {
+  db,
+  sessions,
+  staffUsers,
+  syncAuditEvents,
+  tasks,
+  type StaffRole,
+} from '@workspace/db';
+
+const expoUrl = process.env.EXPO_E2E_URL;
+const userId = randomUUID();
+const email = `task265-mobile-${randomUUID()}@example.invalid`;
+const password = `Task265-${randomUUID()}!`;
+const suffix = randomUUID().slice(0, 8);
+const emptyDateTitle = `مهمة بلا موعد ${suffix}`;
+const validDateTitle = `مهمة بموعد صحيح ${suffix}`;
+const validDueDate = '2027-02-28';
+
+async function signIn(page: Page) {
+  await page.goto(expoUrl!);
+  await page.getByTestId('home-login').click();
+  await page.locator('[data-testid="login-email"]:visible').fill(email);
+  await page.locator('[data-testid="login-password"]:visible').fill(password);
+  await page.getByTestId('login-submit').click();
+  await expect(page.getByTestId('home-login')).toHaveCount(0);
+  await page.getByText('التنبيهات', { exact: true }).last().click();
+  await expect(page.getByText('المهام الأمنية', { exact: true })).toBeVisible();
+}
+
+test.beforeAll(async () => {
+  expect(expoUrl, 'Set EXPO_E2E_URL to the running Expo web URL').toBeTruthy();
+  await db.insert(staffUsers).values({
+    id: userId,
+    email,
+    name: 'مسؤول أمن لاختبار المهام',
+    passwordHash: await bcrypt.hash(password, 12),
+    role: 'SECURITY_OFFICER' satisfies StaffRole,
+  });
+});
+
+test.afterAll(async () => {
+  await db.delete(syncAuditEvents).where(eq(syncAuditEvents.actorStaffId, userId));
+  await db.delete(tasks).where(eq(tasks.createdById, userId));
+  await db.delete(sessions).where(eq(sessions.userId, userId));
+  await db.delete(staffUsers).where(eq(staffUsers.id, userId));
+});
+
+test('security officer creates tasks with empty and valid due dates and sees both after reload', async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    viewport: { width: 400, height: 720 },
+    deviceScaleFactor: 1,
+  });
+  const page = await context.newPage();
+
+  try {
+    await signIn(page);
+
+    const createTask = async (title: string, dueDate: string) => {
+      await page.getByTestId('add-task').click();
+      await page.getByTestId('task-title').fill(title);
+      await page.getByTestId('task-description').fill(`تفاصيل ${title}`);
+      await page.getByTestId('task-location').fill('القطاع الشمالي');
+      await page.getByTestId('task-due-date').fill(dueDate);
+
+      const saveButton = page.getByTestId('save-task');
+      await expect(saveButton).toBeEnabled();
+      const createResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          new URL(response.url()).pathname === '/api/sync/tasks' &&
+          response.status() === 201,
+      );
+      await saveButton.click();
+      const response = await createResponse;
+      const payload = response.request().postDataJSON() as { dueAt: string | null };
+      await expect(page.getByText(title, { exact: true }).filter({ visible: true })).toBeVisible();
+      return payload;
+    };
+
+    const noDatePayload = await createTask(emptyDateTitle, '');
+    expect(noDatePayload.dueAt).toBeNull();
+
+    const validDatePayload = await createTask(validDateTitle, validDueDate);
+    expect(validDatePayload.dueAt).toBe(`${validDueDate}T00:00:00.000Z`);
+
+    const savedTasks = await db
+      .select({ title: tasks.title, dueAt: tasks.dueAt })
+      .from(tasks)
+      .where(eq(tasks.createdById, userId));
+    expect(savedTasks).toEqual(
+      expect.arrayContaining([
+        { title: emptyDateTitle, dueAt: null },
+        { title: validDateTitle, dueAt: new Date(`${validDueDate}T00:00:00.000Z`) },
+      ]),
+    );
+
+    const refreshedTasks = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        new URL(response.url()).pathname === '/api/sync/tasks' &&
+        response.ok(),
+    );
+    await page.reload();
+    await refreshedTasks;
+    await expect(page.getByTestId('home-login')).toHaveCount(0);
+    await page.getByText('التنبيهات', { exact: true }).last().click();
+    await expect(page.getByText(emptyDateTitle, { exact: true }).filter({ visible: true })).toBeVisible();
+    await expect(page.getByText(validDateTitle, { exact: true }).filter({ visible: true })).toBeVisible();
+  } finally {
+    await context.close();
+  }
+});
