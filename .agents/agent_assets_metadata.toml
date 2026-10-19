@@ -64,3 +64,31 @@ mtime_ms = 1792401298896
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:f36bfd94-ea83-442c-818d-c1056b3c4cfe/8f0a8019-b883-4f58-9db9-2b40f4ef959c/fdf61514-9cab-4df4-b5a7-502c57449926"
 storage_version_token = "1792401334519631"
 content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+[[outputs]]
+id = "43_JOulk_EcKb27xbrDat"
+uri = "file://generated-artifacts/al-aqsa-camp-engineer-introduction-ar.pdf"
+type = "pdf"
+title = "دليل المهندس للتعرّف إلى تطبيق نازح — PDF"
+description = "نسخة تعريفية من 11 صفحة موجّهة مباشرة إلى المهندس، تشرح التطبيق وأقسامه وأدوار مستخدميه، مع مثال عملي وجولة أولى مقترحة."
+logical_id = "9b116e1c-b4c2-417d-a1f7-42a7d50b54ac"
+content_hash = "sha256:edddd9d603372a6d6f46645f68c7e6ae9ecc2c0a832c5201e6f8aabf77f428f4"
+size = 84802
+mtime_ms = 1792401675641
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:f36bfd94-ea83-442c-818d-c1056b3c4cfe/9b116e1c-b4c2-417d-a1f7-42a7d50b54ac/e7cf325d-dfff-497f-bcec-26e049a44dd4"
+storage_version_token = "1792401690698148"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "yuc27uwoy_H0DN-Xp9NnL"
+uri = "file://generated-artifacts/al-aqsa-camp-engineer-introduction-ar.docx"
+type = "word_document"
+title = "دليل المهندس للتعرّف إلى تطبيق نازح — Word"
+description = "نسخة قابلة للتعديل من الدليل التعريفي، مناسبة لإرسالها إلى المهندس المسؤول عن تجربة التطبيق."
+logical_id = "16c753c9-5d9e-458b-86b5-9e2ad460950f"
+content_hash = "sha256:157b2def872afcc76ef034c7462c5a346b63d4de6064ce92c570051379033dfd"
+size = 10065
+mtime_ms = 1792401666497
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:f36bfd94-ea83-442c-818d-c1056b3c4cfe/16c753c9-5d9e-458b-86b5-9e2ad460950f/706c15d8-dc16-4ba0-a31c-1f221b71c894"
+storage_version_token = "1792401691400877"
+content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
