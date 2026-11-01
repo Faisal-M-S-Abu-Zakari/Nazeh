@@ -26,3 +26,23 @@ packages = ["glib", "nss", "nspr", "atk", "at-spi2-atk", "at-spi2-core", "cups",
 [userenv]
 
 [userenv.production]
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 8081
+externalPort = 8081
+
+[[ports]]
+localPort = 18895
+externalPort = 3000
+
+[[ports]]
+localPort = 24109
+externalPort = 3001
+
+[[ports]]
+localPort = 26215
+externalPort = 80
