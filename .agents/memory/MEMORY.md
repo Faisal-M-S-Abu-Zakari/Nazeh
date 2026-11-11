@@ -34,3 +34,4 @@
 - [Family archive and transfer races](family-archive-transfer-race.md) — when archive wins, a competing move can use the freed place; when move wins, it must be rejected before archive leaves the shelter empty.
 - [Family import test formatting](family-import-test-formatting.md) — keep focused edits in the PostgreSQL import suite's established style; autoformatting without its own config creates broad unrelated diffs.
 - [Task deadline timezone semantics](task-deadline-timezone.md) — mobile date-only deadlines mean local midnight; preserve unchanged API instants and format them in the device timezone.
+- [Dependency upgrade compatibility](dependency-upgrade-compatibility.md) — security updates must preserve parent module-export contracts and the current native SDK line.

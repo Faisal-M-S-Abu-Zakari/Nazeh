@@ -9,7 +9,7 @@ import TextAlign from '@tiptap/extension-text-align';
 import Superscript from '@tiptap/extension-superscript';
 import Subscript from '@tiptap/extension-subscript';
 import Color from '@tiptap/extension-color';
-import TextStyle from '@tiptap/extension-text-style';
+import { TextStyle } from '@tiptap/extension-text-style';
 import { Box, LoadingOverlay, Text } from '@mantine/core';
 import { useEffect } from 'react';
 
@@ -28,7 +28,7 @@ export default function Rich_TextEditor_Wrapper({
 }: Props) {
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({ link: false, underline: false }),
       Underline,
       Link,
       Superscript,
@@ -39,6 +39,7 @@ export default function Rich_TextEditor_Wrapper({
       Color,
     ],
     content,
+    immediatelyRender: false,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
   });
 
